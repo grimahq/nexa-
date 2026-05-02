@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@layer base {
+  @media print {
+    /* Hide everything by default for printing */
+    body * {
+      visibility: hidden;
+    }
+    
+    /* Only show the receipt area */
+    .receipt-print-area, .receipt-print-area * {
+      visibility: visible;
+    }
+    
+    /* Position the receipt at the top left */
+    .receipt-print-area {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      padding: 0;
+      margin: 0;
+    }
+
+    /* Optional: hide background colors if needed for better contrast on black/white printers */
+    body {
+      background: white !important;
+    }
+    
+    /* Remove shadow and borders if any during print */
+    .receipt-print-area {
+      border: none !important;
+      box-shadow: none !important;
+    }
+  }
+}
