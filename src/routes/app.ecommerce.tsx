@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Globe, Link2, Share2, Copy, ExternalLink, QrCode, Landmark } from "lucide-react";
+import { Globe, Link2, Share2, Copy, ExternalLink, QrCode, Landmark, Layers, ShieldAlert, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useItems } from "@/hooks/useInventoryData";
 import { toast } from "sonner";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { Badge } from "@/components/ui/badge";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 export const Route = createFileRoute("/app/ecommerce")({
   component: EcommercePage,
@@ -15,6 +16,7 @@ function EcommercePage() {
   const { data: items } = useItems({ status: "active" });
   const ecommerceItems = items.filter(i => i.isEcommerceEnabled);
   const { settings } = useSystemSettings();
+  const { flags } = useFeatureFlags();
 
   const storeUrl = settings.storeSlug 
     ? `${window.location.origin}/store/${settings.storeSlug}`
@@ -66,6 +68,37 @@ function EcommercePage() {
           </Button>
         </div>
       </div>
+
+      {/* B2B Marketplace Banner Section */}
+      <Card className="border border-sky-500/10 bg-gradient-to-r from-sky-500/5 to-primary/5 shadow-none rounded-xl">
+        <CardContent className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="space-y-1.5 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-[10px] uppercase tracking-wider text-sky-600 dark:text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full">B2B Wholesale Module</span>
+              {!flags.b2bMarketplace && (
+                <span className="font-bold text-[9px] uppercase bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full flex items-center gap-1">🔒 Enterprise Plan</span>
+              )}
+            </div>
+            <h2 className="text-base font-bold tracking-tight text-foreground flex items-center gap-1.5">
+              <Layers className="h-4 w-4 text-sky-500" /> Regional Supplier Directory & Bulk Sourcing
+            </h2>
+            <p className="text-xs text-muted-foreground max-w-xl leading-relaxed">
+              Connect directly with authorized wholesalers and factories across Lagos, Abuja, and Kano. Instantly import product catalogs, compare bulk prices, and synchronize shipments with your local warehouses.
+            </p>
+          </div>
+          <div className="flex-shrink-0">
+            {flags.b2bMarketplace ? (
+              <Button onClick={() => toast.success("Accessing regional wholesale networks...")} className="bg-primary text-white text-xs gap-1 h-9">
+                Browse Suppliers <ExternalLink className="h-3.5 w-3.5" />
+              </Button>
+            ) : (
+              <Button onClick={() => toast.error(`Feature Gated: The B2B Wholesale Marketplace is an Enterprise feature. Your current ${flags.planName} does not include supplier matching. Upgrade to unlock direct factory sourcing.`)} variant="outline" className="border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 text-xs gap-1.5 h-9 font-semibold">
+                <ShieldAlert className="h-3.5 w-3.5 text-amber-600" /> Unlock Supplier Sourcing
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {ecommerceItems.length === 0 ? (
         <Card className="border-dashed">

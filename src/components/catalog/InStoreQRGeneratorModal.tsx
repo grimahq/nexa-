@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDemo } from "@/hooks/useDemo";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
-import { useCategories } from "@/hooks/useInventoryData";
+import { useCategories, useLocations } from "@/hooks/useInventoryData";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +39,7 @@ export function InStoreQRGeneratorModal({ open, onOpenChange }: InStoreQRGenerat
   const { isDemo, onboarding: demoOnboarding } = useDemo();
   const { settings: liveSettings } = useSystemSettings();
   const { data: categories } = useCategories();
+  const { data: locations } = useLocations();
 
   const activeSettings = isDemo ? demoOnboarding : liveSettings;
   const storeSlug = activeSettings.storeSlug || "sample-store";
@@ -47,9 +48,17 @@ export function InStoreQRGeneratorModal({ open, onOpenChange }: InStoreQRGenerat
   const [sector, setSector] = useState<"restaurant" | "supermarket" | "pharmacy" | "vet" | "retail">("restaurant");
   const [label, setLabel] = useState("Table 1");
   const [targetCategory, setTargetCategory] = useState<string>("all");
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("main");
   const [coordinates, setCoordinates] = useState({ lat: "6.5244", lng: "3.3792" }); // Lagos default
 
   const isDevUrl = window.location.origin.includes("ais-dev-");
+
+  const qrSourceId = useMemo(() => {
+    const branchPart = selectedBranchId || "main";
+    const sectorPart = sector || "general";
+    const labelPart = (label || "general").trim().toLowerCase().replace(/[^a-z0-9]/g, "_");
+    return `qrs_${storeSlug}_${branchPart}_${sectorPart}_${labelPart}`;
+  }, [storeSlug, selectedBranchId, sector, label]);
 
   // Computed URL point for the scanning customer
   const generatedUrl = useMemo(() => {
@@ -73,8 +82,10 @@ export function InStoreQRGeneratorModal({ open, onOpenChange }: InStoreQRGenerat
       baseUrl += `&lat=${coordinates.lat}&lng=${coordinates.lng}`;
     }
 
+    baseUrl += `&qrSourceId=${qrSourceId}`;
+
     return baseUrl;
-  }, [storeSlug, sector, label, targetCategory, coordinates]);
+  }, [storeSlug, sector, label, targetCategory, coordinates, qrSourceId]);
 
   const downloadQR = () => {
     const svg = document.getElementById("instore-qr-svg");
@@ -275,6 +286,25 @@ export function InStoreQRGeneratorModal({ open, onOpenChange }: InStoreQRGenerat
                 </Button>
               </div>
             </div>
+
+            {locations && locations.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="qr-branch" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assign to Branch/Location</Label>
+                <select
+                  id="qr-branch"
+                  value={selectedBranchId}
+                  onChange={(e) => setSelectedBranchId(e.target.value)}
+                  className="w-full h-11 px-3 border border-input rounded-md bg-background text-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                >
+                  <option value="main">Main Storefront / Headquarters</option>
+                  {locations.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="qr-label" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">

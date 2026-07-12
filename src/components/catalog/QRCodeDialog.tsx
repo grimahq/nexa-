@@ -20,7 +20,8 @@ interface QRCodeDialogProps {
 export function QRCodeDialog({ item, trigger }: QRCodeDialogProps) {
   const isDevUrl = window.location.origin.includes("ais-dev-");
   // Append source=qr for CRM tracking
-  const orderUrl = getPublicUrl(`${window.location.origin}/store/product/${item.id}?source=qr`);
+  const qrSourceId = `qrs_${item.storeId || "store"}_product_${item.id}`;
+  const orderUrl = getPublicUrl(`${window.location.origin}/store/product/${item.id}?source=qr&qrSourceId=${qrSourceId}`);
 
   const downloadQR = () => {
     const svg = document.getElementById(`qr-${item.id}`);

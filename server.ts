@@ -168,6 +168,127 @@ Provide the response as clean structured JSON.`;
     }
   });
 
+  // API Endpoint for Centralized Subscription Feature-Flag Resolution
+  app.get("/api/subscription/resolve-feature-flags/:storeId", async (req, res) => {
+    const { storeId } = req.params;
+    if (!storeId) {
+      return res.status(400).json({ error: "storeId is required" });
+    }
+
+    try {
+      const { initializeApp: serverInitApp } = await import("firebase/app");
+      const { getFirestore: serverGetFirestore } = await import("firebase/firestore");
+      const firebaseConfig = await import("./firebase-applet-config.json");
+      const { resolveFeatureFlags } = await import("./src/utils/subscriptionUtils");
+
+      const serverApp = serverInitApp(firebaseConfig.default);
+      const serverDb = serverGetFirestore(serverApp);
+
+      const resolved = await resolveFeatureFlags(serverDb, storeId);
+      return res.json(resolved);
+    } catch (err) {
+      console.warn("Centralized feature flags resolution error (falling back to starter):", err);
+      return res.json({
+        pricingMode: false,
+        crossBranchVisibility: false,
+        b2bMarketplace: false,
+        maxBranches: 1,
+        planName: "Starter Plan",
+        planId: "starter",
+        status: "trialing"
+      });
+    }
+  });
+
+  interface StoreState {
+    valuationNgn?: number;
+    healthScore?: number;
+  }
+
+  // API Endpoint for Super Admin AI Agent Chat and System Grounding
+  app.post("/api/super-admin/agent-chat", async (req, res) => {
+    const { message, history = [], state = {} } = req.body;
+    if (!message) {
+      return res.status(400).json({ error: "Message is required" });
+    }
+
+    if (!ai) {
+      // Elegant fallback response if GEMINI_API_KEY is not available
+      return res.json({
+        reply: `### Nexa Root AI Agent (Local Sandbox Mode)
+
+System connection offline (missing \`GEMINI_API_KEY\` environment variable). I am operating on local heuristics.
+
+**Consolidated Enterprise State Analysed:**
+- **Store Branches:** ${state?.stores?.length || 0} registered (Total Valuation: ₦${(state?.stores?.reduce((sum: number, s: StoreState) => sum + (s.valuationNgn || 0), 0) || 0).toLocaleString()})
+- **System Users:** ${state?.users?.length || 0} active credentials
+- **Recent Telemetry:** ${state?.logs?.length || 0} audit logs tracked
+- **WhatsApp Webhook:** \`${state?.whatsapp?.webhookUrl || "None"}\` (${state?.whatsapp?.webhookStatus || "disconnected"})
+
+**Recommended Next Steps:**
+1. Configure your \`GEMINI_API_KEY\` inside the Secrets manager to unlock advanced natural language auditing.
+2. Monitor branch health score; currently, ${state?.stores?.filter((s: StoreState) => (s.healthScore || 0) < 80).length || 0} branches require attention.
+3. Keep logs backing up regularly in the **Backups & Maintenance** tab.`
+      });
+    }
+
+    try {
+      const systemInstruction = `You are "Nexa Root System AI Coordinator", the primary autonomous backend agent governing nexaOS - a sophisticated multi-tenant SaaS inventory command center in Nigeria.
+You have root-level permissions over all tenants, users, WhatsApp webhook routing, and audit logs.
+
+Here is the exact current live system state (JSON) of the SaaS platform:
+Stores / Branches:
+${JSON.stringify(state?.stores || [], null, 2)}
+
+User Accounts:
+${JSON.stringify(state?.users || [], null, 2)}
+
+System Settings (WhatsApp):
+${JSON.stringify(state?.whatsapp || {}, null, 2)}
+
+Audit Logs:
+${JSON.stringify(state?.logs || [], null, 2)}
+
+Provide intelligent, precise, and professional responses. Since you are talking to the Super Admin (nexatechnologies.dev@gmail.com), you should keep a highly technical, competent, yet helpful tone.
+Use markdown to format your response with headings, bullet points, and code blocks as appropriate.
+
+You can:
+1. Provide diagnostic summaries of branches or users.
+2. Recommend inventory rebalancing between branches based on valuation or items.
+3. Suggest WhatsApp template optimizations or webhook health checks.
+4. Give security analysis of the logs (e.g., flagging suspicious adjustments, role modifications or status changes).
+5. If the admin asks to "audit", look through the provided logs and highlight anomalies.
+
+If they ask to perform direct database modifications like "Provision a store for Lekki" or "Suspend Mike", explain that since this is a secure sandbox, you can generate the exact JSON code snippet or API command for them to copy and run, or guide them to the correct tab. Keep responses under 400 words.`;
+
+      // Construct the contents using the history + current message
+      const contents = [
+        ...history.map((msg: { role: string; content: string }) => ({
+          role: msg.role === "user" ? "user" : "model",
+          parts: [{ text: msg.content }]
+        })),
+        {
+          role: "user",
+          parts: [{ text: message }]
+        }
+      ];
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        },
+      });
+
+      res.json({ reply: response.text || "No response received" });
+    } catch (error) {
+      console.error("Agents chat server error:", error);
+      res.status(500).json({ error: "Failed to generate AI response from Gemini 3.5 Flash" });
+    }
+  });
+
   // Vite middleware or production build router serving
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

@@ -26,7 +26,7 @@ function SuperAdminUsers() {
   // Form states
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "manager" | "requestor">("manager");
+  const [role, setRole] = useState<"admin" | "manager">("manager");
   const [storeId, setStoreId] = useState("");
 
   const filteredUsers = useMemo(() => {
@@ -251,10 +251,9 @@ function SuperAdminUsers() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="user-role" className="text-xs font-semibold">System Authorization Role</Label>
-              <select id="user-role" value={role} onChange={e => setRole(e.target.value as "admin" | "manager" | "requestor")} className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none">
+              <select id="user-role" value={role} onChange={e => setRole(e.target.value as "admin" | "manager")} className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none">
                 <option value="manager">Store Manager (POS & Inventory control)</option>
                 <option value="admin">Store Admin (Full branch permissions)</option>
-                <option value="requestor">Requestor (Staff Requisitions only)</option>
               </select>
             </div>
             <div className="space-y-1.5">
@@ -292,10 +291,9 @@ function SuperAdminUsers() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="edit-user-role" className="text-xs font-semibold">System Authorization Role</Label>
-              <select id="edit-user-role" value={role} onChange={e => setRole(e.target.value as "admin" | "manager" | "requestor")} className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none">
+              <select id="edit-user-role" value={role} onChange={e => setRole(e.target.value as "admin" | "manager")} className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none">
                 <option value="manager">Store Manager (POS & Inventory control)</option>
                 <option value="admin">Store Admin (Full branch permissions)</option>
-                <option value="requestor">Requestor (Staff Requisitions only)</option>
               </select>
             </div>
             <div className="space-y-1.5">

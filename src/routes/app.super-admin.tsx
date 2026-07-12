@@ -10,6 +10,9 @@ import {
   Activity,
   Database,
   FileDown,
+  Bot,
+  CreditCard,
+  QrCode,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -182,6 +185,9 @@ export function SuperAdminLayout() {
     { label: "Store Branches", href: "/app/super-admin/stores", icon: Building2 },
     { label: "User Administration", href: "/app/super-admin/users", icon: Users },
     { label: "WhatsApp API Hub", href: "/app/super-admin/updates", icon: MessageSquare },
+    { label: "AI Agents Hub", href: "/app/super-admin/agents", icon: Bot },
+    { label: "Subscriptions", href: "/app/super-admin/subscriptions", icon: CreditCard },
+    { label: "QR Attribution", href: "/app/super-admin/attribution", icon: QrCode },
     { label: "Backups & Maintenance", href: "/app/super-admin/landing", icon: Database },
   ];
 

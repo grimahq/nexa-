@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useItems, useCategories } from "@/hooks/useInventoryData";
 import { QRCodeSVG } from "qrcode.react";
+import { logQRLeadEvent } from "@/utils/qrTracking";
 import { 
   ShoppingBag, 
   Search, 
@@ -52,6 +53,24 @@ function PublicStorefront() {
   
   const onboarding = isDemo ? demoOnboarding : liveSettings;
   const [search, setSearch] = useState("");
+
+  // Log QR scan lead event if qrSourceId is present
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const qrSourceId = params.get("qrSourceId");
+    if (qrSourceId && onboarding) {
+      const parts = qrSourceId.split("_");
+      const branchId = parts[2] && parts[2] !== "main" ? parts[2] : null;
+      const storeId = onboarding.id || onboarding.storeSlug || slug || "sample-store";
+      
+      logQRLeadEvent({
+        qrSourceId,
+        storeId,
+        branchId,
+        eventType: "scan"
+      });
+    }
+  }, [onboarding, slug]);
 
   const queryParams = useMemo(() => {
     if (typeof window === "undefined") return new URLSearchParams();

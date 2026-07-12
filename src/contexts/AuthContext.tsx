@@ -199,13 +199,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             // If DB is empty OR it's the dev account OR the user clicked "Create New Store"
             const inviteStoreId = sessionStorage.getItem("nexa_invite_storeId");
-            const inviteRole = sessionStorage.getItem("nexa_invite_role") || "requestor";
+            const inviteRole = sessionStorage.getItem("nexa_invite_role") || "manager";
 
-            const shouldBeAdmin = !inviteStoreId && (allUsersSnap.empty || isCreateStoreFlow || isDevAccount);
-            const newRole = inviteStoreId ? inviteRole : (shouldBeAdmin ? "admin" : "requestor");
+            const shouldBeAdmin = !inviteStoreId;
+            const newRole = inviteStoreId ? inviteRole : "admin";
             const regName = sessionStorage.getItem("nexa_reg_name");
             
-            const newStoreId = inviteStoreId ? inviteStoreId : (shouldBeAdmin ? u.uid : null);
+            const newStoreId = inviteStoreId ? inviteStoreId : u.uid;
 
             const newProfile: UserProfile = {
               id: u.uid,
@@ -284,10 +284,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const isDevAccount = u.email === 'nexatechnologies.dev@gmail.com';
           const regName = sessionStorage.getItem("nexa_reg_name");
           const inviteStoreId = sessionStorage.getItem("nexa_invite_storeId");
-          const inviteRole = sessionStorage.getItem("nexa_invite_role") || "requestor";
+          const inviteRole = sessionStorage.getItem("nexa_invite_role") || "manager";
 
-          const newRole = inviteStoreId ? inviteRole : ((isDevAccount || isCreateStoreFlow) ? "admin" : "requestor");
-          const newStoreId = inviteStoreId ? inviteStoreId : (newRole === "admin" ? u.uid : "fallback-store");
+          const newRole = inviteStoreId ? inviteRole : "admin";
+          const newStoreId = inviteStoreId ? inviteStoreId : u.uid;
 
           const fallbackProfile: UserProfile = {
             id: u.uid,

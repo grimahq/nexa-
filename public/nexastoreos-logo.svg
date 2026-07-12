@@ -1,0 +1,36 @@
+<svg viewBox="0 0 210 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 
+    NexaStoreOS Logo Assets
+    Deliverable contains:
+    1. Full horizontal lockup (ID: nexastoreos-full-lockup)
+    2. Icon-only mark (ID: nexastoreos-icon-only)
+  -->
+
+  <!-- Linear Gradient Definitions -->
+  <defs>
+    <linearGradient id="nexaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00B4D8" />
+      <stop offset="50%" stop-color="#2563EB" />
+      <stop offset="100%" stop-color="#1A3FBF" />
+    </linearGradient>
+  </defs>
+
+  <!-- VERSION 1: Full Horizontal Lockup (y-offset: 0px) -->
+  <g id="nexastoreos-full-lockup" transform="translate(0, 0)">
+    <!-- Icon Mark Portion -->
+    <g transform="translate(2, 4)">
+      <path d="M 8 25 C 8 16 9.5 7 12 7 L 19.5 24" stroke="url(#nexaGrad)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M 21.5 24 C 23.2 17 24.5 12 24.5 7" stroke="#00B4D8" stroke-width="4.5" stroke-linecap="round" />
+    </g>
+    <!-- Wordmark Portion -->
+    <text x="38" y="26" fill="#1A3FBF" font-family="Montserrat, Poppins, sans-serif" font-weight="900" font-size="19px" letter-spacing="-0.5px">Nexa</text>
+    <text x="84" y="26" fill="#00B4D8" font-family="Montserrat, Poppins, sans-serif" font-weight="800" font-size="19px" letter-spacing="-0.5px">Store</text>
+    <text x="137" y="26" fill="#475569" font-family="Montserrat, Poppins, sans-serif" font-weight="700" font-size="19px" letter-spacing="-0.5px">OS</text>
+  </g>
+
+  <!-- VERSION 2: Icon-Only Mark (y-offset: 40px) -->
+  <g id="nexastoreos-icon-only" transform="translate(0, 40)">
+    <path d="M 8 25 C 8 16 9.5 7 12 7 L 19.5 24" stroke="url(#nexaGrad)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 21.5 24 C 23.2 17 24.5 12 24.5 7" stroke="#00B4D8" stroke-width="4.5" stroke-linecap="round" />
+  </g>
+</svg>

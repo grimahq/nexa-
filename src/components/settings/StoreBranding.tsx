@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Palette, Upload, Save, QrCode, Download, Printer, Copy, Check, ExternalLink } from "lucide-react";
 import { getPublicUrl } from "@/lib/utils";
+import { NexaLogo } from "@/components/shared/NexaLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,7 +50,8 @@ export function StoreBranding() {
   };
 
   const storeSlug = activeSettings.storeSlug || "general";
-  const rawShopUrl = `${window.location.origin}/store/${storeSlug}`;
+  const qrSourceId = `qrs_${storeSlug}_main`;
+  const rawShopUrl = `${window.location.origin}/store/${storeSlug}?qrSourceId=${qrSourceId}`;
   const shopUrl = getPublicUrl(rawShopUrl);
   const isDevUrl = window.location.origin.includes("ais-dev-");
 
@@ -118,42 +120,15 @@ export function StoreBranding() {
       ctx.lineTo(700, 910);
       ctx.stroke();
 
-      // 5. Powered by Nexa Digital Solutions LTD
-      const rx = 240, ry = 955, rw = 40, rh = 40, rrad = 8;
-      ctx.beginPath();
-      ctx.moveTo(rx + rrad, ry);
-      ctx.lineTo(rx + rw - rrad, ry);
-      ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + rrad);
-      ctx.lineTo(rx + rw, ry + rh - rrad);
-      ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - rrad, ry + rh);
-      ctx.lineTo(rx + rrad, ry + rh);
-      ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - rrad);
-      ctx.lineTo(rx, ry + rrad);
-      ctx.quadraticCurveTo(rx, ry, rx + rrad, ry);
-      ctx.closePath();
-      
-      const grad = ctx.createLinearGradient(rx, ry, rx + rw, ry + rh);
-      grad.addColorStop(0, "#0d9488");
-      grad.addColorStop(1, "#d97706");
-      ctx.fillStyle = grad;
-      ctx.fill();
+      // 5. Powered by NexaStoreOS
+      ctx.fillStyle = "#94a3b8"; // Slate 400
+      ctx.textAlign = "center";
+      ctx.font = "bold 14px sans-serif";
+      ctx.fillText("POWERED BY", 400, 955);
 
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 4;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.beginPath();
-      ctx.moveTo(rx + 11, ry + 29);
-      ctx.lineTo(rx + 11, ry + 11);
-      ctx.lineTo(rx + 21, ry + 24);
-      ctx.lineTo(rx + 21, ry + 11);
-      ctx.lineTo(rx + 29, ry + 29);
-      ctx.stroke();
-
-      ctx.fillStyle = "#64748b";
-      ctx.textAlign = "left";
-      ctx.font = "600 22px sans-serif";
-      ctx.fillText("Powered by Nexa Digital Solutions LTD", 300, 982);
+      ctx.fillStyle = "#1A3FBF"; // Deep Royal Blue
+      ctx.font = "900 26px sans-serif";
+      ctx.fillText("NexaStoreOS", 400, 995);
 
       const pngFile = canvas.toDataURL("image/png");
       const downloadLink = document.createElement("a");
@@ -288,13 +263,22 @@ export function StoreBranding() {
               <div class="instruction">ONLINE CATALOG &amp; CHECKOUT</div>
               <div class="sub-instruction">⚡ ORDER &amp; PAY SECURELY FROM YOUR DEVICE</div>
               
-              <div class="nexa-footer">
-                <div class="nexa-logo">
-                  <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M8 24V8L16 18V8L24 24" stroke="white" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
+              <div class="nexa-footer" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; margin-top: 16px;">
+                <div style="font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em;">Powered by</div>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                  <svg style="height: 20px;" viewBox="0 0 210 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="translate(2, 4)">
+                      <path d="M 8 25 C 8 16 9.5 7 12 7 L 19.5 24" stroke="#2563EB" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M 21.5 24 C 23.2 17 24.5 12 24.5 7" stroke="#00B4D8" stroke-width="4.5" stroke-linecap="round" />
+                    </g>
+                    <text x="38" y="26" fill="#1A3FBF" font-family="Montserrat, Poppins, sans-serif" font-weight="900" font-size="19px" letter-spacing="-0.5px">Nexa</text>
+                    <text x="84" y="26" fill="#00B4D8" font-family="Montserrat, Poppins, sans-serif" font-weight="800" font-size="19px" letter-spacing="-0.5px">Store</text>
+                    <text x="137" y="26" fill="#475569" font-family="Montserrat, Poppins, sans-serif" font-weight="700" font-size="19px" letter-spacing="-0.5px">OS</text>
                   </svg>
                 </div>
-                <span class="nexa-text">Powered by Nexa Digital Solutions LTD</span>
+                <div style="font-size: 10px; font-weight: 600; color: #2563EB; margin-top: 4px;">
+                  Get NexaStoreOS for your shop &middot; www.nexaos.com
+                </div>
               </div>
             </div>
           </div>
@@ -442,16 +426,16 @@ export function StoreBranding() {
               <div className="border-t border-slate-100 my-4" />
 
               {/* Powered by Nexa Footer */}
-              <div className="flex items-center justify-center gap-1.5">
-                <div className="h-6 w-6 rounded-md bg-gradient-to-br from-teal-500 to-amber-500 flex items-center justify-center shrink-0">
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M8 24V8L16 18V8L24 24" stroke="white" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-                <div className="text-left">
-                  <div className="text-[8px] font-semibold text-slate-400">POWERED BY</div>
-                  <div className="text-[9px] font-bold text-slate-600 leading-none">Nexa Digital Solutions LTD</div>
-                </div>
+              <div className="flex flex-col items-center justify-center gap-1">
+                <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-widest">Powered by</div>
+                <a 
+                  href={`${import.meta.env.VITE_LANDING_URL || "https://nexastoreos.com"}/?utm_source=qr_flyer_preview&utm_medium=merchant_settings&utm_campaign=${encodeURIComponent(storeSlug)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:opacity-80 transition-opacity"
+                >
+                  <NexaLogo variant="full" height={16} className="text-foreground shrink-0" />
+                </a>
               </div>
             </div>
           </div>

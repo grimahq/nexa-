@@ -37,7 +37,7 @@ export function UserManagement() {
   const [search, setSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<RoleType>("requestor");
+  const [inviteRole, setInviteRole] = useState<RoleType>("manager");
   const [inviteError, setInviteError] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [linkRole, setLinkRole] = useState<RoleType>("manager");
@@ -91,7 +91,7 @@ export function UserManagement() {
         });
       }
       toast.success(`User ${email} created successfully`);
-      setInviteOpen(false); setInviteEmail(""); setInviteRole("requestor"); setInviteError("");
+      setInviteOpen(false); setInviteEmail(""); setInviteRole("manager"); setInviteError("");
     } catch (err) {
       toast.error("Failed to create user");
       handleFirestoreError(err, OperationType.CREATE, "users");
@@ -190,7 +190,6 @@ export function UserManagement() {
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="manager">Inventory Manager</SelectItem>
-                    <SelectItem value="requestor">Requestor</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -209,7 +208,6 @@ export function UserManagement() {
                     <SelectContent>
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="manager">Inventory Manager</SelectItem>
-                      <SelectItem value="requestor">Requestor</SelectItem>
                     </SelectContent>
                   </Select>
                   
@@ -346,7 +344,6 @@ export function UserManagement() {
                 <SelectContent>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="manager">Inventory Manager</SelectItem>
-                  <SelectItem value="requestor">Requestor</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -365,7 +362,6 @@ export function UserManagement() {
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="manager">Inventory Manager</SelectItem>
-                    <SelectItem value="requestor">Requestor</SelectItem>
                   </SelectContent>
                 </Select>
                 
@@ -474,9 +470,6 @@ function RoleDropdown({ user, currentUserId, adminCount, isLastAdmin, onChangeRo
         </SelectItem>
         <SelectItem value="manager">
           <div className="flex items-center gap-1.5"><Shield className="h-3.5 w-3.5" />Inventory Manager</div>
-        </SelectItem>
-        <SelectItem value="requestor">
-          <div className="flex items-center gap-1.5"><User className="h-3.5 w-3.5" />Requestor</div>
         </SelectItem>
       </SelectContent>
     </Select>

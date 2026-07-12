@@ -23,6 +23,7 @@ import {
   ShieldAlert,
   Building2,
   MessageSquare,
+  Bot,
 } from "lucide-react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
@@ -121,6 +122,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         { label: "Stores", href: "/app/super-admin/stores", icon: Building2 },
         { label: "Users", href: "/app/super-admin/users", icon: Users },
         { label: "Updates", href: "/app/super-admin/updates", icon: MessageSquare },
+        { label: "AI Agents", href: "/app/super-admin/agents", icon: Bot },
         { label: "Landing", href: "/app/super-admin/landing", icon: Globe },
       ],
     }] : []),

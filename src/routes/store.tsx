@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useDemo } from "@/hooks/useDemo";
 import { Item } from "@/types/inventory";
+import { NexaLogo } from "@/components/shared/NexaLogo";
+import { logQRLeadEvent } from "@/utils/qrTracking";
 
 interface CartItem extends Item {
   quantity: number;
@@ -40,7 +42,32 @@ function StoreLayout() {
       localStorage.setItem("stackwise_affiliate_id", affId);
       console.log("Tracking affiliate ID:", affId);
     }
-  }, [location.search, tableNumber]);
+
+    const qrSourceIdParam = params.get("qrSourceId");
+    if (qrSourceIdParam) {
+      localStorage.setItem("nexa_current_qr_source_id", qrSourceIdParam);
+      const storeSlug = onboarding?.storeSlug || "general";
+      const storeId = onboarding?.id || storeSlug;
+      localStorage.setItem("nexa_current_qr_store_id", storeId);
+      console.log("Customer QR source detected:", qrSourceIdParam);
+    }
+  }, [location.search, tableNumber, onboarding]);
+
+  const handleCtaClick = () => {
+    const savedQrId = localStorage.getItem("nexa_current_qr_source_id") || new URLSearchParams(window.location.search).get("qrSourceId");
+    if (savedQrId) {
+      const parts = savedQrId.split("_");
+      const branchId = parts[2] && parts[2] !== "main" ? parts[2] : null;
+      const storeSlug = onboarding?.storeSlug || "general";
+      const storeId = localStorage.getItem("nexa_current_qr_store_id") || onboarding?.id || storeSlug;
+      logQRLeadEvent({
+        qrSourceId: savedQrId,
+        storeId,
+        branchId,
+        eventType: "cta_click"
+      });
+    }
+  };
 
   // Sync cart count
   useEffect(() => {
@@ -195,8 +222,33 @@ function StoreLayout() {
             </div>
           </div>
         </div>
-        <div className="container mx-auto px-4 mt-12 pt-8 border-t text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} {onboarding.storeName || "My Store"}. Built with Nexa OS.
+        <div className="container mx-auto px-4 mt-12 pt-8 border-t flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
+          <div>
+            © {new Date().getFullYear()} {onboarding.storeName || "My Store"}. All rights reserved.
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase font-semibold text-neutral-400">Powered by</span>
+            <a 
+              href={`${import.meta.env.VITE_LANDING_URL || "https://nexastoreos.com"}/?utm_source=qr_footer&utm_medium=customer_store&utm_campaign=${encodeURIComponent(onboarding.storeSlug || "general")}${tableNumber ? `&utm_content=table_${encodeURIComponent(tableNumber)}` : ""}`}
+              target="_blank" 
+              rel="noopener noreferrer" 
+              onClick={handleCtaClick}
+              className="inline-flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+            >
+              <NexaLogo variant="full" height={16} className="text-foreground shrink-0" />
+              <span className="sr-only">NexaStoreOS</span>
+            </a>
+            <span className="text-neutral-300">|</span>
+            <a 
+              href={`${import.meta.env.VITE_LANDING_URL || "https://nexastoreos.com"}/?utm_source=qr_footer_cta&utm_medium=customer_store&utm_campaign=${encodeURIComponent(onboarding.storeSlug || "general")}${tableNumber ? `&utm_content=table_${encodeURIComponent(tableNumber)}` : ""}`}
+              target="_blank" 
+              rel="noopener noreferrer" 
+              onClick={handleCtaClick}
+              className="text-[11px] font-medium text-primary hover:underline"
+            >
+              Get it for your shop
+            </a>
+          </div>
         </div>
       </footer>
     </div>

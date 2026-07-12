@@ -167,5 +167,22 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
+
+    // ─── SUBSCRIPTION PLANS ─────────────────────────────
+    match /subscriptionPlans/{planId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── SUBSCRIPTION EVENTS ────────────────────────────
+    match /subscriptionEvents/{eventId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ─── QR LEAD EVENTS ──────────────────────────────────
+    match /qrLeadEvents/{eventId} {
+      allow read: if isSignedIn();
+      allow create: if true;
+    }
   }
 }

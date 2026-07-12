@@ -173,9 +173,78 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "name"]
+    },
+    "SubscriptionPlan": {
+      "title": "Subscription Plan",
+      "description": "Single source of truth for what each tier unlocks.",
+      "type": "object",
+      "properties": {
+        "planId": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "billingCycle": { "type": "string", "enum": ["monthly", "yearly"] },
+        "featureFlags": {
+          "type": "object",
+          "properties": {
+            "pricingMode": { "type": "boolean" },
+            "crossBranchVisibility": { "type": "boolean" },
+            "b2bMarketplace": { "type": "boolean" },
+            "maxBranches": { "type": "number" }
+          }
+        },
+        "isActive": { "type": "boolean" },
+        "sortOrder": { "type": "number" }
+      },
+      "required": ["planId", "name", "price", "billingCycle", "featureFlags", "isActive", "sortOrder"]
+    },
+    "SubscriptionEvent": {
+      "title": "Subscription Event",
+      "description": "An audit log of subscription changes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "storeId": { "type": "string" },
+        "eventType": { "type": "string" },
+        "fromPlan": { "type": "string" },
+        "toPlan": { "type": "string" },
+        "actorId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "reason": { "type": "string" }
+      },
+      "required": ["id", "storeId", "eventType", "actorId", "timestamp"]
+    },
+    "QRLeadEvent": {
+      "title": "QR Lead Event",
+      "description": "Log of QR scan or CTA click event for attribution tracking.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "qrSourceId": { "type": "string" },
+        "storeId": { "type": "string" },
+        "branchId": { "type": "string", "nullable": true },
+        "eventType": { "type": "string", "enum": ["scan", "cta_click"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "qrSourceId", "storeId", "eventType", "timestamp"]
     }
   },
   "firestore": {
+    "stores": {
+        "schema": "object",
+        "description": "Multi-tenant store configurations and subscription details."
+    },
+    "subscriptionPlans": {
+        "schema": "SubscriptionPlan",
+        "description": "List of available subscription tiers and feature-flags."
+    },
+    "subscriptionEvents": {
+        "schema": "SubscriptionEvent",
+        "description": "Audit trail logs for store subscription changes."
+    },
+    "qrLeadEvents": {
+        "schema": "QRLeadEvent",
+        "description": "Log of QR code scans and CTA click actions."
+    },
     "users": {
         "schema": "User",
         "description": "Root collection for users."

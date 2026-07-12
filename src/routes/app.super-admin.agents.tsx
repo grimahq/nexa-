@@ -1,0 +1,549 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useSuperAdminContext, SuperStore, SuperUser, SystemLog } from "./app.super-admin";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Bot,
+  Play,
+  Pause,
+  RefreshCw,
+  Sliders,
+  Send,
+  Terminal,
+  Check,
+  Loader2,
+  Sparkles,
+  Wand2,
+  MessageSquare,
+  ShieldAlert,
+  Activity,
+  ArrowRightLeft
+} from "lucide-react";
+import { toast } from "sonner";
+
+export const Route = createFileRoute("/app/super-admin/agents")({
+  component: SuperAdminAgents,
+});
+
+interface AutonomousAgent {
+  id: string;
+  name: string;
+  description: string;
+  icon: typeof Bot;
+  status: "running" | "idle" | "paused";
+  lastExecuted: string;
+  frequency: string;
+  target: string;
+  runCount: number;
+}
+
+interface ChatMessage {
+  role: "user" | "model";
+  content: string;
+  timestamp: string;
+}
+
+function SuperAdminAgents() {
+  const { superStores, superUsers, logs, setLogs, whatsapp } = useSuperAdminContext();
+
+  // Agent State definitions
+  const [agents, setAgents] = useState<AutonomousAgent[]>([
+    {
+      id: "agent-1",
+      name: "Autonomous Reorder Suggester",
+      description: "Scans inventory velocity across all branches. Automatically generates pending PO sheets for sub-optimal items.",
+      icon: Activity,
+      status: "running",
+      lastExecuted: "2026-05-24 14:30:22",
+      frequency: "Every 12 Hours",
+      target: "All 4 Active Branches",
+      runCount: 42
+    },
+    {
+      id: "agent-2",
+      name: "WhatsApp Sales Assistant Bot",
+      description: "Auto-replies to customer product queries and processes manual WhatsApp order requests in real-time.",
+      icon: MessageSquare,
+      status: "idle",
+      lastExecuted: "2026-05-24 15:18:11",
+      frequency: "Real-time trigger",
+      target: "Lekki Outlet, Abuja Hub",
+      runCount: 184
+    },
+    {
+      id: "agent-3",
+      name: "SaaS Auditing & Security Auditor",
+      description: "Passes log files through Gemini 3.5 Flash hourly to detect fraudulent adjustments, spikes, or anomalous hours.",
+      icon: ShieldAlert,
+      status: "running",
+      lastExecuted: "2026-05-24 15:00:00",
+      frequency: "Hourly Cron",
+      target: "Consolidated Logs Node",
+      runCount: 79
+    },
+    {
+      id: "agent-4",
+      name: "Market Sector Context Advisor",
+      description: "Generates localized market suggestions, currency hedge advisories, and pricing guides for Nigeria retail.",
+      icon: Wand2,
+      status: "paused",
+      lastExecuted: "2026-05-23 09:12:05",
+      frequency: "Weekly",
+      target: "Global System Scope",
+      runCount: 8
+    }
+  ]);
+
+  // Model & Core configurations
+  const [temperature, setTemperature] = useState<number>(0.7);
+  const [selectedModel, setSelectedModel] = useState<string>("gemini-3.5-flash");
+  const [systemPrompt, setSystemPrompt] = useState<string>(
+    "You are Nexa Root System AI Coordinator. Monitor and balance stock movements, audits, and WhatsApp marketing configurations. Ensure Peak performance across all tenant stores."
+  );
+
+  // Chat/Terminal states
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
+    {
+      role: "model",
+      content: `### Welcome to the Nexa Root System AI Agent Deck
+
+I am the **Nexa System Coordinator**, grounded directly into your multi-tenant SaaS live state.
+
+I have loaded:
+* **${superStores.length} Active Branches** (Ikeja, Surulere, Lekki, Abuja, etc.)
+* **${superUsers.length} Logged Staff Profiles**
+* **WhatsApp Gateway State** (Webhook: \`${whatsapp.webhookUrl}\`)
+
+**What would you like me to analyze?**
+* Try asking: *"Security Audit recent logs"* or *"Recommend stock rebalancing between Lekki and Ikeja"* or *"Evaluate Abuja Distribution Hub status"*`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+  ]);
+  const [userInput, setUserInput] = useState<string>("");
+  const [isSending, setIsSending] = useState<boolean>(false);
+  const [triggeringId, setTriggeringId] = useState<string | null>(null);
+
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory]);
+
+  // Toggle Agent Active Status
+  const handleToggleAgent = (agentId: string) => {
+    setAgents(prev =>
+      prev.map(a => {
+        if (a.id === agentId) {
+          const nextStatusMap: Record<AutonomousAgent["status"], AutonomousAgent["status"]> = {
+            running: "paused",
+            paused: "running",
+            idle: "paused"
+          };
+          const nextStatus = nextStatusMap[a.status];
+          toast.success(`"${a.name}" status updated to ${nextStatus.toUpperCase()}`);
+          
+          // Log inside Super Admin events
+          setLogs(logsPrev => [
+            {
+              id: `log-${Date.now()}`,
+              timestamp: new Date().toISOString(),
+              user: "nexatechnologies.dev@gmail.com",
+              action: `Toggled AI Agent "${a.name}" status to [${nextStatus.toUpperCase()}]`,
+              store: "AI System Deck",
+              status: nextStatus === "running" ? "success" : "info"
+            },
+            ...logsPrev
+          ]);
+
+          return { ...a, status: nextStatus };
+        }
+        return a;
+      })
+    );
+  };
+
+  // Trigger manual agent execution
+  const handleTriggerAgent = (agent: AutonomousAgent) => {
+    setTriggeringId(agent.id);
+    toast.loading(`Spinning up containers to run "${agent.name}"...`);
+
+    setTimeout(() => {
+      setAgents(prev =>
+        prev.map(a => {
+          if (a.id === agent.id) {
+            return {
+              ...a,
+              lastExecuted: new Date().toISOString().slice(0, 19).replace("T", " "),
+              runCount: a.runCount + 1,
+              status: a.status === "paused" ? "idle" : a.status
+            };
+          }
+          return a;
+        })
+      );
+
+      // Add to System Logs
+      const actionMessage = `Autonomous AI Agent run triggered manually: "${agent.name}". Executed container verification, generated analytical recommendations.`;
+      setLogs(logsPrev => [
+        {
+          id: `log-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          user: "nexatechnologies.dev@gmail.com",
+          action: actionMessage,
+          store: "AI System Deck",
+          status: "success"
+        },
+        ...logsPrev
+      ]);
+
+      setTriggeringId(null);
+      toast.dismiss();
+      toast.success(`"${agent.name}" run completed. Action logged to events feed!`);
+    }, 1500);
+  };
+
+  // Chat submission using server proxy API
+  const handleSendChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userInput.trim() || isSending) return;
+
+    const userMsg = userInput.trim();
+    setUserInput("");
+    setIsSending(true);
+
+    const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // Append user message
+    setChatHistory(prev => [...prev, { role: "user", content: userMsg, timestamp: nowStr }]);
+
+    try {
+      const response = await fetch("/api/super-admin/agent-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMsg,
+          history: chatHistory.map(m => ({ role: m.role, content: m.content })),
+          state: {
+            stores: superStores,
+            users: superUsers,
+            whatsapp,
+            logs: logs.slice(0, 15) // send top 15 logs for context
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Proxy response failed");
+      }
+
+      const data = await response.json();
+      setChatHistory(prev => [
+        ...prev,
+        {
+          role: "model",
+          content: data.reply,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+    } catch (error) {
+      console.error("Agents chat error:", error);
+      toast.error("Failed to connect with System Agent.");
+      setChatHistory(prev => [
+        ...prev,
+        {
+          role: "model",
+          content: "❌ **System Agent Error:** I failed to contact the backend server cluster. Please check that the Dev server is running or try again later.",
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Upper Grid: Agent status deck and Configurations */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Active Agents list */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold font-sans flex items-center gap-2">
+                <Bot className="h-5 w-5 text-primary" /> Autonomous Background Services
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Configure schedules and manual triggers for automated AI micro-agents.</p>
+            </div>
+            <Badge variant="outline" className="border-emerald-500/20 bg-emerald-500/10 text-emerald-500 font-mono text-[10px] font-bold uppercase">
+              {agents.filter(a => a.status === "running").length} Running
+            </Badge>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {agents.map(agent => {
+              const Icon = agent.icon;
+              const isTriggering = triggeringId === agent.id;
+              return (
+                <Card key={agent.id} className="shadow-none border border-muted-foreground/10 flex flex-col justify-between hover:border-primary/25 transition-all">
+                  <CardHeader className="p-4 pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                          <Icon className="h-4.5 w-4.5" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-sm font-bold font-sans">{agent.name}</CardTitle>
+                          <span className="text-[10px] text-muted-foreground block font-mono">Target: {agent.target}</span>
+                        </div>
+                      </div>
+                      <button onClick={() => handleToggleAgent(agent.id)} className="focus:outline-none">
+                        {agent.status === "running" && (
+                          <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20 text-[9px] font-bold uppercase">
+                            Active
+                          </Badge>
+                        )}
+                        {agent.status === "idle" && (
+                          <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 hover:bg-blue-500/20 text-[9px] font-bold uppercase">
+                            Idle
+                          </Badge>
+                        )}
+                        {agent.status === "paused" && (
+                          <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20 hover:bg-yellow-500/20 text-[9px] font-bold uppercase">
+                            Paused
+                          </Badge>
+                        )}
+                      </button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-1 pb-3 text-xs text-muted-foreground leading-relaxed">
+                    <p className="min-h-[40px]">{agent.description}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 pt-2 border-t border-muted-foreground/5 font-mono text-[10px]">
+                      <div>
+                        <span className="text-muted-foreground font-medium block">Schedule:</span>
+                        <span className="text-foreground font-semibold">{agent.frequency}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground font-medium block">Last Run:</span>
+                        <span className="text-foreground font-semibold truncate block" title={agent.lastExecuted}>
+                          {agent.lastExecuted.slice(5)}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="p-3 bg-muted/20 border-t border-muted-foreground/5 flex justify-between items-center">
+                    <span className="text-[9px] font-mono text-muted-foreground">Total Runs: <strong className="text-foreground">{agent.runCount}</strong></span>
+                    <div className="flex gap-1.5">
+                      <Button
+                        onClick={() => handleToggleAgent(agent.id)}
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-[10px]"
+                        title={agent.status === "running" ? "Pause agent" : "Start agent"}
+                      >
+                        {agent.status === "running" ? <Pause className="h-3 w-3 mr-1" /> : <Play className="h-3 w-3 mr-1" />}
+                        {agent.status === "running" ? "Pause" : "Resume"}
+                      </Button>
+                      <Button
+                        onClick={() => handleTriggerAgent(agent)}
+                        disabled={isTriggering}
+                        size="sm"
+                        className="h-7 px-2 text-[10px] bg-primary text-white font-semibold hover:bg-primary/90"
+                      >
+                        {isTriggering ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3 mr-1" />
+                        )}
+                        Run Now
+                      </Button>
+                    </div>
+                  </CardFooter>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Configurations Card */}
+        <Card className="shadow-none border border-muted-foreground/10 flex flex-col justify-between">
+          <div>
+            <CardHeader>
+              <CardTitle className="text-sm font-bold font-sans flex items-center gap-2">
+                <Sliders className="h-4.5 w-4.5 text-primary" /> Prompt Parameters
+              </CardTitle>
+              <CardDescription>Calibrate model weights, Core System prompts and hyper-parameters.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="model-select" className="text-[11px] font-semibold">Active LLM Model</Label>
+                <select
+                  id="model-select"
+                  value={selectedModel}
+                  onChange={e => setSelectedModel(e.target.value)}
+                  className="w-full h-8 rounded-md border border-input bg-background px-2.5 text-xs shadow-sm focus:outline-none"
+                >
+                  <option value="gemini-3.5-flash">Gemini 3.5 Flash (Fast, optimal)</option>
+                  <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Heavy analytical reasoning)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[11px] font-semibold">
+                  <Label htmlFor="temp-slider">Temperature Calibration</Label>
+                  <span className="font-mono text-primary font-bold">{temperature}</span>
+                </div>
+                <input
+                  id="temp-slider"
+                  type="range"
+                  min="0.1"
+                  max="1.0"
+                  step="0.1"
+                  value={temperature}
+                  onChange={e => setTemperature(parseFloat(e.target.value))}
+                  className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                />
+                <div className="flex justify-between text-[9px] text-muted-foreground font-mono">
+                  <span>Deterministic (0.1)</span>
+                  <span>Creative (1.0)</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="system-instruction" className="text-[11px] font-semibold">Base Agent Persona</Label>
+                <Textarea
+                  id="system-instruction"
+                  rows={4}
+                  value={systemPrompt}
+                  onChange={e => setSystemPrompt(e.target.value)}
+                  className="text-xs leading-relaxed font-sans"
+                  placeholder="Insert custom core system context..."
+                />
+              </div>
+            </CardContent>
+          </div>
+          <CardFooter className="pt-3 border-t border-muted-foreground/10 flex justify-between bg-muted/25 p-4">
+            <span className="text-[10px] text-muted-foreground font-mono">Endpoint: /api/agent-chat</span>
+            <Button onClick={() => toast.success("AI Prompt weights saved successfully!")} className="text-[10px] h-7 font-bold bg-secondary hover:bg-secondary/85 text-foreground">
+              Save Weights
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+
+      {/* Lower Section: Grounded AI Agent Terminal */}
+      <Card className="shadow-none border border-muted-foreground/10 flex flex-col h-[520px]">
+        <CardHeader className="p-4 border-b border-muted-foreground/10 flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded">
+              <Terminal className="h-4.5 w-4.5" />
+            </div>
+            <div>
+              <CardTitle className="text-sm font-bold font-sans">Enterprise Live State AI Auditor</CardTitle>
+              <p className="text-[10px] text-muted-foreground font-medium">Direct live natural-language pipeline feeding from consolidation logs and DB slices.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-mono text-[10px] text-emerald-500 font-bold uppercase">Root Secure Grounding Active</span>
+          </div>
+        </CardHeader>
+
+        {/* Messages feed */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/10 font-sans text-xs">
+          {chatHistory.map((chat, idx) => {
+            const isModel = chat.role === "model";
+            return (
+              <div key={idx} className={`flex ${isModel ? "justify-start" : "justify-end"}`}>
+                <div className={`max-w-[85%] rounded-lg p-3.5 space-y-1 shadow-sm leading-relaxed ${
+                  isModel
+                    ? "bg-background border border-muted-foreground/10 text-foreground"
+                    : "bg-emerald-600 text-white font-medium"
+                }`}>
+                  <div className="flex items-center justify-between gap-4 border-b border-muted-foreground/5 pb-1 mb-1.5 text-[9px] font-mono opacity-60">
+                    <span className="flex items-center gap-1">
+                      {isModel ? <Bot className="h-3 w-3 text-emerald-500" /> : <Users className="h-3 w-3" />}
+                      {isModel ? "NEXA ROOT AI COORDINATOR" : "SUPER ADMIN (ROOT)"}
+                    </span>
+                    <span>{chat.timestamp}</span>
+                  </div>
+                  {/* Simplistic markdown display rendering bold, header and bullets */}
+                  <div className="space-y-1.5 break-words whitespace-pre-wrap">
+                    {chat.content.split("\n").map((line, lIdx) => {
+                      if (line.startsWith("### ")) {
+                        return <h4 key={lIdx} className="text-sm font-bold font-sans text-foreground mt-2 pb-1 border-b border-muted-foreground/5">{line.replace("### ", "")}</h4>;
+                      }
+                      if (line.startsWith("**") && line.endsWith("**")) {
+                        return <p key={lIdx} className="font-bold text-foreground mt-1">{line.replace(/\*\*/g, "")}</p>;
+                      }
+                      if (line.startsWith("* ")) {
+                        return (
+                          <div key={lIdx} className="flex items-start gap-1.5 pl-2 mt-0.5">
+                            <span className="text-emerald-500 mt-1">•</span>
+                            <span>{line.replace("* ", "")}</span>
+                          </div>
+                        );
+                      }
+                      return <p key={lIdx}>{line}</p>;
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {isSending && (
+            <div className="flex justify-start">
+              <div className="bg-background border border-muted-foreground/10 text-foreground rounded-lg p-3 flex items-center gap-2 font-medium">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-500" />
+                <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">AI Coordinator is compiling logs & generating response...</span>
+              </div>
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* Interactive action suggest bar */}
+        <div className="px-4 py-2 bg-muted/20 border-t border-muted-foreground/10 flex flex-wrap gap-1.5">
+          <span className="text-[9px] text-muted-foreground font-mono font-medium py-1">Suggested telemetry requests:</span>
+          <button
+            onClick={() => setUserInput("Security Audit recent logs and flag anomalies")}
+            className="text-[10px] bg-background hover:bg-secondary border border-muted-foreground/10 rounded-full px-2.5 py-1 text-muted-foreground hover:text-foreground font-medium transition-colors"
+          >
+            Audit Recent Logs
+          </button>
+          <button
+            onClick={() => setUserInput("Analyze balance valuation and suggest stock rebalancing suggestions")}
+            className="text-[10px] bg-background hover:bg-secondary border border-muted-foreground/10 rounded-full px-2.5 py-1 text-muted-foreground hover:text-foreground font-medium transition-colors"
+          >
+            Rebalance Branch Valuation
+          </button>
+          <button
+            onClick={() => setUserInput("Suggest improvements to the WhatsApp Template or webhook health")}
+            className="text-[10px] bg-background hover:bg-secondary border border-muted-foreground/10 rounded-full px-2.5 py-1 text-muted-foreground hover:text-foreground font-medium transition-colors"
+          >
+            Optimise WhatsApp Hub
+          </button>
+        </div>
+
+        {/* Input box */}
+        <form onSubmit={handleSendChat} className="p-3 border-t border-muted-foreground/10 flex gap-2 bg-background rounded-b-lg">
+          <Input
+            value={userInput}
+            onChange={e => setUserInput(e.target.value)}
+            placeholder="Type operations query (e.g. 'Security Audit recent logs' or 'Perform inventory rebalance')"
+            className="text-xs h-9"
+            disabled={isSending}
+            required
+          />
+          <Button type="submit" disabled={isSending || !userInput.trim()} className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-sm text-xs">
+            <Send className="h-3.5 w-3.5" /> Send
+          </Button>
+        </form>
+      </Card>
+    </div>
+  );
+}
