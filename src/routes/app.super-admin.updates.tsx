@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { MessageSquare, Smartphone, Info, ExternalLink } from "lucide-react";
 import { getWhatsAppUrl } from "@/lib/whatsapp";
+import { db } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
 
 export const Route = createFileRoute("/app/super-admin/updates")({
   component: SuperAdminUpdates,
@@ -21,33 +23,51 @@ function SuperAdminUpdates() {
   const [testPhone, setTestPhone] = useState("");
   const [testMsg, setTestMsg] = useState("This is an authorized test dispatch from Stackwise System Root.");
 
-  const handleToggleReceipts = () => {
-    setWhatsapp(prev => ({ ...prev, enabledReceipts: !prev.enabledReceipts }));
-    toast.success(`WhatsApp POS receipt notifications ${!whatsapp.enabledReceipts ? 'enabled' : 'disabled'}`);
+  const handleToggleReceipts = async () => {
+    const nextVal = !whatsapp.enabledReceipts;
+    try {
+      await setDoc(doc(db, "settings", "whatsapp"), { ...whatsapp, enabledReceipts: nextVal }, { merge: true });
+      toast.success(`WhatsApp POS receipt notifications ${nextVal ? 'enabled' : 'disabled'}`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to save setting");
+    }
   };
 
-  const handleToggleAlerts = () => {
-    setWhatsapp(prev => ({ ...prev, enabledAlerts: !prev.enabledAlerts }));
-    toast.success(`WhatsApp reorder stock alert notifications ${!whatsapp.enabledAlerts ? 'enabled' : 'disabled'}`);
+  const handleToggleAlerts = async () => {
+    const nextVal = !whatsapp.enabledAlerts;
+    try {
+      await setDoc(doc(db, "settings", "whatsapp"), { ...whatsapp, enabledAlerts: nextVal }, { merge: true });
+      toast.success(`WhatsApp reorder stock alert notifications ${nextVal ? 'enabled' : 'disabled'}`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to save setting");
+    }
   };
 
-  const handleSaveConfig = (e: React.FormEvent) => {
+  const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLogs(prev => [
-      {
-        id: `log-${Date.now()}`,
+    try {
+      await setDoc(doc(db, "settings", "whatsapp"), whatsapp, { merge: true });
+      
+      const newLogId = `log-${Date.now()}`;
+      await setDoc(doc(db, "system_logs", newLogId), {
+        id: newLogId,
         timestamp: new Date().toISOString(),
         user: "nexatechnologies.dev@gmail.com",
         action: `Re-configured WhatsApp Webhook gateway to "${whatsapp.webhookUrl}"`,
         store: "System-wide",
         status: "success",
-      },
-      ...prev,
-    ]);
-    toast.success("WhatsApp API Hub configurations saved!");
+      });
+      
+      toast.success("WhatsApp API Hub configurations saved!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save config to database.");
+    }
   };
 
-  const handleDispatchTest = (e: React.FormEvent) => {
+  const handleDispatchTest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!testPhone) {
       toast.error("Please enter a destination phone number.");
@@ -57,20 +77,23 @@ function SuperAdminUpdates() {
     const cleanNum = testPhone.replace(/\D/g, '');
     const apiLink = getWhatsAppUrl(cleanNum, testMsg);
 
-    setLogs(prev => [
-      {
-        id: `log-${Date.now()}`,
+    try {
+      const newLogId = `log-${Date.now()}`;
+      await setDoc(doc(db, "system_logs", newLogId), {
+        id: newLogId,
         timestamp: new Date().toISOString(),
         user: "nexatechnologies.dev@gmail.com",
         action: `Fired WhatsApp Dispatcher payload to target: +${cleanNum}`,
         store: "System-wide",
         status: "info",
-      },
-      ...prev,
-    ]);
+      });
 
-    toast.success("Constructing WhatsApp dispatch link...");
-    window.open(apiLink, "_blank", "noopener,noreferrer");
+      toast.success("Constructing WhatsApp dispatch link...");
+      window.open(apiLink, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to log dispatch test.");
+    }
   };
 
   return (

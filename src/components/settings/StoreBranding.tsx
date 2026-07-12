@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Palette, Upload, Save, QrCode, Download, Printer, Copy, Check, ExternalLink } from "lucide-react";
-import { getPublicUrl } from "@/lib/utils";
+import { getPublicUrl, getStorefrontUrl } from "@/lib/utils";
 import { NexaLogo } from "@/components/shared/NexaLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,8 +51,7 @@ export function StoreBranding() {
 
   const storeSlug = activeSettings.storeSlug || "general";
   const qrSourceId = `qrs_${storeSlug}_main`;
-  const rawShopUrl = `${window.location.origin}/store/${storeSlug}?qrSourceId=${qrSourceId}`;
-  const shopUrl = getPublicUrl(rawShopUrl);
+  const shopUrl = getStorefrontUrl(storeSlug, "", { qrSourceId });
   const isDevUrl = window.location.origin.includes("ais-dev-");
 
   const copyUrl = () => {

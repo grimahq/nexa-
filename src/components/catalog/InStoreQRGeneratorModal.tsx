@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { getPublicUrl } from "@/lib/utils";
+import { getStorefrontUrl } from "@/lib/utils";
 import { 
   QrCode, 
   Download, 
@@ -62,29 +62,31 @@ export function InStoreQRGeneratorModal({ open, onOpenChange }: InStoreQRGenerat
 
   // Computed URL point for the scanning customer
   const generatedUrl = useMemo(() => {
-    let baseUrl = getPublicUrl(`${window.location.origin}/store/${storeSlug}?source=instore_qr`);
+    const queryParams: Record<string, string> = {
+      source: "instore_qr",
+      qrSourceId
+    };
     
     if (sector === "restaurant") {
-      baseUrl += `&table=${encodeURIComponent(label)}`;
+      queryParams.table = label;
     } else if (sector === "supermarket") {
-      baseUrl += `&aisle=${encodeURIComponent(label)}`;
+      queryParams.aisle = label;
     } else if (sector === "pharmacy") {
-      baseUrl += `&shelf=${encodeURIComponent(label)}`;
+      queryParams.shelf = label;
     } else {
-      baseUrl += `&section=${encodeURIComponent(label)}`;
+      queryParams.section = label;
     }
 
     if (targetCategory && targetCategory !== "all") {
-      baseUrl += `&cat=${encodeURIComponent(targetCategory)}`;
+      queryParams.cat = targetCategory;
     }
 
     if (coordinates.lat && coordinates.lng) {
-      baseUrl += `&lat=${coordinates.lat}&lng=${coordinates.lng}`;
+      queryParams.lat = coordinates.lat;
+      queryParams.lng = coordinates.lng;
     }
 
-    baseUrl += `&qrSourceId=${qrSourceId}`;
-
-    return baseUrl;
+    return getStorefrontUrl(storeSlug, "", queryParams);
   }, [storeSlug, sector, label, targetCategory, coordinates, qrSourceId]);
 
   const downloadQR = () => {

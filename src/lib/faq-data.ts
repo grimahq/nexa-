@@ -16,7 +16,7 @@ export const FAQ_DATA: FaqCategory[] = [
       { question: "How do I enter demo mode?", answer: "Click 'Try Demo' on the landing page. Demo mode pre-loads sample data so you can explore all features without creating an account." },
       { question: "How do I navigate the app?", answer: "Use the sidebar (desktop) or bottom navigation bar (mobile) to switch between sections. Press CMD+K to open the command palette for quick search." },
       { question: "Can I reset demo data?", answer: "Yes! Go to Settings → System and click 'Reset Demo Data' to restore all sample data to its original state." },
-      { question: "What roles are available?", answer: "Three roles: Admin (full access), Manager (can manage inventory and POs), and Requestor (can browse catalog and submit requests)." },
+      { question: "What roles are available?", answer: "Two roles: Admin (full access) and Inventory Manager (can manage inventory, sales, and requisitions)." },
     ],
   },
   {

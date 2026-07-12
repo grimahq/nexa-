@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { resolveFeatureFlagsSync } from "@/utils/subscriptionUtils";
 import type { FeatureFlags } from "@/types/subscription";
@@ -8,7 +9,8 @@ export interface ResolvedFeatureFlags extends FeatureFlags {
   status: string;
 }
 
-export function useFeatureFlags(): ResolvedFeatureFlags {
+export function useFeatureFlags(): { flags: ResolvedFeatureFlags } {
   const { settings } = useSystemSettings();
-  return resolveFeatureFlagsSync(settings);
+  const flags = useMemo(() => resolveFeatureFlagsSync(settings), [settings]);
+  return useMemo(() => ({ flags }), [flags]);
 }

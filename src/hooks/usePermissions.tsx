@@ -19,8 +19,8 @@ const ACTION_ROLES: Record<PermissionAction, UserRoleType[]> = {
   manage_users: ["admin"],
   view_analytics: ["admin"],
   export_data: ["admin"],
-  create_request: ["admin", "manager", "requestor"],
-  access_settings: ["admin", "manager", "requestor"],
+  create_request: ["admin", "manager"],
+  access_settings: ["admin", "manager"],
   manage_suppliers: ["admin"],
   can_view_dashboard: ["admin", "manager"],
 };

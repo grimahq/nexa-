@@ -324,7 +324,7 @@ function LandingPage() {
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                 </span>
                 <span>
-                  You are invited to join <strong className="font-semibold text-emerald-800 dark:text-white">{invitedStore.name}</strong> as an <strong className="text-emerald-700 dark:text-emerald-300 font-semibold">{invitedStore.role === 'manager' ? 'Inventory Manager' : invitedStore.role === 'admin' ? 'Admin' : 'Requestor'}</strong>.
+                  You are invited to join <strong className="font-semibold text-emerald-800 dark:text-white">{invitedStore.name}</strong> as an <strong className="text-emerald-700 dark:text-emerald-300 font-semibold">{invitedStore.role === 'admin' ? 'Admin' : 'Inventory Manager'}</strong>.
                 </span>
               </span>
               <button className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-full py-2 px-6 shadow-md w-full sm:w-auto text-xs active:scale-95 transition-transform" onClick={() => handleGetStarted()}>

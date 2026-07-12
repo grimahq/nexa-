@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDemo } from "@/hooks/useDemo";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, Mail, Lock, User, Play } from "lucide-react";
+import { Loader2, ShieldCheck, Mail, Lock, User, Play, KeyRound } from "lucide-react";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -23,17 +23,39 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ isOpen, onClose, defaultTab = "login" }: AuthModalProps) {
-  const { login, register } = useAuth();
+  const { login, register, sendPasswordReset } = useAuth();
   const { enterDemoMode } = useDemo();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<"login" | "signup">(defaultTab);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     name: "",
   });
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = resetEmail.trim();
+    if (!cleanEmail) {
+      toast.error("Please enter your email address");
+      return;
+    }
+    setResetLoading(true);
+    try {
+      await sendPasswordReset(cleanEmail);
+      setIsForgotPassword(false);
+    } catch (error: unknown) {
+      const err = error as Error;
+      toast.error(err.message || "Failed to send reset link");
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleAction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,20 +176,63 @@ export function AuthModal({ isOpen, onClose, defaultTab = "login" }: AuthModalPr
         <DialogHeader>
           <div className="flex justify-center mb-4">
             <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <ShieldCheck className="h-6 w-6 text-primary" />
+              {isForgotPassword ? (
+                <KeyRound className="h-6 w-6 text-primary" />
+              ) : (
+                <ShieldCheck className="h-6 w-6 text-primary" />
+              )}
             </div>
           </div>
           <DialogTitle className="text-center text-2xl font-bold">
-            {tab === "login" ? "Welcome back" : "Create your account"}
+            {isForgotPassword 
+              ? "Reset Password" 
+              : tab === "login" 
+                ? "Welcome back" 
+                : "Create your account"}
           </DialogTitle>
           <DialogDescription className="text-center">
-            {tab === "login" 
-              ? "Enter your credentials to access your store" 
-              : "Get started with Nexa OS and scale your business"}
+            {isForgotPassword 
+              ? "Enter your email address and we'll send you a recovery link"
+              : tab === "login" 
+                ? "Enter your credentials to access your store" 
+                : "Get started with Nexa OS and scale your business"}
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "login" | "signup")} className="mt-4">
+        {isForgotPassword ? (
+          <form onSubmit={handleResetPassword} className="space-y-4 mt-6">
+            <div className="space-y-2">
+              <Label htmlFor="reset-email">Email Address</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="reset-email"
+                  type="email"
+                  placeholder="name@company.com"
+                  className="pl-10"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={resetLoading}>
+              {resetLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Send Password Reset Link
+            </Button>
+
+            <Button 
+              type="button" 
+              variant="ghost" 
+              className="w-full text-muted-foreground hover:text-foreground text-xs"
+              onClick={() => setIsForgotPassword(false)}
+            >
+              Back to Login
+            </Button>
+          </form>
+        ) : (
+          <Tabs value={tab} onValueChange={(v) => setTab(v as "login" | "signup")} className="mt-4">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">Login</TabsTrigger>
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
@@ -208,7 +273,21 @@ export function AuthModal({ isOpen, onClose, defaultTab = "login" }: AuthModalPr
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                {tab === "login" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetEmail(formData.email);
+                      setIsForgotPassword(true);
+                    }}
+                    className="text-xs text-primary hover:underline font-medium focus:outline-none"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -249,6 +328,7 @@ export function AuthModal({ isOpen, onClose, defaultTab = "login" }: AuthModalPr
             )}
           </form>
         </Tabs>
+        )}
 
         <div className="mt-4 text-center text-xs text-muted-foreground">
           By continuing, you agree to our Terms of Service and Privacy Policy.

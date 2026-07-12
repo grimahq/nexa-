@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { cn, getPublicUrl } from "@/lib/utils";
 import type { DemoUser } from "@/lib/demo-store";
 
 type RoleType = DemoUser["role"];
@@ -60,7 +60,7 @@ export function UserManagement() {
   const storeName = settings?.storeName || "My Store";
 
   const getInviteLink = (role: RoleType) => {
-    const baseUrl = window.location.origin;
+    const baseUrl = getPublicUrl(window.location.origin);
     const storeIdStr = profile?.storeId || "demo-store";
     const storeNameStr = encodeURIComponent(storeName);
     return `${baseUrl}/?storeId=${storeIdStr}&storeName=${storeNameStr}&role=${role}`;

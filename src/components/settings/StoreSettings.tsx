@@ -35,7 +35,16 @@ export function StoreSettings() {
     setMoniepointKey(activeSettings.moniepointKey || "");
     setStoreSlug(activeSettings.storeSlug || "");
     setPricingMode(activeSettings.pricingMode || "single");
-  }, [activeSettings]);
+  }, [
+    activeSettings.storeName,
+    activeSettings.storePhone,
+    activeSettings.storeAddress,
+    activeSettings.receiptFooter,
+    activeSettings.taxRate,
+    activeSettings.moniepointKey,
+    activeSettings.storeSlug,
+    activeSettings.pricingMode
+  ]);
 
   const handleSave = async () => {
     if (pricingMode === "tiered" && !flags.pricingMode) {

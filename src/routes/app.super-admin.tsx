@@ -1,6 +1,9 @@
 import { createFileRoute, Link, useLocation, useNavigate, Outlet } from "@tanstack/react-router";
 import { useState, useEffect, useMemo, createContext, useContext } from "react";
 import { useRole } from "@/hooks/useRole";
+import { useDemo } from "@/hooks/useDemo";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot, doc, setDoc } from "firebase/firestore";
 import { toast } from "sonner";
 import {
   Building2,
@@ -136,10 +139,150 @@ export function SuperAdminLayout() {
     }
   }, [isSuperAdmin, navigate]);
 
+  const { isDemo } = useDemo();
+
   const [superStores, setSuperStores] = useState<SuperStore[]>(INITIAL_STORES);
   const [superUsers, setSuperUsers] = useState<SuperUser[]>(INITIAL_USERS);
   const [logs, setLogs] = useState<SystemLog[]>(INITIAL_LOGS);
   const [whatsapp, setWhatsapp] = useState<WhatsAppConfig>(INITIAL_WHATSAPP);
+
+  useEffect(() => {
+    if (isDemo || !isSuperAdmin) return;
+
+    // 1. Listen to 'stores' collection
+    const unsubStores = onSnapshot(collection(db, "stores"), async (snap) => {
+      if (snap.empty) {
+        console.log("Stores collection is empty, self-seeding INITIAL_STORES...");
+        try {
+          for (const s of INITIAL_STORES) {
+            await setDoc(doc(db, "stores", s.id), {
+              id: s.id,
+              storeName: s.name,
+              businessType: s.sector,
+              ownerName: s.manager,
+              ownerEmail: s.managerEmail,
+              valuationNgn: s.valuationNgn,
+              healthScore: s.healthScore,
+              alerts: s.alerts,
+              status: s.status,
+              isOnboarded: true,
+              createdAt: new Date().toISOString(),
+            });
+          }
+        } catch (err) {
+          console.error("Failed to self-seed INITIAL_STORES:", err);
+        }
+        return;
+      }
+
+      const list: SuperStore[] = [];
+      snap.forEach((doc) => {
+        const data = doc.data();
+        list.push({
+          id: doc.id,
+          name: data.storeName || data.name || "Unnamed Store",
+          sector: (data.businessType || "general") as SuperStore["sector"],
+          manager: data.ownerName || data.manager || "No Manager",
+          managerEmail: data.ownerEmail || data.managerEmail || "",
+          itemCount: data.itemCount || 0,
+          valuationNgn: data.valuationNgn || 0,
+          healthScore: data.healthScore !== undefined ? data.healthScore : 100,
+          alerts: data.alerts || 0,
+          status: (data.status || "active") as SuperStore["status"],
+        });
+      });
+      setSuperStores(list);
+    }, (err) => {
+      console.error("Error listening to stores collection:", err);
+    });
+
+    // 2. Listen to 'users' collection
+    const unsubUsers = onSnapshot(collection(db, "users"), async (snap) => {
+      if (snap.empty) {
+        console.log("Users collection is empty, self-seeding INITIAL_USERS...");
+        try {
+          for (const u of INITIAL_USERS) {
+            await setDoc(doc(db, "users", u.id), {
+              id: u.id,
+              name: u.name,
+              email: u.email,
+              role: u.role,
+              storeId: u.storeId,
+              storeName: u.storeName,
+              status: u.status,
+              onboardingCompleted: true,
+              createdAt: new Date().toISOString(),
+            });
+          }
+        } catch (err) {
+          console.error("Failed to self-seed INITIAL_USERS:", err);
+        }
+        return;
+      }
+
+      const list: SuperUser[] = [];
+      snap.forEach((doc) => {
+        const data = doc.data();
+        list.push({
+          id: doc.id,
+          name: data.name || "No Name",
+          email: data.email || "",
+          role: (data.role || "manager") as SuperUser["role"],
+          storeId: data.storeId || "",
+          storeName: data.storeName || "Unassigned",
+          joinedDate: data.createdAt?.slice(0, 10) || data.joinedAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+          status: (data.status || "active") as SuperUser["status"],
+        });
+      });
+      setSuperUsers(list);
+    }, (err) => {
+      console.error("Error listening to users collection:", err);
+    });
+
+    // 3. Listen to system logs
+    const unsubLogs = onSnapshot(collection(db, "system_logs"), (snap) => {
+      if (snap.empty) {
+        setLogs(INITIAL_LOGS);
+        return;
+      }
+      const list: SystemLog[] = [];
+      snap.forEach((doc) => {
+        const data = doc.data();
+        list.push({
+          id: doc.id,
+          timestamp: data.timestamp || new Date().toISOString(),
+          user: data.user || "system",
+          action: data.action || "",
+          store: data.store || "global",
+          status: (data.status || "info") as SystemLog["status"],
+        });
+      });
+      list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setLogs(list);
+    }, (err) => {
+      console.warn("Could not listen to system_logs collection, using static logs:", err);
+      setLogs(INITIAL_LOGS);
+    });
+
+    // 4. Listen to global WhatsApp settings
+    const unsubWhatsapp = onSnapshot(doc(db, "settings", "whatsapp"), (snap) => {
+      if (snap.exists()) {
+        setWhatsapp(snap.data() as WhatsAppConfig);
+      } else {
+        setWhatsapp(INITIAL_WHATSAPP);
+      }
+    }, (err) => {
+      console.warn("Could not fetch global WhatsApp settings:", err);
+      setWhatsapp(INITIAL_WHATSAPP);
+    });
+
+    return () => {
+      unsubStores();
+      unsubUsers();
+      unsubLogs();
+      unsubWhatsapp();
+    };
+  }, [isDemo, isSuperAdmin]);
 
   // Derived system metrics
   const totalValuation = useMemo(() => superStores.reduce((sum, s) => sum + s.valuationNgn, 0), [superStores]);

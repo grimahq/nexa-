@@ -6,9 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Edit2, Eye } from "lucide-react";
+import { Plus, Search, Edit2, Eye, Trash2, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { db } from "@/lib/firebase";
+import { doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
 
 export const Route = createFileRoute("/app/super-admin/stores")({
   component: SuperAdminStores,
@@ -29,6 +31,10 @@ function SuperAdminStores() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingStore, setEditingStore] = useState<SuperStore | null>(null);
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [viewingStore, setViewingStore] = useState<SuperStore | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deletingStore, setDeletingStore] = useState<SuperStore | null>(null);
 
   // Form states
   const [name, setName] = useState("");
@@ -46,46 +52,50 @@ function SuperAdminStores() {
     );
   }, [superStores, search]);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !manager || !managerEmail) {
       toast.error("Please fill in all required fields.");
       return;
     }
 
-    const newStore: SuperStore = {
-      id: `store-${Date.now()}`,
-      name,
-      sector,
-      manager,
-      managerEmail,
-      itemCount: 0,
-      valuationNgn: Number(valuation) || 0,
-      healthScore: 100,
-      alerts: 0,
-      status: "active",
-    };
+    const newStoreId = `store-${Date.now()}`;
+    try {
+      await setDoc(doc(db, "stores", newStoreId), {
+        id: newStoreId,
+        storeName: name,
+        businessType: sector,
+        ownerName: manager,
+        ownerEmail: managerEmail,
+        valuationNgn: Number(valuation) || 0,
+        healthScore: 100,
+        alerts: 0,
+        status: "active",
+        isOnboarded: true,
+        createdAt: new Date().toISOString(),
+      });
 
-    setSuperStores(prev => [...prev, newStore]);
-    setLogs(prev => [
-      {
-        id: `log-${Date.now()}`,
+      const newLogId = `log-${Date.now()}`;
+      await setDoc(doc(db, "system_logs", newLogId), {
+        id: newLogId,
         timestamp: new Date().toISOString(),
         user: "nexatechnologies.dev@gmail.com",
         action: `Provisioned new multi-tenant storefront: "${name}"`,
         store: name,
         status: "success",
-      },
-      ...prev,
-    ]);
+      });
 
-    toast.success(`Storefront "${name}" provisioned successfully!`);
-    setIsAddOpen(false);
-    // Reset form
-    setName("");
-    setManager("");
-    setManagerEmail("");
-    setValuation("500000");
+      toast.success(`Storefront "${name}" provisioned successfully!`);
+      setIsAddOpen(false);
+      // Reset form
+      setName("");
+      setManager("");
+      setManagerEmail("");
+      setValuation("500000");
+    } catch (err) {
+      console.error("Failed to provision storefront:", err);
+      toast.error("Failed to provision storefront in database.");
+    }
   };
 
   const openEdit = (store: SuperStore) => {
@@ -98,43 +108,39 @@ function SuperAdminStores() {
     setIsEditOpen(true);
   };
 
-  const handleUpdate = (e: React.FormEvent) => {
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingStore) return;
 
-    setSuperStores(prev =>
-      prev.map(s =>
-        s.id === editingStore.id
-          ? {
-              ...s,
-              name,
-              sector,
-              manager,
-              managerEmail,
-              valuationNgn: Number(valuation) || 0,
-            }
-          : s
-      )
-    );
+    try {
+      await updateDoc(doc(db, "stores", editingStore.id), {
+        storeName: name,
+        businessType: sector,
+        ownerName: manager,
+        ownerEmail: managerEmail,
+        valuationNgn: Number(valuation) || 0,
+      });
 
-    setLogs(prev => [
-      {
-        id: `log-${Date.now()}`,
+      const newLogId = `log-${Date.now()}`;
+      await setDoc(doc(db, "system_logs", newLogId), {
+        id: newLogId,
         timestamp: new Date().toISOString(),
         user: "nexatechnologies.dev@gmail.com",
         action: `Modified configuration parameters for: "${name}"`,
         store: name,
         status: "info",
-      },
-      ...prev,
-    ]);
+      });
 
-    toast.success(`Store "${name}" updated successfully.`);
-    setIsEditOpen(false);
-    setEditingStore(null);
+      toast.success(`Store "${name}" updated successfully.`);
+      setIsEditOpen(false);
+      setEditingStore(null);
+    } catch (err) {
+      console.error("Failed to update store:", err);
+      toast.error("Failed to save changes to the database.");
+    }
   };
 
-  const toggleStoreStatus = (store: SuperStore) => {
+  const toggleStoreStatus = async (store: SuperStore) => {
     const nextStatusMap: Record<SuperStore["status"], SuperStore["status"]> = {
       active: "maintenance",
       maintenance: "suspended",
@@ -142,23 +148,49 @@ function SuperAdminStores() {
     };
     const nextStatus = nextStatusMap[store.status];
 
-    setSuperStores(prev =>
-      prev.map(s => (s.id === store.id ? { ...s, status: nextStatus } : s))
-    );
+    try {
+      await updateDoc(doc(db, "stores", store.id), {
+        status: nextStatus,
+      });
 
-    setLogs(prev => [
-      {
-        id: `log-${Date.now()}`,
+      const newLogId = `log-${Date.now()}`;
+      await setDoc(doc(db, "system_logs", newLogId), {
+        id: newLogId,
         timestamp: new Date().toISOString(),
         user: "nexatechnologies.dev@gmail.com",
         action: `Toggled state of "${store.name}" to [${nextStatus.toUpperCase()}]`,
         store: store.name,
         status: nextStatus === "active" ? "success" : "warning",
-      },
-      ...prev,
-    ]);
+      });
 
-    toast.info(`"${store.name}" is now in ${nextStatus.toUpperCase()} mode.`);
+      toast.info(`"${store.name}" is now in ${nextStatus.toUpperCase()} mode.`);
+    } catch (err) {
+      console.error("Failed to toggle store status:", err);
+      toast.error("Failed to update status in the database.");
+    }
+  };
+
+  const handleDeleteStore = async (store: SuperStore) => {
+    try {
+      await deleteDoc(doc(db, "stores", store.id));
+
+      const newLogId = `log-${Date.now()}`;
+      await setDoc(doc(db, "system_logs", newLogId), {
+        id: newLogId,
+        timestamp: new Date().toISOString(),
+        user: "nexatechnologies.dev@gmail.com",
+        action: `Terminated and deleted multi-tenant storefront: "${store.name}"`,
+        store: store.name,
+        status: "warning",
+      });
+
+      toast.success(`Storefront "${store.name}" deleted successfully.`);
+      setIsDeleteOpen(false);
+      setDeletingStore(null);
+    } catch (err) {
+      console.error("Failed to delete store:", err);
+      toast.error("Failed to delete storefront from database.");
+    }
   };
 
   return (
@@ -245,11 +277,17 @@ function SuperAdminStores() {
                   </td>
                   <td className="p-3 text-right">
                     <div className="flex justify-end gap-1.5">
-                      <Button onClick={() => setCurrentStoreId(store.id)} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-emerald-500" title="Impersonate branch">
+                      <Button onClick={() => { setViewingStore(store); setIsViewOpen(true); }} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-emerald-500" title="View details">
                         <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button onClick={() => setCurrentStoreId(store.id)} variant="ghost" size="icon" className={`h-7 w-7 hover:text-emerald-500 ${isCurrentlySelected ? "text-emerald-500 font-bold" : "text-muted-foreground"}`} title="Impersonate branch">
+                        <Building2 className="h-3.5 w-3.5" />
                       </Button>
                       <Button onClick={() => openEdit(store)} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Configure settings">
                         <Edit2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button onClick={() => { setDeletingStore(store); setIsDeleteOpen(true); }} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" title="Delete storefront">
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </td>
@@ -339,6 +377,123 @@ function SuperAdminStores() {
               <Button type="submit" className="text-xs h-9 bg-primary hover:bg-primary/95 text-white font-semibold">Save Changes</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Storefront Details Dialog */}
+      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold font-sans flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-emerald-500" />
+              Storefront Parameters
+            </DialogTitle>
+            <DialogDescription>
+              Detailed multi-tenant environment specifications for this branch.
+            </DialogDescription>
+          </DialogHeader>
+          {viewingStore && (
+            <div className="space-y-4 text-xs py-2">
+              <div className="grid grid-cols-2 gap-3 border border-muted-foreground/10 rounded-md p-3 bg-muted/20">
+                <div>
+                  <span className="text-muted-foreground block font-medium">Branch ID</span>
+                  <span className="font-mono font-bold select-all">{viewingStore.id}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Status</span>
+                  <Badge className={`mt-0.5 font-bold text-[10px] uppercase ${
+                    viewingStore.status === "active" ? "bg-emerald-500/10 text-emerald-500" :
+                    viewingStore.status === "maintenance" ? "bg-amber-500/10 text-amber-500" : "bg-red-500/10 text-red-500"
+                  }`}>
+                    {viewingStore.status}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Vertical / Sector</span>
+                  <span className="font-semibold">{SECTOR_LABELS[viewingStore.sector] || viewingStore.sector}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Valuation</span>
+                  <span className="font-semibold text-foreground font-mono">₦{viewingStore.valuationNgn.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Total Items</span>
+                  <span className="font-semibold font-mono">{viewingStore.itemCount}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Health Score</span>
+                  <span className="font-semibold font-mono">{viewingStore.healthScore}%</span>
+                </div>
+              </div>
+
+              <div className="space-y-2 border border-muted-foreground/10 rounded-md p-3 bg-muted/20">
+                <h4 className="font-semibold text-foreground border-b border-muted-foreground/10 pb-1">Branch Manager context</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-muted-foreground block">Manager Name</span>
+                    <span className="font-medium">{viewingStore.manager}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">Email context</span>
+                    <span className="font-mono">{viewingStore.managerEmail}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsViewOpen(false)} className="text-xs h-9">
+                  Close Window
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={() => {
+                    setCurrentStoreId(viewingStore.id);
+                    setIsViewOpen(false);
+                    toast.success(`Now impersonating "${viewingStore.name}"`);
+                  }}
+                  className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex gap-1.5"
+                >
+                  <Building2 className="h-3.5 w-3.5" />
+                  Impersonate Location
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Storefront Confirmation Dialog */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold font-sans text-red-500 flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Terminate & Delete Storefront
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              This action is destructive. Deleting a branch storefront terminates its containerized multitenant DB slice and all corresponding inventory data.
+            </DialogDescription>
+          </DialogHeader>
+          {deletingStore && (
+            <div className="space-y-4 text-xs py-2">
+              <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-md text-red-500/90 font-medium">
+                Are you absolutely sure you want to delete <span className="font-bold underline">"{deletingStore.name}"</span>?
+                This operation cannot be undone.
+              </div>
+              <DialogFooter className="pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsDeleteOpen(false)} className="text-xs h-9">
+                  Cancel
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={() => handleDeleteStore(deletingStore)}
+                  className="text-xs h-9 bg-red-600 hover:bg-red-700 text-white font-bold"
+                >
+                  Terminate Container Slice
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

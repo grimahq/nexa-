@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { db } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import {
   Bot,
   Play,
@@ -22,7 +25,11 @@ import {
   MessageSquare,
   ShieldAlert,
   Activity,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Edit2,
+  Eye,
+  Trash2,
+  Users
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -134,6 +141,82 @@ I have loaded:
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory]);
 
+  // Dialogs and editing/viewing state
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [viewingAgent, setViewingAgent] = useState<AutonomousAgent | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<AutonomousAgent | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deletingAgent, setDeletingAgent] = useState<AutonomousAgent | null>(null);
+
+  // Form states for editing agents
+  const [agentName, setAgentName] = useState("");
+  const [agentDescription, setAgentDescription] = useState("");
+  const [agentFrequency, setAgentFrequency] = useState("");
+  const [agentTarget, setAgentTarget] = useState("");
+
+  const openEditAgent = (agent: AutonomousAgent) => {
+    setEditingAgent(agent);
+    setAgentName(agent.name);
+    setAgentDescription(agent.description);
+    setAgentFrequency(agent.frequency);
+    setAgentTarget(agent.target);
+    setIsEditOpen(true);
+  };
+
+  const handleUpdateAgent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAgent) return;
+
+    setAgents(prev =>
+      prev.map(a =>
+        a.id === editingAgent.id
+          ? {
+              ...a,
+              name: agentName,
+              description: agentDescription,
+              frequency: agentFrequency,
+              target: agentTarget,
+            }
+          : a
+      )
+    );
+
+    // Logging the update
+    const newLog: SystemLog = {
+      id: `log-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      user: "nexatechnologies.dev@gmail.com",
+      action: `Modified AI Agent configuration for "${agentName}"`,
+      store: "AI Core",
+      status: "success",
+    };
+    setLogs(prev => [newLog, ...prev]);
+
+    toast.success(`Agent "${agentName}" updated successfully.`);
+    setIsEditOpen(false);
+    setEditingAgent(null);
+  };
+
+  const handleDeleteAgent = (agent: AutonomousAgent) => {
+    setAgents(prev => prev.filter(a => a.id !== agent.id));
+
+    // Logging the delete
+    const newLog: SystemLog = {
+      id: `log-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      user: "nexatechnologies.dev@gmail.com",
+      action: `Terminated background agent thread: "${agent.name}"`,
+      store: "AI Core",
+      status: "warning",
+    };
+    setLogs(prev => [newLog, ...prev]);
+
+    toast.success(`Agent "${agent.name}" deleted successfully.`);
+    setIsDeleteOpen(false);
+    setDeletingAgent(null);
+  };
+
   // Toggle Agent Active Status
   const handleToggleAgent = (agentId: string) => {
     setAgents(prev =>
@@ -148,17 +231,15 @@ I have loaded:
           toast.success(`"${a.name}" status updated to ${nextStatus.toUpperCase()}`);
           
           // Log inside Super Admin events
-          setLogs(logsPrev => [
-            {
-              id: `log-${Date.now()}`,
-              timestamp: new Date().toISOString(),
-              user: "nexatechnologies.dev@gmail.com",
-              action: `Toggled AI Agent "${a.name}" status to [${nextStatus.toUpperCase()}]`,
-              store: "AI System Deck",
-              status: nextStatus === "running" ? "success" : "info"
-            },
-            ...logsPrev
-          ]);
+          const logId = `log-${Date.now()}`;
+          setDoc(doc(db, "system_logs", logId), {
+            id: logId,
+            timestamp: new Date().toISOString(),
+            user: "nexatechnologies.dev@gmail.com",
+            action: `Toggled AI Agent "${a.name}" status to [${nextStatus.toUpperCase()}]`,
+            store: "AI System Deck",
+            status: nextStatus === "running" ? "success" : "info"
+          }).catch(err => console.error("Failed to log agent status toggle:", err));
 
           return { ...a, status: nextStatus };
         }
@@ -172,7 +253,7 @@ I have loaded:
     setTriggeringId(agent.id);
     toast.loading(`Spinning up containers to run "${agent.name}"...`);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       setAgents(prev =>
         prev.map(a => {
           if (a.id === agent.id) {
@@ -189,17 +270,19 @@ I have loaded:
 
       // Add to System Logs
       const actionMessage = `Autonomous AI Agent run triggered manually: "${agent.name}". Executed container verification, generated analytical recommendations.`;
-      setLogs(logsPrev => [
-        {
-          id: `log-${Date.now()}`,
+      const logId = `log-${Date.now()}`;
+      try {
+        await setDoc(doc(db, "system_logs", logId), {
+          id: logId,
           timestamp: new Date().toISOString(),
           user: "nexatechnologies.dev@gmail.com",
           action: actionMessage,
           store: "AI System Deck",
           status: "success"
-        },
-        ...logsPrev
-      ]);
+        });
+      } catch (err) {
+        console.error("Failed to log manual agent trigger:", err);
+      }
 
       setTriggeringId(null);
       toast.dismiss();
@@ -301,23 +384,36 @@ I have loaded:
                           <span className="text-[10px] text-muted-foreground block font-mono">Target: {agent.target}</span>
                         </div>
                       </div>
-                      <button onClick={() => handleToggleAgent(agent.id)} className="focus:outline-none">
-                        {agent.status === "running" && (
-                          <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20 text-[9px] font-bold uppercase">
-                            Active
-                          </Badge>
-                        )}
-                        {agent.status === "idle" && (
-                          <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 hover:bg-blue-500/20 text-[9px] font-bold uppercase">
-                            Idle
-                          </Badge>
-                        )}
-                        {agent.status === "paused" && (
-                          <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20 hover:bg-yellow-500/20 text-[9px] font-bold uppercase">
-                            Paused
-                          </Badge>
-                        )}
-                      </button>
+                      <div className="flex flex-col items-end gap-1.5">
+                        <button onClick={() => handleToggleAgent(agent.id)} className="focus:outline-none">
+                          {agent.status === "running" && (
+                            <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20 text-[9px] font-bold uppercase">
+                              Active
+                            </Badge>
+                          )}
+                          {agent.status === "idle" && (
+                            <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 hover:bg-blue-500/20 text-[9px] font-bold uppercase">
+                              Idle
+                            </Badge>
+                          )}
+                          {agent.status === "paused" && (
+                            <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20 hover:bg-yellow-500/20 text-[9px] font-bold uppercase">
+                              Paused
+                            </Badge>
+                          )}
+                        </button>
+                        <div className="flex gap-1">
+                          <Button onClick={() => { setViewingAgent(agent); setIsViewOpen(true); }} variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-emerald-500" title="View details">
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button onClick={() => openEditAgent(agent)} variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" title="Edit agent settings">
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button onClick={() => { setDeletingAgent(agent); setIsDeleteOpen(true); }} variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-red-500" title="Delete agent thread">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="p-4 pt-1 pb-3 text-xs text-muted-foreground leading-relaxed">
@@ -544,6 +640,144 @@ I have loaded:
           </Button>
         </form>
       </Card>
+
+      {/* View Agent Details Dialog */}
+      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold font-sans flex items-center gap-2">
+              <Bot className="h-5 w-5 text-emerald-500" />
+              Autonomous Agent Telemetry
+            </DialogTitle>
+            <DialogDescription>
+              Detailed performance metrics and background parameters.
+            </DialogDescription>
+          </DialogHeader>
+          {viewingAgent && (
+            <div className="space-y-4 text-xs py-2">
+              <div className="grid grid-cols-2 gap-3 border border-muted-foreground/10 rounded-md p-3 bg-muted/20">
+                <div>
+                  <span className="text-muted-foreground block font-medium">Agent Name</span>
+                  <span className="font-semibold text-foreground">{viewingAgent.name}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Status State</span>
+                  <Badge className={`mt-0.5 font-bold text-[10px] uppercase ${
+                    viewingAgent.status === "running" ? "bg-emerald-500/10 text-emerald-500" :
+                    viewingAgent.status === "paused" ? "bg-amber-500/10 text-amber-500" : "bg-blue-500/10 text-blue-500"
+                  }`}>
+                    {viewingAgent.status}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Target Scope</span>
+                  <span className="font-semibold">{viewingAgent.target}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Schedule / Interval</span>
+                  <span className="font-semibold">{viewingAgent.frequency}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Total Runs executed</span>
+                  <span className="font-semibold font-mono">{viewingAgent.runCount} times</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Last Run Time</span>
+                  <span className="font-semibold font-mono">{viewingAgent.lastExecuted}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2 border border-muted-foreground/10 rounded-md p-3 bg-muted/20">
+                <h4 className="font-semibold text-foreground border-b border-muted-foreground/10 pb-1">Operational Description</h4>
+                <p className="text-muted-foreground leading-relaxed">{viewingAgent.description}</p>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsViewOpen(false)} className="text-xs h-9">
+                  Close Telemetry
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={() => {
+                    setIsViewOpen(false);
+                    openEditAgent(viewingAgent);
+                  }}
+                  className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                >
+                  Configure Parameters
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Agent Settings Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold font-sans">Configure Autonomous Agent</DialogTitle>
+            <DialogDescription>Modify background schedule, target data slice, and system details.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateAgent} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="agent-edit-name" className="text-xs font-semibold">Agent Name</Label>
+              <Input id="agent-edit-name" value={agentName} onChange={e => setAgentName(e.target.value)} className="text-xs h-9" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="agent-edit-desc" className="text-xs font-semibold">Operational Description</Label>
+              <Textarea id="agent-edit-desc" value={agentDescription} onChange={e => setAgentDescription(e.target.value)} className="text-xs min-h-[80px]" required />
+            </div>
+            <div className="space-y-1.5 font-sans">
+              <Label htmlFor="agent-edit-freq" className="text-xs font-semibold">Schedule / Interval</Label>
+              <Input id="agent-edit-freq" value={agentFrequency} onChange={e => setAgentFrequency(e.target.value)} placeholder="e.g. Every 12 Hours, Hourly Cron" className="text-xs h-9" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="agent-edit-target" className="text-xs font-semibold">Target Scope Nodes</Label>
+              <Input id="agent-edit-target" value={agentTarget} onChange={e => setAgentTarget(e.target.value)} placeholder="e.g. All 4 Active Branches" className="text-xs h-9" required />
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} className="text-xs h-9">Cancel</Button>
+              <Button type="submit" className="text-xs h-9 bg-primary hover:bg-primary/95 text-white font-semibold">Save Settings</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Agent Confirmation Dialog */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold font-sans text-red-500 flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Terminate AI Background Worker
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              This action is destructive. Deleting a background agent halts its cron triggers and clears its state context.
+            </DialogDescription>
+          </DialogHeader>
+          {deletingAgent && (
+            <div className="space-y-4 text-xs py-2">
+              <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-md text-red-500/90 font-medium">
+                Are you absolutely sure you want to delete <span className="font-bold underline">"{deletingAgent.name}"</span>?
+                All automated workflows assigned to this worker will stop.
+              </div>
+              <DialogFooter className="pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsDeleteOpen(false)} className="text-xs h-9">
+                  Cancel
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={() => handleDeleteAgent(deletingAgent)}
+                  className="text-xs h-9 bg-red-600 hover:bg-red-700 text-white font-bold"
+                >
+                  Terminate Worker Thread
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

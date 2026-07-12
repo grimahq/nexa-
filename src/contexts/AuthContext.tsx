@@ -5,6 +5,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
+  sendPasswordResetEmail,
+  updatePassword,
   type User 
 } from "firebase/auth";
 import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, limit, deleteDoc, writeBatch } from "firebase/firestore";
@@ -35,6 +37,9 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfileName: (name: string) => Promise<void>;
+  sendPasswordReset: (email?: string) => Promise<void>;
+  updateUserPassword: (password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -350,8 +355,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateProfileName = async (name: string) => {
+    if (!user) throw new Error("No user is logged in");
+    const trimmedName = name.trim();
+    if (!trimmedName) throw new Error("Name cannot be empty");
+    
+    // 1. Update firebase auth display name
+    await updateProfile(user, { displayName: trimmedName });
+    
+    // 2. Update Firestore user profile
+    const profileRef = doc(db, "users", user.uid);
+    await setDoc(profileRef, { name: trimmedName, updatedAt: new Date().toISOString() }, { merge: true });
+    
+    toast.success("Profile name updated successfully");
+  };
+
+  const sendPasswordReset = async (email?: string) => {
+    const targetEmail = email || user?.email;
+    if (!targetEmail) throw new Error("No email address provided");
+    await sendPasswordResetEmail(auth, targetEmail);
+    toast.success(`Password reset email sent to ${targetEmail}`);
+  };
+
+  const updateUserPassword = async (password: string) => {
+    if (!user) throw new Error("No user is logged in");
+    if (!password || password.length < 6) throw new Error("Password must be at least 6 characters long");
+    await updatePassword(user, password);
+    toast.success("Password updated successfully");
+  };
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, login, register, logout, updateProfileName, sendPasswordReset, updateUserPassword }}>
       {children}
     </AuthContext.Provider>
   );

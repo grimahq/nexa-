@@ -24,11 +24,15 @@ const NAV_ITEMS: BottomNavItem[] = [
 export function BottomNav() {
   const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
-  const { permissions } = useRole();
+  const { permissions, isSuperAdmin } = useRole();
 
   const isActive = (href: string) => location.pathname === href;
 
   const visibleItems = NAV_ITEMS.filter((item) => !item.permKey || permissions[item.permKey]);
+
+  if (isSuperAdmin) {
+    return null;
+  }
 
   return (
     <>

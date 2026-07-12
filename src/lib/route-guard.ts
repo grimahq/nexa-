@@ -2,17 +2,24 @@ import type { UserRoleType } from "@/lib/roles";
 
 /** Maps route paths to the minimum roles allowed */
 const ROUTE_ACCESS: Record<string, UserRoleType[]> = {
-  "/app/dashboard": ["admin", "manager", "requestor"],
+  "/app/dashboard": ["admin", "manager"],
   "/app/sales": ["admin", "manager"],
   "/app/sales-history": ["admin", "manager"],
-  "/app/catalog": ["admin", "manager", "requestor"],
-  "/app/requests": ["admin", "manager", "requestor"],
+  "/app/sales-analytics": ["admin"],
+  "/app/catalog": ["admin", "manager"],
+  "/app/requests": ["admin", "manager"],
   "/app/movements": ["admin", "manager"],
-  "/app/suppliers": ["admin", "manager"],
-  "/app/purchase-orders": ["admin", "manager", "requestor"],
-  "/app/analytics": ["admin", "manager"],
-  "/app/ai-insights": ["admin", "manager"],
+  "/app/suppliers": ["admin"],
+  "/app/purchase-orders": ["admin"],
+  "/app/analytics": ["admin"],
+  "/app/ai-insights": ["admin"],
   "/app/settings": ["admin"],
+  "/app/customers": ["admin", "manager"],
+  "/app/returns": ["admin", "manager"],
+  "/app/expenses": ["admin", "manager"],
+  "/app/ecommerce": ["admin"],
+  "/app/affiliates": ["admin"],
+  "/app/locations": ["admin"],
 };
 
 /**

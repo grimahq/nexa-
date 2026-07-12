@@ -1,4 +1,4 @@
-export type UserRoleType = "admin" | "manager" | "requestor";
+export type UserRoleType = "admin" | "manager";
 
 export interface RolePermissions {
   canViewDashboard: boolean;
@@ -64,27 +64,6 @@ const ROLE_PERMISSIONS: Record<UserRoleType, RolePermissions> = {
     canViewEcommerce: false,
     canViewLocations: false,
     canViewCustomers: true,
-  },
-  requestor: {
-    canViewDashboard: false,
-    canManageItems: false,
-    canLogMovements: false,
-    canManagePOs: false,
-    canViewSuppliers: false,
-    canManageSuppliers: false,
-    canApproveRequests: false,
-    canCreateRequests: true,
-    canViewAnalytics: false,
-    canAccessSettings: false,
-    canManageUsers: false,
-    canSell: false,
-    canViewSalesHistory: false,
-    canViewRequests: true,
-    canViewExpenses: false,
-    canViewReturns: false,
-    canViewEcommerce: false,
-    canViewLocations: false,
-    canViewCustomers: false,
   },
 };
 

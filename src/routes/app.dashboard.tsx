@@ -82,7 +82,7 @@ export function DashboardPage() {
   const { data: summary } = useStockSummary();
   const { isDemo, onboarding: demoOnboarding } = useDemo();
   const { settings: liveSettings } = useSystemSettings();
-  const { isAdmin, isManager, isRequestor, role, stores, currentStoreId, members } = useRole();
+  const { isAdmin, isManager, role, stores, currentStoreId, members } = useRole();
   useAlertGenerator();
 
   const onboarding = isDemo ? demoOnboarding : liveSettings;
@@ -115,24 +115,18 @@ export function DashboardPage() {
       navigate({ to: "/app/catalog", replace: true });
       return;
     }
-
-    // Requestors should be redirected to requests page
-    if (isRequestor) {
-      navigate({ to: "/app/requests", replace: true });
-      return;
-    }
     
     // Start tour if newly onboarded or explicitly triggered via settings
     const justOnboarded = sessionStorage.getItem("stackwise-just-onboarded") === "true";
     const settingsTrigger = sessionStorage.getItem("stackwise-trigger-tour") === "true";
     
-    if ((justOnboarded || settingsTrigger) && !isRequestor) {
+    if (justOnboarded || settingsTrigger) {
       sessionStorage.removeItem("stackwise-just-onboarded");
       sessionStorage.removeItem("stackwise-trigger-tour");
       const timer = setTimeout(() => startTour(true), 500);
       return () => clearTimeout(timer);
     }
-  }, [startTour, isRequestor, navigate]);
+  }, [startTour, navigate]);
 
   // Synchronize active tour target element and open the appropriate Accordion section
   useEffect(() => {

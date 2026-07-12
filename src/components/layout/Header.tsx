@@ -38,13 +38,11 @@ import { PermissionGate } from "@/hooks/usePermissions";
 const ROLE_BADGE_STYLES: Record<string, string> = {
   admin: "bg-primary/15 text-primary border-primary/20",
   manager: "bg-secondary/15 text-secondary-foreground border-secondary/20",
-  requestor: "bg-muted text-muted-foreground border-border",
 };
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
   manager: "Manager",
-  requestor: "Requestor",
 };
 
 export function Header() {
@@ -57,7 +55,7 @@ export function Header() {
   const [prefsOpen, setPrefsOpen] = useState(false);
   
   const { exitDemoMode, isDemo } = useDemo();
-  const { role, setDemoRole, stores, currentStoreId, setCurrentStoreId } = useRole();
+  const { role, setDemoRole, stores, currentStoreId, setCurrentStoreId, isSuperAdmin } = useRole();
   const { user, profile, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -171,8 +169,12 @@ export function Header() {
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuLabel className="flex items-center justify-between font-normal text-xs text-muted-foreground">
             {displayName}
-            <Badge variant="outline" className={`ml-2 text-[10px] font-semibold uppercase ${ROLE_BADGE_STYLES[role]}`}>
-              {ROLE_LABELS[role]}
+            <Badge variant="outline" className={`ml-2 text-[10px] font-semibold uppercase ${
+              isSuperAdmin 
+                ? "bg-red-500/15 text-red-500 border-red-500/20" 
+                : ROLE_BADGE_STYLES[role] || ""
+            }`}>
+              {isSuperAdmin ? "Super Admin" : ROLE_LABELS[role] || role}
             </Badge>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
@@ -185,9 +187,6 @@ export function Header() {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setDemoRole("manager")} className={role === "manager" ? "bg-muted" : ""}>
                 <ShieldCheck className="mr-2 h-4 w-4 text-blue-500" /> Manager
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setDemoRole("requestor")} className={role === "requestor" ? "bg-muted" : ""}>
-                <ShieldCheck className="mr-2 h-4 w-4 text-slate-400" /> Requestor
               </DropdownMenuItem>
               <DropdownMenuSeparator />
             </>

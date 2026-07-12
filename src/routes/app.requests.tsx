@@ -65,14 +65,10 @@ function RequestsPage() {
   const { request: requestParam } = Route.useSearch();
   
   const isManagerOrAdmin = role === "admin" || role === "manager";
-  const isRequestor = role === "requestor";
 
   const requests = useMemo(() => {
-    if (isRequestor && profile) {
-      return allRequests.filter(r => r.requestedBy === profile.name || r.id === profile.id); // Simple fallback, properly should be by userId
-    }
     return allRequests;
-  }, [allRequests, isRequestor, profile]);
+  }, [allRequests]);
 
   const canApproveReq = can("approve_request");
   const [formOpen, setFormOpen] = useState(false);

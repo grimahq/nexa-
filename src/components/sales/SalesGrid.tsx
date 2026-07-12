@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useItems } from "@/hooks/useInventoryData";
 import { useDemo } from "@/hooks/useDemo";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
-import { cn } from "@/lib/utils";
+import { cn, getStorefrontUrl } from "@/lib/utils";
 import { SUPPORTED_UNITS } from "@/types/inventory";
 import { SalesStepBrowse } from "./SalesStepBrowse";
 import { SalesStepCart, type CartItem } from "./SalesStepCart";
@@ -400,7 +400,7 @@ export function SalesGrid() {
                       <div className="rounded-2xl border-8 border-neutral-100 bg-white p-4 shadow-xl">
                         <QRCodeSVG
                           id={`qr-table-${tableNumber}`}
-                          value={`${window.location.origin}/store?table=${tableNumber}`}
+                          value={getStorefrontUrl(onboarding?.storeSlug || "general", "", { table: tableNumber })}
                           size={220}
                           level="H"
                           includeMargin={false}
@@ -413,7 +413,7 @@ export function SalesGrid() {
                           Table {tableNumber} Link Active
                         </Badge>
                         <p className="text-xs font-mono text-muted-foreground select-all break-all px-4 mt-1 bg-muted py-1 rounded max-w-sm truncate">
-                          {`${window.location.origin}/store?table=${tableNumber}`}
+                          {getStorefrontUrl(onboarding?.storeSlug || "general", "", { table: tableNumber })}
                         </p>
                       </div>
 

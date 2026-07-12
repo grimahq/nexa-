@@ -41,21 +41,21 @@ function AppLayout() {
 
   // Onboarding guard: If live, admin, and not onboarded (Store Onboarding)
   useEffect(() => {
-    if (!isDemo && !authLoading && !settingsLoading && isAdmin && !settings.isOnboarded) {
+    if (!isDemo && !authLoading && !settingsLoading && isAdmin && !isSuperAdmin && !settings.isOnboarded) {
       setForceOnboarding(true);
     } else {
       setForceOnboarding(false);
     }
-  }, [isDemo, authLoading, settingsLoading, isAdmin, settings.isOnboarded]);
+  }, [isDemo, authLoading, settingsLoading, isAdmin, isSuperAdmin, settings.isOnboarded]);
 
   // Member Onboarding guard: If live and personal onboarding not completed
   useEffect(() => {
-    if (!isDemo && !authLoading && profile && !profile.onboardingCompleted) {
+    if (!isDemo && !authLoading && profile && !isSuperAdmin && !profile.onboardingCompleted) {
       setMemberOnboarding(true);
     } else {
       setMemberOnboarding(false);
     }
-  }, [isDemo, authLoading, profile]);
+  }, [isDemo, authLoading, profile, isSuperAdmin]);
 
   const handleOnboardingComplete = async (data: {
     businessType: string;

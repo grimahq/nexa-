@@ -1,11 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useSuperAdminContext } from "./app.super-admin";
+import { useSuperAdminContext, SystemLog } from "./app.super-admin";
 import { useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { AlertTriangle, CheckCircle2, Info, Search } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, Search, Eye, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { db } from "@/lib/firebase";
+import { doc, deleteDoc } from "firebase/firestore";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/super-admin/")({
   component: SuperAdminIndex,
@@ -21,6 +26,24 @@ const SECTOR_COLORS: Record<string, string> = {
 function SuperAdminIndex() {
   const { superStores, logs } = useSuperAdminContext();
   const [searchLog, setSearchLog] = useState("");
+
+  // Log Details & Deletion Dialog state
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [viewingLog, setViewingLog] = useState<SystemLog | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deletingLog, setDeletingLog] = useState<SystemLog | null>(null);
+
+  const handleDeleteLog = async (log: SystemLog) => {
+    try {
+      await deleteDoc(doc(db, "system_logs", log.id));
+      toast.success("Log record deleted successfully.");
+      setIsDeleteOpen(false);
+      setDeletingLog(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete the log record from database.");
+    }
+  };
 
   const chartData = useMemo(() => {
     return superStores.map(store => ({
@@ -138,12 +161,13 @@ function SuperAdminIndex() {
                   <th className="p-3">Actor</th>
                   <th className="p-3">Action Description</th>
                   <th className="p-3">Status</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-muted-foreground/10">
                 {filteredLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-4 text-center text-muted-foreground">
+                    <td colSpan={6} className="p-4 text-center text-muted-foreground">
                       No matching log events found.
                     </td>
                   </tr>
@@ -173,6 +197,16 @@ function SuperAdminIndex() {
                           </Badge>
                         )}
                       </td>
+                      <td className="p-3 text-right">
+                        <div className="flex justify-end gap-1.5">
+                          <Button onClick={() => { setViewingLog(log); setIsViewOpen(true); }} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-emerald-500" title="View log details">
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button onClick={() => { setDeletingLog(log); setIsDeleteOpen(true); }} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" title="Delete log entry">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -181,6 +215,93 @@ function SuperAdminIndex() {
           </div>
         </CardContent>
       </Card>
+
+      {/* View Log Details Dialog */}
+      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold font-sans flex items-center gap-2 text-primary">
+              <Info className="h-5 w-5 text-emerald-500" />
+              System Event Payload
+            </DialogTitle>
+            <DialogDescription>
+              Detailed security logging trail event parameters.
+            </DialogDescription>
+          </DialogHeader>
+          {viewingLog && (
+            <div className="space-y-4 text-xs py-2">
+              <div className="grid grid-cols-2 gap-3 border border-muted-foreground/10 rounded-md p-3 bg-muted/20">
+                <div className="col-span-2">
+                  <span className="text-muted-foreground block font-medium">Action Performed</span>
+                  <p className="font-semibold text-foreground text-sm leading-relaxed">{viewingLog.action}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Tenant Context</span>
+                  <span className="font-semibold text-foreground">{viewingLog.store}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Security State</span>
+                  <Badge className={`mt-0.5 font-bold text-[10px] uppercase ${
+                    viewingLog.status === "success" ? "bg-emerald-500/10 text-emerald-500" :
+                    viewingLog.status === "warning" ? "bg-amber-500/10 text-amber-500" : "bg-blue-500/10 text-blue-500"
+                  }`}>
+                    {viewingLog.status}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Executed By</span>
+                  <span className="font-semibold font-mono">{viewingLog.user}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Logging Timestamp</span>
+                  <span className="font-semibold font-mono">{viewingLog.timestamp}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsViewOpen(false)} className="text-xs h-9">
+                  Close Details
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Log Confirmation Dialog */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold font-sans text-red-500 flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Discard Event Record
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              This action is destructive and will remove this diagnostic entry permanently from the audit feed.
+            </DialogDescription>
+          </DialogHeader>
+          {deletingLog && (
+            <div className="space-y-4 text-xs py-2">
+              <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-md text-red-500/90 font-medium">
+                Are you absolutely sure you want to discard this log record: <br />
+                <span className="font-bold font-mono">"{deletingLog.action}"</span>?
+              </div>
+              <DialogFooter className="pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsDeleteOpen(false)} className="text-xs h-9">
+                  Cancel
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={() => handleDeleteLog(deletingLog)}
+                  className="text-xs h-9 bg-red-600 hover:bg-red-700 text-white font-bold"
+                >
+                  Discard Entry
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

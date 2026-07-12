@@ -6,6 +6,9 @@ import { useItems } from "@/hooks/useInventoryData";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { useDemo } from "@/hooks/useDemo";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
+import { getStorefrontUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/affiliates")({
   component: AffiliatesPage,
@@ -21,9 +24,13 @@ function AffiliatesPage() {
   const { data: items } = useItems({ status: "active" });
   const affiliateItems = items.filter(i => i.affiliateCommission && i.affiliateCommission > 0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const { isDemo, onboarding: demoOnboarding } = useDemo();
+  const { settings: liveSettings } = useSystemSettings();
+  const onboarding = isDemo ? demoOnboarding : liveSettings;
+  const storeSlug = onboarding?.storeSlug || "general";
 
   const copyReferralLink = (partnerId: string) => {
-    const url = `${window.location.origin}/store?aff=${partnerId}`;
+    const url = getStorefrontUrl(storeSlug, "", { aff: partnerId });
     navigator.clipboard.writeText(url);
     setCopiedId(partnerId);
     toast.success("Affiliate link copied!");

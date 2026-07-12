@@ -6,9 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Edit2 } from "lucide-react";
+import { Plus, Search, Edit2, Eye, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { db } from "@/lib/firebase";
+import { doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
 
 export const Route = createFileRoute("/app/super-admin/users")({
   component: SuperAdminUsers,
@@ -22,6 +24,10 @@ function SuperAdminUsers() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<SuperUser | null>(null);
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [viewingUser, setViewingUser] = useState<SuperUser | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<SuperUser | null>(null);
 
   // Form states
   const [name, setName] = useState("");
@@ -38,7 +44,7 @@ function SuperAdminUsers() {
     );
   }, [superUsers, search]);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || !storeId) {
       toast.error("Please fill in all required fields.");
@@ -51,37 +57,41 @@ function SuperAdminUsers() {
       return;
     }
 
-    const newUser: SuperUser = {
-      id: `user-${Date.now()}`,
-      name,
-      email,
-      role,
-      storeId,
-      storeName: linkedStore.name,
-      joinedDate: new Date().toISOString().slice(0, 10),
-      status: "active",
-    };
+    const newUserId = `user-${Date.now()}`;
+    try {
+      await setDoc(doc(db, "users", newUserId), {
+        id: newUserId,
+        name,
+        email,
+        role,
+        storeId,
+        storeName: linkedStore.name,
+        status: "active",
+        onboardingCompleted: true,
+        createdAt: new Date().toISOString(),
+      });
 
-    setSuperUsers(prev => [...prev, newUser]);
-    setLogs(prev => [
-      {
-        id: `log-${Date.now()}`,
+      const newLogId = `log-${Date.now()}`;
+      await setDoc(doc(db, "system_logs", newLogId), {
+        id: newLogId,
         timestamp: new Date().toISOString(),
         user: "nexatechnologies.dev@gmail.com",
         action: `Registered staff profile "${name}" for branch: "${linkedStore.name}"`,
         store: linkedStore.name,
         status: "success",
-      },
-      ...prev,
-    ]);
+      });
 
-    toast.success(`Registered user profile "${name}" successfully!`);
-    setIsAddOpen(false);
-    // Reset form
-    setName("");
-    setEmail("");
-    setRole("manager");
-    setStoreId("");
+      toast.success(`Registered user profile "${name}" successfully!`);
+      setIsAddOpen(false);
+      // Reset form
+      setName("");
+      setEmail("");
+      setRole("manager");
+      setStoreId("");
+    } catch (err) {
+      console.error("Failed to register staff profile:", err);
+      toast.error("Failed to save staff profile to database.");
+    }
   };
 
   const openEdit = (user: SuperUser) => {
@@ -93,65 +103,87 @@ function SuperAdminUsers() {
     setIsEditOpen(true);
   };
 
-  const handleUpdate = (e: React.FormEvent) => {
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
 
     const linkedStore = superStores.find(s => s.id === storeId);
     const storeName = linkedStore ? linkedStore.name : editingUser.storeName;
 
-    setSuperUsers(prev =>
-      prev.map(u =>
-        u.id === editingUser.id
-          ? {
-              ...u,
-              name,
-              email,
-              role,
-              storeId,
-              storeName,
-            }
-          : u
-      )
-    );
+    try {
+      await updateDoc(doc(db, "users", editingUser.id), {
+        name,
+        email,
+        role,
+        storeId,
+        storeName,
+      });
 
-    setLogs(prev => [
-      {
-        id: `log-${Date.now()}`,
+      const newLogId = `log-${Date.now()}`;
+      await setDoc(doc(db, "system_logs", newLogId), {
+        id: newLogId,
         timestamp: new Date().toISOString(),
         user: "nexatechnologies.dev@gmail.com",
         action: `Updated credentials and role permissions for: "${name}"`,
         store: storeName,
         status: "info",
-      },
-      ...prev,
-    ]);
+      });
 
-    toast.success(`User profile "${name}" updated successfully.`);
-    setIsEditOpen(false);
-    setEditingUser(null);
+      toast.success(`User profile "${name}" updated successfully.`);
+      setIsEditOpen(false);
+      setEditingUser(null);
+    } catch (err) {
+      console.error("Failed to update user profile:", err);
+      toast.error("Failed to update user in the database.");
+    }
   };
 
-  const toggleUserStatus = (user: SuperUser) => {
+  const toggleUserStatus = async (user: SuperUser) => {
     const nextStatus = user.status === "active" ? "inactive" : "active";
 
-    setSuperUsers(prev =>
-      prev.map(u => (u.id === user.id ? { ...u, status: nextStatus } : u))
-    );
+    try {
+      await updateDoc(doc(db, "users", user.id), {
+        status: nextStatus,
+      });
 
-    setLogs(prev => [
-      {
-        id: `log-${Date.now()}`,
+      const newLogId = `log-${Date.now()}`;
+      await setDoc(doc(db, "system_logs", newLogId), {
+        id: newLogId,
         timestamp: new Date().toISOString(),
         user: "nexatechnologies.dev@gmail.com",
         action: `Changed security status of "${user.name}" to [${nextStatus.toUpperCase()}]`,
         store: user.storeName,
         status: nextStatus === "active" ? "success" : "warning",
-      },
-      ...prev,
-    ]);
+      });
 
-    toast.info(`"${user.name}" status set to ${nextStatus.toUpperCase()}`);
+      toast.info(`"${user.name}" status set to ${nextStatus.toUpperCase()}`);
+    } catch (err) {
+      console.error("Failed to toggle user status:", err);
+      toast.error("Failed to update security status in database.");
+    }
+  };
+
+  const handleDeleteUser = async (user: SuperUser) => {
+    try {
+      await deleteDoc(doc(db, "users", user.id));
+
+      const newLogId = `log-${Date.now()}`;
+      await setDoc(doc(db, "system_logs", newLogId), {
+        id: newLogId,
+        timestamp: new Date().toISOString(),
+        user: "nexatechnologies.dev@gmail.com",
+        action: `Terminated and deleted user credentials: "${user.name}" (${user.email})`,
+        store: user.storeName,
+        status: "warning",
+      });
+
+      toast.success(`User "${user.name}" deleted successfully.`);
+      setIsDeleteOpen(false);
+      setDeletingUser(null);
+    } catch (err) {
+      console.error("Failed to delete user:", err);
+      toast.error("Failed to delete user credentials from database.");
+    }
   };
 
   return (
@@ -223,9 +255,17 @@ function SuperAdminUsers() {
                   </button>
                 </td>
                 <td className="p-3 text-right">
-                  <Button onClick={() => openEdit(user)} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
-                    <Edit2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex justify-end gap-1.5">
+                    <Button onClick={() => { setViewingUser(user); setIsViewOpen(true); }} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-emerald-500" title="View details">
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button onClick={() => openEdit(user)} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Edit user">
+                      <Edit2 className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button onClick={() => { setDeletingUser(user); setIsDeleteOpen(true); }} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" title="Delete user">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -309,6 +349,111 @@ function SuperAdminUsers() {
               <Button type="submit" className="text-xs h-9 bg-primary hover:bg-primary/95 text-white font-semibold">Save Changes</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* View User Details Dialog */}
+      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold font-sans flex items-center gap-2">
+              <Eye className="h-5 w-5 text-emerald-500" />
+              Staff Profile Details
+            </DialogTitle>
+            <DialogDescription>
+              Detailed multi-tenant user access authorizations.
+            </DialogDescription>
+          </DialogHeader>
+          {viewingUser && (
+            <div className="space-y-4 text-xs py-2">
+              <div className="grid grid-cols-2 gap-3 border border-muted-foreground/10 rounded-md p-3 bg-muted/20">
+                <div>
+                  <span className="text-muted-foreground block font-medium">Full Name</span>
+                  <span className="font-semibold text-foreground">{viewingUser.name}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Email Context</span>
+                  <span className="font-mono font-bold select-all">{viewingUser.email}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">System Role</span>
+                  <Badge className={`mt-0.5 font-bold text-[10px] uppercase ${
+                    viewingUser.role === "admin" ? "bg-red-500/10 text-red-500" :
+                    viewingUser.role === "manager" ? "bg-amber-500/10 text-amber-500" : "bg-blue-500/10 text-blue-500"
+                  }`}>
+                    {viewingUser.role}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Security State</span>
+                  <Badge className={`mt-0.5 font-bold text-[10px] uppercase ${
+                    viewingUser.status === "active" ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"
+                  }`}>
+                    {viewingUser.status}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Assigned Branch</span>
+                  <span className="font-semibold">{viewingUser.storeName}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block font-medium">Joined On</span>
+                  <span className="font-semibold font-mono">{viewingUser.joinedDate}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsViewOpen(false)} className="text-xs h-9">
+                  Close Details
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={() => {
+                    setIsViewOpen(false);
+                    openEdit(viewingUser);
+                  }}
+                  className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                >
+                  Configure Profile
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold font-sans text-red-500 flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Terminate User Account
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              This action is destructive. Deleting a user profile revokes their access authorization context immediately.
+            </DialogDescription>
+          </DialogHeader>
+          {deletingUser && (
+            <div className="space-y-4 text-xs py-2">
+              <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-md text-red-500/90 font-medium">
+                Are you absolutely sure you want to terminate <span className="font-bold underline">"{deletingUser.name}"</span>'s access credentials?
+                This operation cannot be undone.
+              </div>
+              <DialogFooter className="pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsDeleteOpen(false)} className="text-xs h-9">
+                  Cancel
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={() => handleDeleteUser(deletingUser)}
+                  className="text-xs h-9 bg-red-600 hover:bg-red-700 text-white font-bold"
+                >
+                  Revoke Authorization
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -1,6 +1,13 @@
 import { useMemo } from "react";
 import { useDemo } from "@/hooks/useDemo";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/hooks/useRole";
+
+function useActiveStoreId() {
+  const { profile } = useAuth();
+  const { currentStoreId } = useRole();
+  return currentStoreId || profile?.storeId;
+}
 import type {
   Item,
   Category,
@@ -27,18 +34,18 @@ import type { Customer } from "@/types/crm";
 
 export function useItems(filters?: ItemFilters): QueryResult<Item[]> {
   const { isDemo, demoStore, version } = useDemo();
-  const { profile } = useAuth();
-  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  const activeStoreId = useActiveStoreId();
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
   
   // Firebase fetch
   const constraints = useMemo(() => {
     const c = [];
-    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
     if (filters?.categoryId) c.push(where("categoryId", "==", filters.categoryId));
     if (filters?.supplierId) c.push(where("supplierId", "==", filters.supplierId));
     if (filters?.status) c.push(where("status", "==", filters.status));
     return c;
-  }, [filters?.categoryId, filters?.supplierId, filters?.status, profile?.storeId]);
+  }, [filters?.categoryId, filters?.supplierId, filters?.status, activeStoreId]);
 
   const { data: firebaseData, loading } = useFirebaseCollection<Item>("items", constraints, { enabled });
 
@@ -68,12 +75,12 @@ export function useItemById(id: string): QueryResult<Item | undefined> {
 
 export function useCategories(): QueryResult<Category[]> {
   const { isDemo, demoStore, version } = useDemo();
-  const { profile } = useAuth();
-  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  const activeStoreId = useActiveStoreId();
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
   
   const constraints = useMemo(() => {
-    return profile?.storeId ? [where("storeId", "==", profile.storeId)] : [];
-  }, [profile?.storeId]);
+    return activeStoreId ? [where("storeId", "==", activeStoreId)] : [];
+  }, [activeStoreId]);
 
   const { data: firebaseData, loading } = useFirebaseCollection<Category>("categories", constraints, { enabled });
 
@@ -85,12 +92,12 @@ export function useCategories(): QueryResult<Category[]> {
 
 export function useSuppliers(): QueryResult<Supplier[]> {
   const { isDemo, demoStore, version } = useDemo();
-  const { profile } = useAuth();
-  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  const activeStoreId = useActiveStoreId();
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
   
   const constraints = useMemo(() => {
-    return profile?.storeId ? [where("storeId", "==", profile.storeId)] : [];
-  }, [profile?.storeId]);
+    return activeStoreId ? [where("storeId", "==", activeStoreId)] : [];
+  }, [activeStoreId]);
 
   const { data: firebaseData, loading } = useFirebaseCollection<Supplier>("suppliers", constraints, { enabled });
 
@@ -102,12 +109,12 @@ export function useSuppliers(): QueryResult<Supplier[]> {
 
 export function useLocations(): QueryResult<Location[]> {
   const { isDemo, demoStore, version } = useDemo();
-  const { profile } = useAuth();
-  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  const activeStoreId = useActiveStoreId();
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
   
   const constraints = useMemo(() => {
-    return profile?.storeId ? [where("storeId", "==", profile.storeId)] : [];
-  }, [profile?.storeId]);
+    return activeStoreId ? [where("storeId", "==", activeStoreId)] : [];
+  }, [activeStoreId]);
 
   const { data: firebaseData, loading } = useFirebaseCollection<Location>("locations", constraints, { enabled });
 
@@ -119,15 +126,15 @@ export function useLocations(): QueryResult<Location[]> {
 
 export function useMovements(limitVal?: number): QueryResult<StockMovement[]> {
   const { isDemo, demoStore, version } = useDemo();
-  const { profile } = useAuth();
-  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  const activeStoreId = useActiveStoreId();
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
 
   const constraints = useMemo(() => {
     const c = [orderBy("createdAt", "desc")];
-    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
     if (limitVal) c.push(firestoreLimit(limitVal));
     return c;
-  }, [limitVal, profile?.storeId]);
+  }, [limitVal, activeStoreId]);
 
   const { data: firebaseData, loading } = useFirebaseCollection<StockMovement>("movements", constraints, { enabled });
 
@@ -142,12 +149,12 @@ export function useMovements(limitVal?: number): QueryResult<StockMovement[]> {
 
 export function useStockSummary(): QueryResult<StockSummary> {
   const { isDemo, demoStore, version } = useDemo();
-  const { profile } = useAuth();
-  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  const activeStoreId = useActiveStoreId();
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
   
   const constraints = useMemo(() => {
-    return profile?.storeId ? [where("storeId", "==", profile.storeId)] : [];
-  }, [profile?.storeId]);
+    return activeStoreId ? [where("storeId", "==", activeStoreId)] : [];
+  }, [activeStoreId]);
 
   const { data: items, loading } = useFirebaseCollection<Item>("items", constraints, { enabled });
 
@@ -167,14 +174,14 @@ export function useStockSummary(): QueryResult<StockSummary> {
 
 export function usePurchaseOrders(): QueryResult<PurchaseOrder[]> {
   const { isDemo, demoStore, version } = useDemo();
-  const { profile } = useAuth();
-  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  const activeStoreId = useActiveStoreId();
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
 
   const constraints = useMemo(() => {
     const c = [orderBy("createdAt", "desc")];
-    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
     return c;
-  }, [profile?.storeId]);
+  }, [activeStoreId]);
 
   const { data: firebaseData, loading } = useFirebaseCollection<PurchaseOrder>("purchaseOrders", constraints, { enabled });
 
@@ -186,14 +193,14 @@ export function usePurchaseOrders(): QueryResult<PurchaseOrder[]> {
 
 export function useRequests(): QueryResult<InventoryRequest[]> {
   const { isDemo, demoStore, version } = useDemo();
-  const { profile } = useAuth();
-  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  const activeStoreId = useActiveStoreId();
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
 
   const constraints = useMemo(() => {
     const c = [orderBy("createdAt", "desc")];
-    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
     return c;
-  }, [profile?.storeId]);
+  }, [activeStoreId]);
 
   const { data: firebaseData, loading } = useFirebaseCollection<InventoryRequest>("requests", constraints, { enabled });
 
@@ -205,14 +212,14 @@ export function useRequests(): QueryResult<InventoryRequest[]> {
 
 export function useSales(): QueryResult<SaleTransaction[]> {
   const { isDemo, demoStore, version } = useDemo();
-  const { profile } = useAuth();
-  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  const activeStoreId = useActiveStoreId();
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
 
   const constraints = useMemo(() => {
     const c = [orderBy("createdAt", "desc")];
-    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
     return c;
-  }, [profile?.storeId]);
+  }, [activeStoreId]);
 
   const { data: firebaseData, loading } = useFirebaseCollection<SaleTransaction>("sales", constraints, { enabled });
 
@@ -224,14 +231,14 @@ export function useSales(): QueryResult<SaleTransaction[]> {
 
 export function useExpenses(): QueryResult<Expense[]> {
   const { isDemo, demoStore, version } = useDemo();
-  const { profile } = useAuth();
-  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  const activeStoreId = useActiveStoreId();
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
 
   const constraints = useMemo(() => {
     const c = [orderBy("date", "desc")];
-    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
     return c;
-  }, [profile?.storeId]);
+  }, [activeStoreId]);
 
   const { data: firebaseData, loading } = useFirebaseCollection<Expense>("expenses", constraints, { enabled });
 
@@ -243,14 +250,14 @@ export function useExpenses(): QueryResult<Expense[]> {
 
 export function useCustomers(): QueryResult<Customer[]> {
   const { isDemo, demoStore, version } = useDemo();
-  const { profile } = useAuth();
-  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  const activeStoreId = useActiveStoreId();
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
 
   const constraints = useMemo(() => {
     const c = [orderBy("name", "asc")];
-    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
     return c;
-  }, [profile?.storeId]);
+  }, [activeStoreId]);
 
   const { data: firebaseData, loading } = useFirebaseCollection<Customer>("customers", constraints, { enabled });
 
@@ -262,14 +269,14 @@ export function useCustomers(): QueryResult<Customer[]> {
 
 export function useRefunds(): QueryResult<Refund[]> {
   const { isDemo, demoStore, version } = useDemo();
-  const { profile } = useAuth();
-  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  const activeStoreId = useActiveStoreId();
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
 
   const constraints = useMemo(() => {
     const c = [orderBy("createdAt", "desc")];
-    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
     return c;
-  }, [profile?.storeId]);
+  }, [activeStoreId]);
 
   const { data: firebaseData, loading } = useFirebaseCollection<Refund>("refunds", constraints, { enabled });
 

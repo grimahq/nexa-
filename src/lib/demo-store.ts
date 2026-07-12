@@ -32,7 +32,7 @@ export interface DemoUser {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "manager" | "requestor";
+  role: "admin" | "manager";
   status: "active" | "inactive" | "pending";
   joinedAt: string;
 }
@@ -42,7 +42,7 @@ const SEED_USERS: DemoUser[] = [
   { id: "user-02", name: "Bob Martinez", email: "bob@stackwise.io", role: "admin", status: "active", joinedAt: new Date(Date.now() - 80 * 86400000).toISOString() },
   { id: "user-03", name: "Carol Kim", email: "carol@stackwise.io", role: "manager", status: "active", joinedAt: new Date(Date.now() - 60 * 86400000).toISOString() },
   { id: "user-04", name: "David Okafor", email: "david@stackwise.io", role: "manager", status: "active", joinedAt: new Date(Date.now() - 45 * 86400000).toISOString() },
-  { id: "user-05", name: "Eva Novak", email: "eva@stackwise.io", role: "requestor", status: "active", joinedAt: new Date(Date.now() - 30 * 86400000).toISOString() },
+  { id: "user-05", name: "Eva Novak", email: "eva@stackwise.io", role: "manager", status: "active", joinedAt: new Date(Date.now() - 30 * 86400000).toISOString() },
 ];
 
 export class DemoStore {

@@ -3,6 +3,7 @@ import { useDemo } from "@/hooks/useDemo";
 import { useFirebaseCollection } from "./useFirebaseData";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/hooks/useRole";
 import { where } from "firebase/firestore";
 
 export interface AppUser {
@@ -18,14 +19,17 @@ export interface AppUser {
 export function useUsers() {
   const { isDemo, demoStore, version } = useDemo();
   const { profile } = useAuth();
-  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  const { currentStoreId } = useRole();
+  
+  const activeStoreId = currentStoreId || profile?.storeId;
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
   
   const constraints = useMemo(() => {
-    if (profile?.storeId) {
-      return [where("storeId", "==", profile.storeId)];
+    if (activeStoreId) {
+      return [where("storeId", "==", activeStoreId)];
     }
     return [];
-  }, [profile?.storeId]);
+  }, [activeStoreId]);
 
   const { data: firebaseData, loading, error } = useFirebaseCollection<AppUser>("users", constraints, { enabled });
 
