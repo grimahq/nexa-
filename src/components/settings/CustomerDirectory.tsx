@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/shared/EmptyState";
 
+import { useSales } from "@/hooks/useInventoryData";
+
 const NAIRA = "₦";
 
 interface CustomerRecord {
@@ -16,14 +18,15 @@ interface CustomerRecord {
 }
 
 export function CustomerDirectory() {
-  const { demoStore } = useDemo();
+  const { isDemo, demoStore } = useDemo();
+  const { data: sales, isLoading } = useSales();
   const [search, setSearch] = useState("");
 
   const customers = useMemo(() => {
-    const sales = demoStore?.getSales() ?? [];
+    const salesList = sales ?? [];
     const map = new Map<string, CustomerRecord>();
 
-    for (const sale of sales) {
+    for (const sale of salesList) {
       const phone = sale.customerPhone?.trim();
       if (!phone) continue;
       const existing = map.get(phone);
@@ -46,7 +49,7 @@ export function CustomerDirectory() {
     }
 
     return Array.from(map.values()).sort((a, b) => b.totalSpent - a.totalSpent);
-  }, [demoStore]);
+  }, [sales]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return customers;

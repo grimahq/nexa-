@@ -41,11 +41,32 @@ export interface SeedData {
   notificationPrefs: NotificationPrefs;
 }
 
-export function generateSeedData(sector: string = "general"): SeedData {
+export function generateSeedData(sector: string = "general", selectedCategories?: string[]): SeedData {
   const base = getBaseForSector(sector);
+  const allItems = getItemsForSector(sector);
+  
+  // If we have selected categories, we want to ensure we have exactly 2 products for each selected category
+  // if they exist in the master list.
+  let finalItems: Item[] = [];
+  
+  if (selectedCategories && selectedCategories.length > 0) {
+    selectedCategories.forEach(catId => {
+      const catItems = allItems.filter(i => i.categoryId === catId);
+      // Take at most 2 items per selected category
+      finalItems.push(...catItems.slice(0, 2));
+    });
+    
+    // If we didn't find enough items or have too few, and this isn't a "blank" request, 
+    // maybe we should add some from categories that weren't selected? 
+    // Actually, following the prompt strictly: "For each category let's have 2 demo products"
+    // I'll stick to the selected ones if they are provided.
+  } else {
+    finalItems = allItems;
+  }
+
   return {
     categories: base.categories,
-    items: getItemsForSector(sector),
+    items: finalItems,
     suppliers: base.suppliers,
     locations: base.locations,
     movements: generateMovements(),

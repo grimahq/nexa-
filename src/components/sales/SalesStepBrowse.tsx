@@ -1,21 +1,32 @@
 import { useState, useMemo, useRef, useCallback } from "react";
-import { Plus, Minus, Package, Search, X, TrendingUp, UserCheck, ShoppingCart, ChevronDown } from "lucide-react";
+import { Plus, Minus, Package, Search, X, TrendingUp, UserCheck, ShoppingCart, ChevronDown, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useItems, useCategories } from "@/hooks/useInventoryData";
 import { useDemo } from "@/hooks/useDemo";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { cn } from "@/lib/utils";
 import { FoodPlate } from "./FoodPlate";
-import { SUPPORTED_UNITS } from "@/types/inventory";
+import { SUPPORTED_UNITS, type Item } from "@/types/inventory";
+import { DishCustomizerDialog } from "./DishCustomizerDialog";
+import { VariantCustomizerDialog } from "./VariantCustomizerDialog";
 
 const NAIRA = "₦";
-const USD_TO_NGN = 1_580;
+const USD_TO_NGN = 1;
 
 function formatNaira(usd: number): string {
   const ngn = usd * USD_TO_NGN;
@@ -23,19 +34,95 @@ function formatNaira(usd: number): string {
 }
 
 interface SalesStepBrowseProps {
-  cart: Map<string, number>; // keys are itemId:unitId
-  onAdd: (id: string, qty?: number, unitId?: string) => void;
-  onRemove: (id: string, unitId?: string) => void;
+  cart: Map<string, number>; // keys are itemId:unitId:configString
+  onAdd: (id: string, qty?: number, unitId?: string, configStr?: string) => void;
+  onRemove: (id: string, unitId?: string, configStr?: string) => void;
 }
 
 export function SalesStepBrowse({ cart, onAdd, onRemove }: SalesStepBrowseProps) {
   const { data: items } = useItems();
   const { data: categories } = useCategories();
-  const { demoStore, onboarding } = useDemo();
+  const { isDemo, demoStore, onboarding: demoOnboarding } = useDemo();
+  const { settings: liveSettings } = useSystemSettings();
+  
+  const onboarding = isDemo ? demoOnboarding : liveSettings;
   const [search, setSearch] = useState("");
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [animatingItems, setAnimatingItems] = useState<Set<string>>(new Set());
   const [selectedUnits, setSelectedUnits] = useState<Record<string, string>>({});
+  const [inlineEditingItemId, setInlineEditingItemId] = useState<string | null>(null);
+  const [inlineQtyState, setInlineQtyState] = useState<Record<string, number>>({});
+  const [configuratorOpen, setConfiguratorOpen] = useState(false);
+  const [configuratorItem, setConfiguratorItem] = useState<Item | null>(null);
+  const [variantConfigOpen, setVariantConfigOpen] = useState(false);
+  const [variantConfigItem, setVariantConfigItem] = useState<Item | null>(null);
+
+  // Core Stock Guard helper: calculates how many items of targetUnitId we can add
+  const getAvailableTargetQty = useCallback((item: Item, targetUnitId: string, currentCart: Map<string, number>): number => {
+    let consumedBaseUnits = 0;
+    currentCart.forEach((qty, compositeKey) => {
+      let itemId = compositeKey;
+      let unitId = "";
+      const firstColon = compositeKey.indexOf(":");
+      if (firstColon !== -1) {
+        itemId = compositeKey.substring(0, firstColon);
+        const remaining = compositeKey.substring(firstColon + 1);
+        const secondColon = remaining.indexOf(":");
+        unitId = secondColon !== -1 ? remaining.substring(0, secondColon) : remaining;
+      }
+      if (itemId === item.id && unitId !== targetUnitId) {
+        const multiplier = unitId === item.unit
+          ? 1
+          : item.unitConversions?.find(c => c.unitId === unitId)?.multiplier || 1;
+        consumedBaseUnits += qty * multiplier;
+      }
+    });
+
+    const availableBaseStock = Math.max(0, item.currentStock - consumedBaseUnits);
+    const targetMultiplier = targetUnitId === item.unit
+      ? 1
+      : item.unitConversions?.find(c => c.unitId === targetUnitId)?.multiplier || 1;
+    
+    return availableBaseStock / targetMultiplier;
+  }, []);
+
+  // Stock Guard helper for Inline "All Units" panel
+  const getAvailableForUnitInInlineMode = useCallback((item: Item, targetUnitId: string, qtyState: Record<string, number>): number => {
+    let localConsumedBase = 0;
+    Object.entries(qtyState).forEach(([uId, qty]) => {
+      if (uId !== targetUnitId) {
+        const multiplier = uId === item.unit
+          ? 1
+          : item.unitConversions?.find(c => c.unitId === uId)?.multiplier || 1;
+        localConsumedBase += (qty || 0) * multiplier;
+      }
+    });
+    const availableBase = Math.max(0, item.currentStock - localConsumedBase);
+    const targetMultiplier = targetUnitId === item.unit
+      ? 1
+      : item.unitConversions?.find(c => c.unitId === targetUnitId)?.multiplier || 1;
+    return availableBase / targetMultiplier;
+  }, []);
+
+  const handleOpenInlineAllUnits = useCallback((item: Item) => {
+    const initial: Record<string, number> = {};
+    initial[item.unit] = cart.get(`${item.id}:${item.unit}`) ?? 0;
+    item.unitConversions?.forEach(c => {
+      initial[c.unitId] = cart.get(`${item.id}:${c.unitId}`) ?? 0;
+    });
+    setInlineQtyState(initial);
+    setInlineEditingItemId(item.id);
+  }, [cart]);
+
+  const handleApplyInlineAllUnits = useCallback((item: Item) => {
+    const unitsToSave = [item.unit, ...(item.unitConversions?.map(c => c.unitId) ?? [])];
+    unitsToSave.forEach(unitId => {
+      const qty = inlineQtyState[unitId] ?? 0;
+      onAdd(item.id, qty, unitId);
+    });
+    setInlineEditingItemId(null);
+    setInlineQtyState({});
+  }, [inlineQtyState, onAdd]);
 
   const totalItems = Array.from(cart.values()).reduce((s, q) => s + q, 0);
   
@@ -43,7 +130,11 @@ export function SalesStepBrowse({ cart, onAdd, onRemove }: SalesStepBrowseProps)
   const cartSumsByItem = useMemo(() => {
     const sums = new Map<string, number>();
     cart.forEach((qty, compositeKey) => {
-      const [itemId] = compositeKey.split(":");
+      let itemId = compositeKey;
+      const firstColon = compositeKey.indexOf(":");
+      if (firstColon !== -1) {
+        itemId = compositeKey.substring(0, firstColon);
+      }
       sums.set(itemId, (sums.get(itemId) ?? 0) + qty);
     });
     return sums;
@@ -52,17 +143,52 @@ export function SalesStepBrowse({ cart, onAdd, onRemove }: SalesStepBrowseProps)
   const totalNaira = useMemo(() => {
     let sum = 0;
     cart.forEach((qty, compositeKey) => {
-      const [itemId, unitId] = compositeKey.split(":");
+      let itemId = compositeKey;
+      let unitId = "";
+      let configStr = "";
+      const firstColon = compositeKey.indexOf(":");
+      if (firstColon !== -1) {
+        itemId = compositeKey.substring(0, firstColon);
+        const remaining = compositeKey.substring(firstColon + 1);
+        const secondColon = remaining.indexOf(":");
+        if (secondColon !== -1) {
+          unitId = remaining.substring(0, secondColon);
+          configStr = remaining.substring(secondColon + 1);
+        } else {
+          unitId = remaining;
+        }
+      }
+
       const item = items.find((i) => i.id === itemId);
       if (!item) return;
 
       let price = item.sellingPrice;
-      if (unitId !== item.unit && item.unitConversions) {
+      if (unitId && unitId !== item.unit && item.unitConversions) {
         const conv = item.unitConversions.find(c => c.unitId === unitId);
         if (conv) {
           price = conv.priceNgn !== undefined ? conv.priceNgn / USD_TO_NGN : item.sellingPrice * conv.multiplier;
         }
       }
+
+      if (configStr) {
+        try {
+          const config = JSON.parse(configStr);
+          if (config.portion) {
+            price = config.portion.price;
+          }
+          if (config.proteins) {
+            const addonSum = config.proteins.reduce((s: number, p: { price: number }) => s + p.price, 0);
+            price += addonSum;
+          }
+          if (config.comboSelections) {
+            const comboAddonSum = config.comboSelections.reduce((s: number, cs: { priceModifier?: number }) => s + (cs.priceModifier || 0), 0);
+            price += comboAddonSum;
+          }
+        } catch (e) {
+          console.error("Failed to parse configStr:", e);
+        }
+      }
+
       sum += price * USD_TO_NGN * qty;
     });
     return sum;
@@ -270,18 +396,259 @@ export function SalesStepBrowse({ cart, onAdd, onRemove }: SalesStepBrowseProps)
               }
             }
 
+            // High Precision Stock Guard limits for Direct Action
+            const currentStep = SUPPORTED_UNITS.find(u => u.id === currentUnit)?.step || 1;
+            const targetAvailableQty = getAvailableTargetQty(item, currentUnit, cart);
+            const isAddDisabled = qty + currentStep > targetAvailableQty;
+
+            const hasRestaurantConfig = isRestaurant && (
+              (item.restaurant?.portionSizes && item.restaurant.portionSizes.length > 0) ||
+              (item.restaurant?.proteinAddons && item.restaurant.proteinAddons.length > 0) ||
+              (item.restaurant?.spiceLevels && item.restaurant.spiceLevels.length > 0) ||
+              item.restaurant?.isCombo
+            );
+            const hasVariants = !!(item.color || item.sizes);
+
+            // Render inline multi-unit panel if editing mode is active for this item
+            if (inlineEditingItemId === item.id) {
+              return (
+                <div
+                  key={item.id}
+                  className="group flex flex-col justify-between overflow-hidden rounded-xl border border-primary bg-card p-3 shadow-lg min-h-[340px]"
+                >
+                  <div>
+                    <div className="flex items-center justify-between border-b pb-1.5 mb-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-base shrink-0">{item.emoji || "📦"}</span>
+                        <p className="text-xs font-bold truncate text-foreground leading-none">{item.name}</p>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => setInlineEditingItemId(null)}
+                        className="text-muted-foreground hover:text-foreground hover:bg-muted p-1 rounded-sm shrink-0"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    <p className="text-[9px] text-muted-foreground font-semibold mb-1">
+                       All Units Mode · Stock: {item.currentStock} {item.unit}
+                    </p>
+
+                    {item.textile && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {item.textile.fabricContent && (
+                          <span className="text-[8px] bg-rose-50/50 border border-rose-200/30 text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-400 font-bold px-1 rounded uppercase tracking-tight">
+                            {item.textile.fabricContent}
+                          </span>
+                        )}
+                        {item.textile.weaveType && (
+                          <span className="text-[8px] bg-amber-50/50 border border-amber-200/30 text-amber-600 dark:bg-amber-950/20 dark:border-amber-900/40 dark:text-amber-400 font-bold px-1 rounded uppercase tracking-tight">
+                            {item.textile.weaveType}
+                          </span>
+                        )}
+                        {item.textile.gsm && (
+                          <span className="text-[8px] bg-indigo-50/50 border border-indigo-200/30 text-indigo-600 dark:bg-indigo-950/20 dark:border-indigo-900/40 dark:text-indigo-400 font-bold px-1 rounded uppercase tracking-tight font-mono">
+                            {item.textile.gsm} GSM
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-0.5 scrollbar-thin">
+                      {/* Base Unit Qty Block */}
+                      {(() => {
+                        const unitId = item.unit;
+                        const localQty = inlineQtyState[unitId] ?? 0;
+                        const unitPrice = item.sellingPrice;
+                        const maxAllowed = getAvailableForUnitInInlineMode(item, unitId, inlineQtyState);
+                        const step = SUPPORTED_UNITS.find(u => u.id === unitId)?.step || 1;
+                        const canIncrement = localQty + step <= maxAllowed;
+
+                        return (
+                          <div className="p-1.5 rounded-lg border bg-muted/15 flex flex-col gap-0.5">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-[10px] uppercase text-zinc-600 dark:text-zinc-400">
+                                {unitId} <span className="text-[8px] text-muted-foreground font-normal">(Base)</span>
+                              </span>
+                              <span className="text-[11px] font-bold text-primary">{formatNaira(unitPrice)}</span>
+                            </div>
+                            
+                            <div className="flex items-center justify-between mt-1">
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-5 w-5 rounded animate-none"
+                                  disabled={localQty <= 0}
+                                  onClick={() => {
+                                    const newVal = Math.max(0, Number((localQty - step).toFixed(2)));
+                                    setInlineQtyState(prev => ({ ...prev, [unitId]: newVal }));
+                                  }}
+                                >
+                                  <Minus className="h-2.5 w-2.5" />
+                                </Button>
+                                <input
+                                  type="number"
+                                  className="w-8 h-5 text-center font-bold text-xs bg-transparent border-b border-border outline-none focus:border-primary font-mono"
+                                  value={localQty || ""}
+                                  placeholder="0"
+                                  onChange={(e) => {
+                                    let val = parseFloat(e.target.value);
+                                    if (isNaN(val) || val < 0) val = 0;
+                                    if (val > maxAllowed) val = maxAllowed;
+                                    setInlineQtyState(prev => ({ ...prev, [unitId]: Number(val.toFixed(2)) }));
+                                  }}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-5 w-5 rounded animate-none"
+                                  disabled={!canIncrement}
+                                  onClick={() => {
+                                    const newVal = Number((localQty + step).toFixed(2));
+                                    setInlineQtyState(prev => ({ ...prev, [unitId]: newVal }));
+                                  }}
+                                >
+                                  <Plus className="h-2.5 w-2.5" />
+                                </Button>
+                              </div>
+                              
+                              {!canIncrement && (
+                                <span className="text-[8px] text-destructive font-semibold">
+                                  Only {Math.floor(maxAllowed)} left
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Conversion Units Qty Blocks */}
+                      {item.unitConversions?.map((conv) => {
+                        const unitId = conv.unitId;
+                        const localQty = inlineQtyState[unitId] ?? 0;
+                        const unitPrice = conv.priceNgn !== undefined 
+                          ? conv.priceNgn / USD_TO_NGN 
+                          : item.sellingPrice * conv.multiplier;
+                        const maxAllowed = getAvailableForUnitInInlineMode(item, unitId, inlineQtyState);
+                        const step = SUPPORTED_UNITS.find(u => u.id === unitId)?.step || 1;
+                        const canIncrement = localQty + step <= maxAllowed;
+
+                        return (
+                          <div key={unitId} className="p-1.5 rounded-lg border bg-muted/15 flex flex-col gap-0.5">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-[10px] uppercase text-zinc-600 dark:text-zinc-400">
+                                {unitId} <span className="text-[8px] text-muted-foreground font-normal">(= {conv.multiplier} {item.unit})</span>
+                              </span>
+                              <span className="text-[11px] font-bold text-primary">{formatNaira(unitPrice)}</span>
+                            </div>
+                            
+                            <div className="flex items-center justify-between mt-1">
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-5 w-5 rounded animate-none"
+                                  disabled={localQty <= 0}
+                                  onClick={() => {
+                                    const newVal = Math.max(0, Number((localQty - step).toFixed(2)));
+                                    setInlineQtyState(prev => ({ ...prev, [unitId]: newVal }));
+                                  }}
+                                >
+                                  <Minus className="h-2.5 w-2.5" />
+                                </Button>
+                                <input
+                                  type="number"
+                                  className="w-8 h-5 text-center font-bold text-xs bg-transparent border-b border-border outline-none focus:border-primary font-mono"
+                                  value={localQty || ""}
+                                  placeholder="0"
+                                  onChange={(e) => {
+                                    let val = parseFloat(e.target.value);
+                                    if (isNaN(val) || val < 0) val = 0;
+                                    if (val > maxAllowed) val = maxAllowed;
+                                    setInlineQtyState(prev => ({ ...prev, [unitId]: Number(val.toFixed(2)) }));
+                                  }}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-5 w-5 rounded animate-none"
+                                  disabled={!canIncrement}
+                                  onClick={() => {
+                                    const newVal = Number((localQty + step).toFixed(2));
+                                    setInlineQtyState(prev => ({ ...prev, [unitId]: newVal }));
+                                  }}
+                                >
+                                  <Plus className="h-2.5 w-2.5" />
+                                </Button>
+                              </div>
+                              
+                              {!canIncrement && (
+                                <span className="text-[8px] text-destructive font-semibold">
+                                  Only {Math.floor(maxAllowed)} left
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="mt-2 pt-2 border-t flex gap-1.5 shrink-0">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      className="flex-1 h-7 text-[10px] font-semibold"
+                      onClick={() => setInlineEditingItemId(null)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="button" 
+                      className="flex-1 h-7 text-[10px] font-bold"
+                      onClick={() => handleApplyInlineAllUnits(item)}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                </div>
+              );
+            }
+
+            // Normal Card Face with Direct Unit Speed Pills and strict stock checks
             return (
               <div
                 key={item.id}
                 className={cn(
-                  "group flex flex-col overflow-hidden rounded-xl border bg-card transition-all",
+                  "group flex flex-col overflow-hidden rounded-xl border bg-card transition-all relative",
                   totalBadgeQty > 0 ? "border-primary/40 shadow-md ring-1 ring-primary/20" : "border-border hover:shadow-sm",
                   isAnimating && "scale-[1.02]"
                 )}
               >
-                <div className="relative aspect-square bg-muted/20">
+                <div 
+                  className="relative aspect-square bg-muted/20 cursor-pointer"
+                  onClick={() => {
+                    if (hasRestaurantConfig) {
+                      setConfiguratorItem(item);
+                      setConfiguratorOpen(true);
+                    } else if (hasVariants) {
+                      setVariantConfigItem(item);
+                      setVariantConfigOpen(true);
+                    } else if (item.unitConversions && item.unitConversions.length > 0) {
+                      handleOpenInlineAllUnits(item);
+                    } else {
+                      handleAdd(item.id, undefined, currentUnit);
+                    }
+                  }}
+                >
                   {item.imageUrl ? (
-                    <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                    <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-2xl text-muted-foreground/15">
                       {item.emoji || "📦"}
@@ -289,19 +656,39 @@ export function SalesStepBrowse({ cart, onAdd, onRemove }: SalesStepBrowseProps)
                   )}
                   {totalBadgeQty > 0 && (
                     <div className={cn(
-                      "absolute right-1.5 top-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground transition-transform",
+                      "absolute right-1.5 top-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground transition-transform z-10",
                       isAnimating && "scale-125"
                     )}>
                       {totalBadgeQty}
                     </div>
                   )}
-                  <span className="absolute bottom-1.5 left-1.5 rounded-full bg-card/90 px-2 py-0.5 text-[9px] font-medium text-muted-foreground backdrop-blur-sm">
-                    {item.currentStock} {item.unit} left
+                  <span className="absolute bottom-1.5 left-1.5 rounded-full bg-card/90 px-2 py-0.5 text-[9px] font-medium text-muted-foreground backdrop-blur-sm z-10">
+                    {(() => {
+                      // Calculate total base units in cart for this item
+                      let inCartBase = 0;
+                      cart.forEach((q, cKey) => {
+                        let id = cKey;
+                        let unitId = "";
+                        const firstColon = cKey.indexOf(":");
+                        if (firstColon !== -1) {
+                          id = cKey.substring(0, firstColon);
+                          const remaining = cKey.substring(firstColon + 1);
+                          const secondColon = remaining.indexOf(":");
+                          unitId = secondColon !== -1 ? remaining.substring(0, secondColon) : remaining;
+                        }
+                        if (id === item.id) {
+                          const conv = item.unitConversions?.find(c => c.unitId === unitId)?.multiplier || 1;
+                          inCartBase += q * conv;
+                        }
+                      });
+                      const remaining = Math.max(0, item.currentStock - inCartBase);
+                      return `${remaining.toFixed(remaining % 1 === 0 ? 0 : 1)} ${item.unit} left`;
+                    })()}
                   </span>
                   
                   {item.color && (
                     <div 
-                      className="absolute top-1.5 left-1.5 h-4 w-4 rounded-full border border-white shadow-sm"
+                      className="absolute top-1.5 left-1.5 h-4 w-4 rounded-full border border-white shadow-sm z-10"
                       style={{ backgroundColor: item.color }}
                     />
                   )}
@@ -309,85 +696,181 @@ export function SalesStepBrowse({ cart, onAdd, onRemove }: SalesStepBrowseProps)
 
                 <div className="flex flex-1 flex-col gap-0.5 p-2.5">
                   <p className="text-xs font-medium leading-tight line-clamp-2 text-foreground">{item.name}</p>
-                  {item.design && (
-                    <p className="text-[10px] text-muted-foreground font-mono truncate">{item.design}</p>
+                  
+                  {item.textile && (
+                    <div className="flex flex-wrap gap-1 mt-0.5 mb-1">
+                      {item.textile.fabricContent && (
+                        <span className="text-[8px] bg-rose-50 border border-rose-200/50 text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-400 font-bold px-1 rounded uppercase tracking-wide">
+                          {item.textile.fabricContent}
+                        </span>
+                      )}
+                      {item.textile.weaveType && (
+                        <span className="text-[8px] bg-amber-50 border border-amber-200/50 text-amber-600 dark:bg-amber-950/20 dark:border-amber-900/40 dark:text-amber-400 font-bold px-1 rounded uppercase tracking-wide">
+                          {item.textile.weaveType}
+                        </span>
+                      )}
+                      {item.textile.gsm && (
+                        <span className="text-[8px] bg-indigo-50 border border-indigo-200/50 text-indigo-600 dark:bg-indigo-950/20 dark:border-indigo-900/40 dark:text-indigo-400 font-bold px-1 rounded uppercase tracking-wide font-mono">
+                          {item.textile.gsm} GSM
+                        </span>
+                      )}
+                    </div>
                   )}
                   
-                  <div className="mt-auto flex items-center justify-between gap-1 pt-1">
-                    <p className="text-sm font-bold text-foreground">
-                      {formatNaira(displayPrice)}
-                    </p>
-                    
+                  <div className="mt-auto pt-1.5">
                     {item.unitConversions && item.unitConversions.length > 0 ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="flex items-center gap-0.5 rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase text-muted-foreground transition-colors hover:bg-accent">
-                            {currentUnit} <ChevronDown className="h-2 w-2" />
+                      <div className="space-y-1.5">
+                        <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none scroll-smooth">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedUnits({...selectedUnits, [item.id]: item.unit})}
+                            className={cn(
+                              "rounded-full px-2 py-0.5 text-[9px] font-bold uppercase border transition-all active:scale-95 shrink-0",
+                              currentUnit === item.unit
+                                ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                : "bg-muted text-muted-foreground border-transparent hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                            )}
+                          >
+                            {item.unit}
+                            {(() => {
+                              const key = `${item.id}:${item.unit}`;
+                              const q = cart.get(key) ?? 0;
+                              return q > 0 ? ` (${q})` : "";
+                            })()}
                           </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="text-[10px]">
-                          <DropdownMenuItem onClick={() => setSelectedUnits({...selectedUnits, [item.id]: item.unit})}>
-                            {item.unit} (Base)
-                          </DropdownMenuItem>
                           {item.unitConversions.map(conv => (
-                            <DropdownMenuItem key={conv.unitId} onClick={() => setSelectedUnits({...selectedUnits, [item.id]: conv.unitId})}>
+                            <button
+                              key={conv.unitId}
+                              type="button"
+                              onClick={() => setSelectedUnits({...selectedUnits, [item.id]: conv.unitId})}
+                              className={cn(
+                                "rounded-full px-2 py-0.5 text-[9px] font-bold uppercase border transition-all active:scale-95 shrink-0",
+                                currentUnit === conv.unitId
+                                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                  : "bg-muted text-muted-foreground border-transparent hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                              )}
+                            >
                               {conv.unitId}
-                            </DropdownMenuItem>
+                              {(() => {
+                                const key = `${item.id}:${conv.unitId}`;
+                                const q = cart.get(key) ?? 0;
+                                return q > 0 ? ` (${q})` : "";
+                              })()}
+                            </button>
                           ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        </div>
+                        <div className="flex items-center justify-between pt-0.5">
+                          <p className="text-xs font-bold text-foreground">
+                            {formatNaira(displayPrice)}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenInlineAllUnits(item)}
+                            className="text-[9px] font-bold uppercase text-primary hover:underline bg-primary/10 px-1.5 py-0.5 rounded transition-colors"
+                          >
+                            All Units
+                          </button>
+                        </div>
+                      </div>
                     ) : (
-                      item.unit && item.unit !== "pcs" && (
-                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded uppercase font-bold">
-                          {item.unit}
-                        </span>
-                      )
+                      <div className="flex items-center justify-between">
+                         <p className="text-sm font-bold text-foreground">
+                            {formatNaira(displayPrice)}
+                         </p>
+                         {item.unit && item.unit !== "pcs" && (
+                           <span className="text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded uppercase font-bold tracking-tight">
+                             {item.unit}
+                           </span>
+                         )}
+                      </div>
                     )}
                   </div>
                 </div>
 
-                <div className="flex items-center border-t border-border">
+                {/* Stock Warning Message on Direct Card */}
+                {isAddDisabled && (
+                  <div className="px-2 pb-1 text-center animate-pulse">
+                    <span className="text-[9px] text-destructive font-bold bg-destructive/10 px-1.5 py-0.5 rounded-sm">
+                      Only {Math.floor(targetAvailableQty)} {currentUnit} left
+                    </span>
+                  </div>
+                )}
+
+                {hasRestaurantConfig || hasVariants ? (
                   <button
                     type="button"
-                    disabled={qty === 0}
-                    onPointerDown={(e) => {
-                      if (e.pointerType === "mouse" && e.button !== 0) return;
-                      // Prevent touch-hold context menu on some mobile browsers
-                      e.currentTarget.setPointerCapture(e.pointerId);
-                      startLongPress(() => onRemove(item.id, currentUnit));
+                    onClick={() => {
+                      if (hasRestaurantConfig) {
+                        setConfiguratorItem(item);
+                        setConfiguratorOpen(true);
+                      } else {
+                        setVariantConfigItem(item);
+                        setVariantConfigOpen(true);
+                      }
                     }}
-                    onPointerUp={(e) => {
-                      e.currentTarget.releasePointerCapture(e.pointerId);
-                      stopLongPress();
-                    }}
-                    onPointerLeave={stopLongPress}
-                    onPointerCancel={stopLongPress}
-                    className="flex h-12 flex-1 items-center justify-center text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive disabled:opacity-20 active:scale-90"
+                    className="flex h-11 w-full items-center justify-center gap-1.5 border-t border-border text-xs font-bold text-primary hover:bg-primary/[0.03] transition-colors"
                   >
-                    <Minus className="h-5 w-5" />
+                    <span>Customize</span>
+                    {totalBadgeQty > 0 && (
+                      <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-[9px] font-extrabold px-1 text-white">
+                        {totalBadgeQty}
+                      </span>
+                    )}
                   </button>
-                  <span className="min-w-8 text-center text-sm font-bold font-mono">
-                    {qty}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={totalBadgeQty >= item.currentStock}
-                    onPointerDown={(e) => {
-                      if (e.pointerType === "mouse" && e.button !== 0) return;
-                      e.currentTarget.setPointerCapture(e.pointerId);
-                      startLongPress(() => handleAdd(item.id, undefined, currentUnit));
-                    }}
-                    onPointerUp={(e) => {
-                      e.currentTarget.releasePointerCapture(e.pointerId);
-                      stopLongPress();
-                    }}
-                    onPointerLeave={stopLongPress}
-                    onPointerCancel={stopLongPress}
-                    className="flex h-12 flex-1 items-center justify-center text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary disabled:opacity-20 active:scale-90"
-                  >
-                    <Plus className="h-5 w-5" />
-                  </button>
-                </div>
+                ) : (
+                  <div className="flex items-center border-t border-border mt-auto">
+                    <button
+                      type="button"
+                      disabled={qty === 0}
+                      onPointerDown={(e) => {
+                        if (e.pointerType === "mouse" && e.button !== 0) return;
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                        startLongPress(() => onRemove(item.id, currentUnit));
+                      }}
+                      onPointerUp={(e) => {
+                        e.currentTarget.releasePointerCapture(e.pointerId);
+                        stopLongPress();
+                      }}
+                      onPointerLeave={stopLongPress}
+                      onPointerCancel={stopLongPress}
+                      className="flex h-11 flex-1 items-center justify-center text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive disabled:opacity-20 active:scale-90"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <div className="flex-1 px-1">
+                      <input 
+                        type="number"
+                        value={qty === 0 ? "" : qty}
+                        placeholder="0"
+                        onChange={(e) => {
+                          let val = parseFloat(e.target.value);
+                          if (isNaN(val) || val < 0) val = 0;
+                          if (val > targetAvailableQty) val = targetAvailableQty;
+                          onAdd(item.id, Number(val.toFixed(2)), currentUnit);
+                        }}
+                        className="w-full text-center text-sm font-bold font-mono bg-transparent outline-none focus:text-primary transition-colors"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isAddDisabled}
+                      onPointerDown={(e) => {
+                        if (e.pointerType === "mouse" && e.button !== 0) return;
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                        startLongPress(() => handleAdd(item.id, undefined, currentUnit));
+                      }}
+                      onPointerUp={(e) => {
+                        e.currentTarget.releasePointerCapture(e.pointerId);
+                        stopLongPress();
+                      }}
+                      onPointerLeave={stopLongPress}
+                      onPointerCancel={stopLongPress}
+                      className="flex h-11 flex-1 items-center justify-center text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary disabled:opacity-20 active:scale-90"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -420,6 +903,25 @@ export function SalesStepBrowse({ cart, onAdd, onRemove }: SalesStepBrowseProps)
           </Badge>
         </button>
       </div>
+
+      <DishCustomizerDialog
+        open={configuratorOpen}
+        onOpenChange={setConfiguratorOpen}
+        item={configuratorItem}
+        onAddConfigured={(itemId, qty, unitId, configStr) => {
+          onAdd(itemId, qty, unitId, configStr);
+        }}
+      />
+
+      <VariantCustomizerDialog
+        open={variantConfigOpen}
+        onOpenChange={setVariantConfigOpen}
+        item={variantConfigItem}
+        onAddConfigured={(itemId, qty, unitId, configStr) => {
+          onAdd(itemId, qty, unitId, configStr);
+        }}
+      />
+
     </div>
   );
 }

@@ -6,6 +6,8 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import type { SaleTransaction } from "@/types/inventory";
 import { useDemo } from "@/hooks/useDemo";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
+import { getWhatsAppUrl, buildPersonalizedReceiptText } from "@/lib/whatsapp";
 
 const NAIRA = "₦";
 
@@ -131,7 +133,10 @@ interface SalesReceiptProps {
 }
 
 export function SalesReceipt({ sale, onClose }: SalesReceiptProps) {
-  const { onboarding } = useDemo();
+  const { isDemo, onboarding: demoOnboarding } = useDemo();
+  const { settings: liveSettings } = useSystemSettings();
+  
+  const onboarding = isDemo ? demoOnboarding : liveSettings;
   const storeName = onboarding.storeName || getStoreName(onboarding.businessType);
   const [downloading, setDownloading] = useState(false);
 
@@ -162,10 +167,9 @@ export function SalesReceipt({ sale, onClose }: SalesReceiptProps) {
   };
 
   const handleWhatsAppText = () => {
-    const text = buildReceiptText(sale, storeName);
-    const phone = sale.customerPhone?.replace(/\D/g, "") ?? "";
-    const waPhone = phone.startsWith("0") ? "234" + phone.slice(1) : phone;
-    const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(text)}`;
+    const text = buildPersonalizedReceiptText(sale, storeName);
+    const phone = sale.customerPhone ?? "";
+    const url = getWhatsAppUrl(phone, text);
     window.open(url, "_blank");
   };
 
@@ -176,18 +180,10 @@ export function SalesReceipt({ sale, onClose }: SalesReceiptProps) {
       const fileName = `receipt-${sale.id.slice(-8).toUpperCase()}.pdf`;
       const file = new File([blob], fileName, { type: "application/pdf" });
       
-      const phone = sale.customerPhone?.replace(/\D/g, "") ?? "";
-      const waPhone = phone.startsWith("0") ? "234" + phone.slice(1) : phone;
+      const phone = sale.customerPhone ?? "";
+      const text = buildPersonalizedReceiptText(sale, storeName);
 
-      // Try Web Share API if available (best for mobile/WhatsApp)
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: `${storeName} Receipt`,
-          text: buildReceiptText(sale, storeName),
-        });
-        toast.success("Receipt shared!");
-      } else {
+      const triggerFallback = () => {
         // Fallback: Download then open link
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -196,9 +192,27 @@ export function SalesReceipt({ sale, onClose }: SalesReceiptProps) {
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 100);
 
-        const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(buildReceiptText(sale, storeName) + "\n\n📎 PDF receipt downloaded - please attach and send to customer.")}`;
+        const waUrl = getWhatsAppUrl(phone, text + "\n\n📎 PDF receipt downloaded - please attach and send to customer.");
         window.open(waUrl, "_blank");
         toast.info("PDF downloaded. Opening WhatsApp...");
+      };
+
+      // Try Web Share API if available (best for mobile/WhatsApp)
+      if (typeof navigator !== "undefined" && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: `${storeName} Receipt`,
+            text: text,
+          });
+          toast.success("Receipt shared!");
+        } catch (shareErr: unknown) {
+          // If the Web Share API fails (e.g., lost user gesture after async PDF render, or sandbox/iframe flags), run fallback
+          console.warn("navigator.share failed, running manual fallback:", shareErr);
+          triggerFallback();
+        }
+      } else {
+        triggerFallback();
       }
     } catch (err) {
       console.error(err);

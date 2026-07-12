@@ -15,8 +15,8 @@ export function useOnboarding(tourId: string) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isActive, setIsActive] = useState(false);
 
-  const startTour = useCallback(() => {
-    if (!hasCompleted) {
+  const startTour = useCallback((force = false) => {
+    if (!hasCompleted || force) {
       setCurrentStep(0);
       setIsActive(true);
     }

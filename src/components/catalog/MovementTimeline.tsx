@@ -58,7 +58,15 @@ export function MovementTimeline({ movements, itemId, maxEntries = 20 }: Movemen
               </div>
               {m.notes && <p className="mt-0.5 text-xs text-muted-foreground">{m.notes}</p>}
               <p className="mt-0.5 text-[11px] text-muted-foreground/70">
-                {formatDistanceToNow(new Date(m.createdAt), { addSuffix: true })}
+                {(() => {
+                  if (!m.createdAt) return "Moment ago";
+                  try {
+                    const d = new Date(m.createdAt);
+                    return isNaN(d.getTime()) ? "Moment ago" : formatDistanceToNow(d, { addSuffix: true });
+                  } catch (e) {
+                    return "Moment ago";
+                  }
+                })()}
               </p>
             </div>
           </div>

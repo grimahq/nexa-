@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 type StockStatus = "in-stock" | "low-stock" | "out-of-stock";
 type ItemStatus = "active" | "discontinued" | "archived";
-type BadgeStatus = StockStatus | ItemStatus;
+type BadgeStatus = StockStatus | ItemStatus | "needs-review";
 
 const config: Record<BadgeStatus, { label: string; dotClass: string; textClass: string }> = {
   "in-stock": {
@@ -19,6 +19,11 @@ const config: Record<BadgeStatus, { label: string; dotClass: string; textClass: 
     label: "Out of Stock",
     dotClass: "bg-stock-out",
     textClass: "text-stock-out",
+  },
+  "needs-review": {
+    label: "Needs Review",
+    dotClass: "bg-amber-500 animate-pulse",
+    textClass: "text-amber-600 font-bold",
   },
   active: {
     label: "Active",

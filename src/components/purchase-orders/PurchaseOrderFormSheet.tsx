@@ -31,6 +31,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { useCreatePurchaseOrder, useUpdatePurchaseOrder } from "@/hooks/useInventoryMutations";
+import { useAuth } from "@/contexts/AuthContext";
+import { useDemo } from "@/hooks/useDemo";
 import { OrderStatus } from "@/types/inventory";
 import type { PurchaseOrder, Supplier, PurchaseOrderItem, Item } from "@/types/inventory";
 import { LineItemsEditor, type LineItemRow } from "./LineItemsEditor";
@@ -73,6 +75,8 @@ export function PurchaseOrderFormSheet({
   suppliers,
   items,
 }: PurchaseOrderFormSheetProps) {
+  const { user, profile } = useAuth();
+  const { isDemo } = useDemo();
   const isEdit = !!purchaseOrder;
   const createPO = useCreatePurchaseOrder();
   const updatePO = useUpdatePurchaseOrder();
@@ -153,6 +157,7 @@ export function PurchaseOrderFormSheet({
       const orderNumber = generatePONumber();
       const id = crypto.randomUUID();
       poItems.forEach((p) => (p.purchaseOrderId = id));
+      const userName = isDemo ? "Demo User" : (profile?.name || user?.displayName || user?.email?.split('@')[0] || "User");
       const newPO: PurchaseOrder = {
         id,
         orderNumber,
@@ -162,7 +167,7 @@ export function PurchaseOrderFormSheet({
         totalCost,
         expectedDelivery: new Date(values.expectedDelivery).toISOString(),
         notes: values.notes,
-        createdBy: "demo-user",
+        createdBy: userName,
         createdAt: now,
         updatedAt: now,
       };

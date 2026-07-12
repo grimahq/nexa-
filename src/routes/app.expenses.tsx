@@ -10,6 +10,8 @@ import { useDemo } from "@/hooks/useDemo";
 import { toast } from "sonner";
 import type { Expense, ExpenseCategory } from "@/types/finance";
 import { EXPENSE_CATEGORIES } from "@/types/finance";
+import { useExpenses } from "@/hooks/useInventoryData";
+import { useCreateExpense, useDeleteExpense } from "@/hooks/useInventoryMutations";
 
 const NAIRA = "₦";
 
@@ -19,16 +21,16 @@ export const Route = createFileRoute("/app/expenses")({
 });
 
 function ExpensesPage() {
-  const { demoStore, bumpVersion, version } = useDemo();
+  const { isDemo, demoStore, bumpVersion } = useDemo();
   const [formOpen, setFormOpen] = useState(false);
   const [filterCat, setFilterCat] = useState<string>("all");
 
-  const expenses = useMemo(() => {
-    void version;
-    return demoStore?.getExpenses() ?? [];
-  }, [demoStore, version]);
+  const { data: expenses, isLoading } = useExpenses();
+  const { mutate: deleteExpense } = useDeleteExpense();
 
-  const filtered = filterCat === "all" ? expenses : expenses.filter((e) => e.category === filterCat);
+  const filtered = useMemo(() => {
+    return filterCat === "all" ? expenses : expenses.filter((e) => e.category === filterCat);
+  }, [filterCat, expenses]);
 
   // Group by date
   const grouped = useMemo(() => {
@@ -45,6 +47,10 @@ function ExpensesPage() {
   const totalExpenses = filtered.reduce((s, e) => s + e.amount, 0);
   const thisWeek = filtered.filter((e) => new Date().getTime() - new Date(e.date).getTime() < 7 * 86400000);
   const weeklyTotal = thisWeek.reduce((s, e) => s + e.amount, 0);
+
+  if (isLoading) {
+    return <div className="flex h-64 items-center justify-center font-mono text-sm text-muted-foreground animate-pulse">Loading expenses...</div>;
+  }
 
   return (
     <div className="mx-auto max-w-[1000px] space-y-4 p-4">
@@ -121,9 +127,9 @@ function ExpensesPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        demoStore?.deleteExpense(e.id);
-                        bumpVersion();
-                        toast.success("Expense deleted");
+                        deleteExpense(e.id, {
+                          onSuccess: () => toast.success("Expense deleted")
+                        });
                       }}
                       className="text-muted-foreground hover:text-destructive transition-colors"
                     >
@@ -137,24 +143,23 @@ function ExpensesPage() {
         </div>
       )}
 
-      <ExpenseFormSheet open={formOpen} onOpenChange={setFormOpen} demoStore={demoStore} bumpVersion={bumpVersion} />
+      <ExpenseFormSheet open={formOpen} onOpenChange={setFormOpen} />
     </div>
   );
 }
 
-function ExpenseFormSheet({ open, onOpenChange, demoStore, bumpVersion }: {
+function ExpenseFormSheet({ open, onOpenChange }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  demoStore: ReturnType<typeof useDemo>["demoStore"];
-  bumpVersion: () => void;
 }) {
+  const { mutate: createExpense, isLoading } = useCreateExpense();
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState<ExpenseCategory>("supplies");
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
 
   const handleSubmit = () => {
-    if (!amount || !demoStore) return;
+    if (!amount) return;
     const expense: Expense = {
       id: `exp-${Date.now()}`,
       date,
@@ -163,12 +168,15 @@ function ExpenseFormSheet({ open, onOpenChange, demoStore, bumpVersion }: {
       notes,
       createdAt: new Date().toISOString(),
     };
-    demoStore.addExpense(expense);
-    bumpVersion();
-    toast.success(`Expense recorded: ${NAIRA}${Number(amount).toLocaleString("en-NG")}`);
-    onOpenChange(false);
-    setAmount("");
-    setNotes("");
+    createExpense(expense, {
+      onSuccess: () => {
+        toast.success(`Expense recorded: ${NAIRA}${Number(amount).toLocaleString("en-NG")}`);
+        onOpenChange(false);
+        setAmount("");
+        setNotes("");
+      },
+      onError: () => toast.error("Failed to record expense")
+    });
   };
 
   return (
@@ -199,8 +207,8 @@ function ExpenseFormSheet({ open, onOpenChange, demoStore, bumpVersion }: {
             <Label className="text-xs">Notes</Label>
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What was this for?" />
           </div>
-          <Button onClick={handleSubmit} disabled={!amount} className="w-full gap-2">
-            <Plus className="h-4 w-4" /> Add Expense
+          <Button onClick={handleSubmit} disabled={!amount || isLoading} className="w-full gap-2">
+            <Plus className="h-4 w-4" /> {isLoading ? "Recording..." : "Add Expense"}
           </Button>
         </div>
       </SheetContent>

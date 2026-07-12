@@ -214,15 +214,24 @@ export function PurchaseOrderDetailSheet({
             <div>
               <p className="text-xs font-medium text-muted-foreground">Created</p>
               <p className="text-sm text-foreground">
-                {format(new Date(purchaseOrder.createdAt), "MMM d, yyyy")}
+                {(() => {
+                  try {
+                    const d = new Date(purchaseOrder.createdAt);
+                    return isNaN(d.getTime()) ? "—" : format(d, "MMM d, yyyy");
+                  } catch (e) { return "—"; }
+                })()}
               </p>
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground">Expected Delivery</p>
               <p className="text-sm text-foreground">
-                {purchaseOrder.expectedDelivery
-                  ? format(new Date(purchaseOrder.expectedDelivery), "MMM d, yyyy")
-                  : "—"}
+                {(() => {
+                  if (!purchaseOrder.expectedDelivery) return "—";
+                  try {
+                    const d = new Date(purchaseOrder.expectedDelivery);
+                    return isNaN(d.getTime()) ? "—" : format(d, "MMM d, yyyy");
+                  } catch (e) { return "—"; }
+                })()}
               </p>
             </div>
           </div>
@@ -343,7 +352,13 @@ export function PurchaseOrderDetailSheet({
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {m.performedBy} · {formatDistanceToNow(new Date(m.createdAt), { addSuffix: true })}
+                            {m.performedBy} · {(() => {
+                              if (!m.createdAt) return "—";
+                              try {
+                                const d = new Date(m.createdAt);
+                                return isNaN(d.getTime()) ? "—" : formatDistanceToNow(d, { addSuffix: true });
+                              } catch (e) { return "—"; }
+                            })()}
                           </p>
                           {m.notes && (
                             <p className="mt-0.5 text-xs text-muted-foreground italic">{m.notes}</p>

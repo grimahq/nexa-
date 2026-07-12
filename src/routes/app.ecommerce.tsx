@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Globe, Link2, Share2, Copy, ExternalLink, QrCode } from "lucide-react";
+import { Globe, Link2, Share2, Copy, ExternalLink, QrCode, Landmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useItems } from "@/hooks/useInventoryData";
 import { toast } from "sonner";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
+import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/app/ecommerce")({
   component: EcommercePage,
@@ -12,40 +14,54 @@ export const Route = createFileRoute("/app/ecommerce")({
 function EcommercePage() {
   const { data: items } = useItems({ status: "active" });
   const ecommerceItems = items.filter(i => i.isEcommerceEnabled);
+  const { settings } = useSystemSettings();
+
+  const storeUrl = settings.storeSlug 
+    ? `${window.location.origin}/store/${settings.storeSlug}`
+    : `${window.location.origin}/store`;
 
   const copyLink = (id: string) => {
-    const url = `${window.location.origin}/store/product/${id}`;
+    const url = `${storeUrl}/product/${id}`;
     navigator.clipboard.writeText(url);
     toast.success("Product link copied to clipboard!");
   };
 
   const shareWhatsApp = (item: { id: string; name: string; sellingPrice: number }) => {
-    const url = `${window.location.origin}/store/product/${item.id}`;
+    const url = `${storeUrl}/product/${item.id}`;
     const text = `Check out ${item.name} on our store! Only ₦${item.sellingPrice.toLocaleString()}\n\nBuy here: ${url}`;
     const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(waUrl, "_blank");
   };
 
   const shareBulk = () => {
-    const text = `Browse our full catalog here: ${window.location.origin}/store`;
+    const text = `Browse our full catalog here: ${storeUrl}`;
     const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(waUrl, "_blank");
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">E-commerce Storefront</h1>
-          <p className="text-muted-foreground">Manage your online presence and product share links.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Digital Storefront</h1>
+          <p className="text-muted-foreground max-w-sm">Manage your social commerce settings and product share links.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+           {settings.moniepointKey ? (
+             <Badge variant="outline" className="gap-1.5 py-1.5 px-3 border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400">
+               <Landmark className="h-3.5 w-3.5" /> Moniepoint Live
+             </Badge>
+           ) : (
+             <Badge variant="outline" className="gap-1.5 py-1.5 px-3 border-amber-500/30 bg-amber-500/5 text-amber-600">
+               <Landmark className="h-3.5 w-3.5" /> Setup Moniepoint
+             </Badge>
+           )}
           <Button variant="outline" onClick={shareBulk} className="gap-2">
-            <Share2 className="h-4 w-4" /> Share All
+            <Share2 className="h-4 w-4" /> Share Store
           </Button>
           <Button className="gap-2" asChild>
-            <a href="/store" target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-4 w-4" /> View Storefront
+            <a href={storeUrl} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-4 w-4" /> Go to Webshop
             </a>
           </Button>
         </div>

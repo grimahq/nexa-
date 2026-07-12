@@ -1,12 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useItems } from "@/hooks/useInventoryData";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, ArrowLeft, ShieldCheck, Truck, RefreshCcw, Star } from "lucide-react";
-import { useState } from "react";
+import { ShoppingCart, ArrowLeft, ShieldCheck, Truck, RefreshCcw, Star, Check } from "lucide-react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Item, SUPPORTED_UNITS } from "@/types/inventory";
+import { cn } from "@/lib/utils";
 
 interface CartItem extends Item {
   quantity: number;
@@ -21,22 +22,54 @@ function ProductDetailPage() {
   const { data: items, isLoading } = useItems({ status: "active" });
   const item = items?.find(i => i.id === productId);
   const [quantity, setQuantity] = useState(1);
+  const [selectedColor, setSelectedColor] = useState<string>("");
+  const [selectedSize, setSelectedSize] = useState<string>("");
+
+  useEffect(() => {
+    if (item) {
+      const colorsList = item.color 
+        ? item.color.split(",").map(c => c.trim()).filter(Boolean)
+        : [];
+      const sizesList = item.sizes 
+        ? item.sizes.split(",").map(s => s.trim()).filter(Boolean)
+        : [];
+      setSelectedColor(colorsList[0] || "");
+      setSelectedSize(sizesList[0] || "");
+    }
+  }, [item]);
 
   const addToCart = () => {
     if (!item) return;
 
+    const config = {
+      color: selectedColor || undefined,
+      size: selectedSize || undefined,
+    };
+    const configStr = (selectedColor || selectedSize) ? JSON.stringify(config) : "";
+    const uniqueCartId = configStr ? `${item.id}:${configStr}` : item.id;
+
     const cart: CartItem[] = JSON.parse(localStorage.getItem("stackwise_cart") || "[]");
-    const existingIndex = cart.findIndex((i) => i.id === item.id);
+    const existingIndex = cart.findIndex((i) => i.id === uniqueCartId);
 
     if (existingIndex > -1) {
       cart[existingIndex].quantity = Number((cart[existingIndex].quantity + quantity).toFixed(2));
     } else {
-      cart.push({ ...item, quantity: quantity });
+      cart.push({ 
+        ...item, 
+        id: uniqueCartId,
+        quantity: quantity,
+        customFields: {
+          color: selectedColor || undefined,
+          size: selectedSize || undefined,
+        }
+      });
     }
 
     localStorage.setItem("stackwise_cart", JSON.stringify(cart));
     window.dispatchEvent(new Event("cartUpdated"));
-    toast.success(`${item.name} (${quantity}) added to cart`);
+    
+    const optionsLabel = [selectedColor, selectedSize].filter(Boolean).join(" - ");
+    toast.success(`${item.name}${optionsLabel ? ` (${optionsLabel})` : ""} (${quantity}) added to cart`);
   };
 
   if (isLoading) {
@@ -129,6 +162,84 @@ function ProductDetailPage() {
               {item.description || "Premium quality product carefully sourced for your business. This item meets all our strict inventory quality standards and is ready for immediate deployment in your operations."}
             </p>
           </div>
+
+          {/* Color & Size Variant Selection */}
+          {(() => {
+            const colorsList = item.color 
+              ? item.color.split(",").map(c => c.trim()).filter(Boolean)
+              : [];
+            const sizesList = item.sizes 
+              ? item.sizes.split(",").map(s => s.trim()).filter(Boolean)
+              : [];
+
+            if (colorsList.length === 0 && sizesList.length === 0) return null;
+
+            return (
+              <div className="space-y-5 py-4 border-t border-b border-dashed">
+                {colorsList.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                      Select Color
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {colorsList.map((color) => {
+                        const isSelected = selectedColor === color;
+                        const cssColor = color.toLowerCase();
+                        return (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => setSelectedColor(color)}
+                            className={cn(
+                              "relative flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-all duration-200 active:scale-95 shadow-sm",
+                              isSelected
+                                ? "border-primary bg-primary/5 text-primary ring-1 ring-primary/30"
+                                : "border-border bg-white text-foreground hover:bg-neutral-50"
+                            )}
+                          >
+                            <span 
+                              className="h-3 w-3 rounded-full border border-black/10 shadow-inner" 
+                              style={{ backgroundColor: cssColor }}
+                            />
+                            {color}
+                            {isSelected && <Check className="h-3 w-3 ml-1 text-primary" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {sizesList.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                      Select Size
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {sizesList.map((sz) => {
+                        const isSelected = selectedSize === sz;
+                        return (
+                          <button
+                            key={sz}
+                            type="button"
+                            onClick={() => setSelectedSize(sz)}
+                            className={cn(
+                              "flex items-center justify-center rounded-xl border px-4 py-2.5 text-xs font-bold uppercase tracking-tight transition-all duration-200 active:scale-95 min-w-[3rem] shadow-sm",
+                              isSelected
+                                ? "border-primary bg-primary/5 text-primary ring-1 ring-primary/30 font-extrabold"
+                                : "border-border bg-white text-foreground hover:bg-neutral-50"
+                            )}
+                          >
+                            {sz}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
             <div className="flex items-center gap-3 text-sm text-neutral-600">

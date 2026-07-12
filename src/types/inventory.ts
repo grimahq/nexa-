@@ -5,6 +5,7 @@ export enum BusinessType {
   Pharmacy = "pharmacy",
   Manufacturing = "manufacturing",
   Electronics = "electronics",
+  SocialCommerce = "social_commerce",
   General = "general",
 }
 
@@ -12,6 +13,7 @@ export enum ItemStatus {
   Active = "active",
   Discontinued = "discontinued",
   Draft = "draft",
+  Archived = "archived",
 }
 
 export enum MovementType {
@@ -46,10 +48,16 @@ export const SUPPORTED_UNITS = [
   { id: "pcs", label: "Pieces", type: "count" as const, step: 1 },
   { id: "kg", label: "Kilograms", type: "weight" as const, step: 0.1 },
   { id: "g", label: "Grams", type: "weight" as const, step: 1 },
+  { id: "lb", label: "Pounds", type: "weight" as const, step: 0.1 },
+  { id: "oz", label: "Ounces", type: "weight" as const, step: 0.1 },
   { id: "ltr", label: "Liters", type: "volume" as const, step: 0.1 },
   { id: "ml", label: "Milliliters", type: "volume" as const, step: 1 },
+  { id: "gal", label: "Gallons", type: "volume" as const, step: 0.1 },
+  { id: "fl_oz", label: "Fluid Ounces", type: "volume" as const, step: 0.1 },
   { id: "m", label: "Meters", type: "length" as const, step: 0.1 },
   { id: "cm", label: "Centimeters", type: "length" as const, step: 1 },
+  { id: "in", label: "Inches", type: "length" as const, step: 0.1 },
+  { id: "ft", label: "Feet", type: "length" as const, step: 0.1 },
   { id: "pack", label: "Packs", type: "count" as const, step: 1 },
   { id: "box", label: "Boxes", type: "count" as const, step: 1 },
   { id: "bag", label: "Bags", type: "count" as const, step: 1 },
@@ -60,6 +68,9 @@ export const SUPPORTED_UNITS = [
   { id: "bowl", label: "Bowls", type: "count" as const, step: 1 },
   { id: "bundle", label: "Bundles", type: "count" as const, step: 1 },
   { id: "yard", label: "Yards", type: "length" as const, step: 0.1 },
+  { id: "mudu", label: "Mudu", type: "volume" as const, step: 0.1 },
+  { id: "paint", label: "Paint Buckets", type: "volume" as const, step: 0.1 },
+  { id: "cup", label: "Cups", type: "volume" as const, step: 0.1 },
 ];
 
 export interface Category {
@@ -69,6 +80,7 @@ export interface Category {
   parentId: string | null;
   createdAt: string;
   updatedAt: string;
+  supportedUnits?: string[];
 }
 
 export interface Supplier {
@@ -100,6 +112,7 @@ export interface Location {
 export interface UnitConversion {
   unitId: string;
   multiplier: number;
+  priceNgn?: number;
 }
 
 export interface CustomFieldDefinition {
@@ -117,7 +130,7 @@ export interface Item {
   barcode: string | null;
   name: string;
   description: string;
-  categoryId: string;
+  categoryId: string | null;
   status: ItemStatus;
   unit: string;
   unitType: "count" | "weight" | "length" | "volume";
@@ -126,8 +139,8 @@ export interface Item {
   reorderQuantity: number;
   costPrice: number;
   sellingPrice: number;
-  locationId: string;
-  supplierId: string;
+  locationId: string | null;
+  supplierId: string | null;
   imageUrl: string | null;
   emoji?: string;
   tags?: string[];
@@ -135,6 +148,16 @@ export interface Item {
   affiliateCommission?: number;
   unitConversions?: UnitConversion[];
   customFields: Record<string, unknown>;
+  needsReview?: boolean;
+  reviewReason?: string;
+  color?: string;
+  sizes?: string;
+  pricingTiers?: {
+    retail?: number;
+    wholesale?: number;
+    distributor?: number;
+    tierEnabled?: boolean;
+  };
   createdAt: string;
   updatedAt: string;
   
@@ -155,6 +178,17 @@ export interface Item {
     preparationTime?: number;
     isVegetarian?: boolean;
     spiceLevel?: "none" | "mild" | "medium" | "hot";
+    portionSizes?: { name: string; price: number }[];
+    proteinAddons?: { name: string; price: number }[];
+    spiceLevels?: string[];
+    allowKitchenNotes?: boolean;
+    isCombo?: boolean;
+    comboSlots?: { name: string; categoryId: string }[];
+  };
+  textile?: {
+    gsm?: number;
+    weaveType?: string;
+    fabricContent?: string;
   };
 }
 
@@ -245,6 +279,11 @@ export interface SaleItem {
   multiplier: number;
   unitPriceNgn: number;
   imageUrl?: string;
+  customFields?: {
+    color?: string;
+    size?: string;
+    [key: string]: unknown;
+  };
 }
 
 export interface SaleTransaction {
@@ -253,5 +292,8 @@ export interface SaleTransaction {
   customerPhone?: string;
   items: SaleItem[];
   totalNgn: number;
+  source?: "pos" | "social" | "demo";
+  createdBy?: string;
+  storeId?: string;
   createdAt: string;
 }

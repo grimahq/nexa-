@@ -17,24 +17,33 @@ interface MutationResult<TData> {
   error: Error | null;
 }
 
-function useDemoMutation<TData>(
-  handler: (store: DemoStore, data: TData) => void,
+import { doc, setDoc, updateDoc, deleteDoc, serverTimestamp, runTransaction } from "firebase/firestore";
+import { db, handleFirestoreError, OperationType } from "@/lib/firebase";
+import type { Expense } from "@/types/finance";
+import type { Customer } from "@/types/crm";
+import type { Notification } from "@/types/inventory";
+
+import { useAuth } from "@/contexts/AuthContext";
+
+function useAppMutation<TData>(
+  demoHandler: (store: DemoStore, data: TData) => void,
+  firebaseHandler: (data: TData) => Promise<void>
 ): MutationResult<TData> {
   const { isDemo, demoStore, bumpVersion } = useDemo();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   const mutate = useCallback(
-    (data: TData, opts?: { onSuccess?: () => void; onError?: (e: Error) => void }) => {
-      if (!isDemo || !demoStore) {
-        opts?.onError?.(new Error("Not in demo mode"));
-        return;
-      }
+    async (data: TData, opts?: { onSuccess?: () => void; onError?: (e: Error) => void }) => {
       setIsLoading(true);
+      setError(null);
       try {
-        handler(demoStore, data);
-        bumpVersion();
-        setError(null);
+        if (isDemo && demoStore) {
+          demoHandler(demoStore, data);
+          bumpVersion();
+        } else {
+          await firebaseHandler(data);
+        }
         opts?.onSuccess?.();
       } catch (e) {
         const err = e instanceof Error ? e : new Error(String(e));
@@ -44,96 +53,387 @@ function useDemoMutation<TData>(
         setIsLoading(false);
       }
     },
-    [isDemo, demoStore, handler, bumpVersion],
+    [isDemo, demoStore, demoHandler, firebaseHandler, bumpVersion],
   );
 
   return { mutate, isLoading, error };
 }
 
 export function useCreateItem() {
-  return useDemoMutation<Item>((store, data) => store.createItem(data));
+  const { profile } = useAuth();
+  return useAppMutation<Item>(
+    (store, data) => store.createItem(data),
+    async (data) => {
+      const { id, ...rest } = data;
+      await setDoc(doc(db, "items", id), {
+        ...rest,
+        storeId: profile?.storeId,
+        createdAt: data.createdAt || serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
 }
 
 export function useUpdateItem() {
-  return useDemoMutation<{ id: string; updates: Partial<Item> }>((store, { id, updates }) =>
-    store.updateItem(id, updates),
+  return useAppMutation<{ id: string; updates: Partial<Item> }>(
+    (store, { id, updates }) => store.updateItem(id, updates),
+    async ({ id, updates }) => {
+      await updateDoc(doc(db, "items", id), {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+    }
   );
 }
 
 export function useDeleteItem() {
-  return useDemoMutation<string>((store, id) => store.deleteItem(id));
+  return useAppMutation<string>(
+    (store, id) => store.deleteItem(id),
+    async (id) => {
+      await deleteDoc(doc(db, "items", id));
+    }
+  );
 }
+
 
 export function useCreateMovement() {
-  return useDemoMutation<StockMovement>((store, data) => {
-    store.createMovement(data);
-    generateStockAlerts(store);
-  });
-}
-
-export function useCreatePurchaseOrder() {
-  return useDemoMutation<PurchaseOrder>((store, data) => store.createPurchaseOrder(data));
-}
-
-export function useUpdatePurchaseOrder() {
-  return useDemoMutation<{ id: string; updates: Partial<PurchaseOrder> }>((store, { id, updates }) =>
-    store.updatePurchaseOrder(id, updates),
+  const { profile } = useAuth();
+  return useAppMutation<StockMovement>(
+    (store, data) => {
+      store.createMovement(data);
+      generateStockAlerts(store);
+    },
+    async (data) => {
+      const { id, ...rest } = data;
+      try {
+        await runTransaction(db, async (transaction) => {
+          // 1. Fetch item data (READ)
+          const itemRef = doc(db, "items", data.itemId);
+          const itemSnap = await transaction.get(itemRef);
+          
+          // 2. Record movement (WRITE)
+          transaction.set(doc(db, "movements", id), {
+            ...rest,
+            storeId: profile?.storeId,
+            createdAt: serverTimestamp()
+          });
+          
+          // 3. Update stock if it's a core movement (WRITE)
+          if (itemSnap.exists()) {
+            let newStock = itemSnap.data().currentStock || 0;
+            if (data.type === "received") newStock += data.quantity;
+            else if (data.type === "shipped") newStock = Math.max(0, newStock - data.quantity);
+            else if (data.type === "adjusted") newStock = Math.max(0, newStock + data.quantity);
+            
+            transaction.update(itemRef, { 
+              currentStock: newStock,
+              updatedAt: serverTimestamp()
+            });
+          }
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `movements/${id}`);
+      }
+    }
   );
 }
 
-export function useDeletePurchaseOrder() {
-  return useDemoMutation<string>((store, id) => store.deletePurchaseOrder(id));
-}
-
-export function useCreateSupplier() {
-  return useDemoMutation<Supplier>((store, data) => store.createSupplier(data));
-}
-
-export function useUpdateSupplier() {
-  return useDemoMutation<{ id: string; updates: Partial<Supplier> }>((store, { id, updates }) =>
-    store.updateSupplier(id, updates),
-  );
-}
-
-export function useDeleteSupplier() {
-  return useDemoMutation<string>((store, id) => store.deleteSupplier(id));
-}
-
-export function useCreateRequest() {
-  return useDemoMutation<InventoryRequest>((store, data) => store.createRequest(data));
-}
-
-export function useUpdateRequest() {
-  return useDemoMutation<{ id: string; updates: Partial<InventoryRequest> }>((store, { id, updates }) =>
-    store.updateRequest(id, updates),
-  );
-}
-
-export function useCreateLocation() {
-  return useDemoMutation<Location>((store, data) => store.createLocation(data));
-}
-
-export function useUpdateLocation() {
-  return useDemoMutation<{ id: string; updates: Partial<Location> }>((store, { id, updates }) =>
-    store.updateLocation(id, updates),
-  );
-}
-
-export function useDeleteLocation() {
-  return useDemoMutation<string>((store, id) => store.deleteLocation(id));
-}
-
-// ─── Category mutations ─────────────────────────────────
 export function useCreateCategory() {
-  return useDemoMutation<import("@/types/inventory").Category>((store, data) => store.createCategory(data));
+  const { profile } = useAuth();
+  return useAppMutation<import("@/types/inventory").Category>(
+    (store, data) => store.createCategory(data),
+    async (data) => {
+      const { id, ...rest } = data;
+      await setDoc(doc(db, "categories", id), {
+        ...rest,
+        storeId: profile?.storeId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
 }
 
 export function useUpdateCategory() {
-  return useDemoMutation<{ id: string; updates: Partial<import("@/types/inventory").Category> }>((store, { id, updates }) =>
-    store.updateCategory(id, updates),
+  return useAppMutation<{ id: string; updates: Partial<import("@/types/inventory").Category> }>(
+    (store, { id, updates }) => store.updateCategory(id, updates),
+    async ({ id, updates }) => {
+      await updateDoc(doc(db, "categories", id), {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+    }
   );
 }
 
 export function useDeleteCategory() {
-  return useDemoMutation<string>((store, id) => store.deleteCategory(id));
+  return useAppMutation<string>(
+    (store, id) => store.deleteCategory(id),
+    async (id) => {
+      await deleteDoc(doc(db, "categories", id));
+    }
+  );
 }
+
+// ─── Purchase Order mutations ───────────────────────────
+export function useCreatePurchaseOrder() {
+  const { profile } = useAuth();
+  return useAppMutation<PurchaseOrder>(
+    (store, data) => store.createPurchaseOrder(data),
+    async (data) => {
+      const { id, ...rest } = data;
+      await setDoc(doc(db, "purchaseOrders", id), {
+        ...rest,
+        storeId: profile?.storeId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
+}
+
+export function useUpdatePurchaseOrder() {
+  return useAppMutation<{ id: string; updates: Partial<PurchaseOrder> }>(
+    (store, { id, updates }) => store.updatePurchaseOrder(id, updates),
+    async ({ id, updates }) => {
+      await updateDoc(doc(db, "purchaseOrders", id), {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
+}
+
+export function useDeletePurchaseOrder() {
+  return useAppMutation<string>(
+    (store, id) => store.deletePurchaseOrder(id),
+    async (id) => {
+      await deleteDoc(doc(db, "purchaseOrders", id));
+    }
+  );
+}
+
+// ─── Supplier mutations ─────────────────────────────────
+export function useCreateSupplier() {
+  const { profile } = useAuth();
+  return useAppMutation<Supplier>(
+    (store, data) => store.createSupplier(data),
+    async (data) => {
+      const { id, ...rest } = data;
+      await setDoc(doc(db, "suppliers", id), {
+        ...rest,
+        storeId: profile?.storeId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
+}
+
+export function useUpdateSupplier() {
+  return useAppMutation<{ id: string; updates: Partial<Supplier> }>(
+    (store, { id, updates }) => store.updateSupplier(id, updates),
+    async ({ id, updates }) => {
+      await updateDoc(doc(db, "suppliers", id), {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
+}
+
+export function useDeleteSupplier() {
+  return useAppMutation<string>(
+    (store, id) => store.deleteSupplier(id),
+    async (id) => {
+      await deleteDoc(doc(db, "suppliers", id));
+    }
+  );
+}
+
+// ─── Request mutations ──────────────────────────────────
+export function useCreateRequest() {
+  const { profile } = useAuth();
+  return useAppMutation<InventoryRequest>(
+    (store, data) => store.createRequest(data),
+    async (data) => {
+      const { id, ...rest } = data;
+      await setDoc(doc(db, "requests", id), {
+        ...rest,
+        storeId: profile?.storeId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
+}
+
+export function useUpdateRequest() {
+  return useAppMutation<{ id: string; updates: Partial<InventoryRequest> }>(
+    (store, { id, updates }) => store.updateRequest(id, updates),
+    async ({ id, updates }) => {
+      await updateDoc(doc(db, "requests", id), {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
+}
+
+// ─── Location mutations ─────────────────────────────────
+export function useCreateLocation() {
+  const { profile } = useAuth();
+  return useAppMutation<Location>(
+    (store, data) => store.createLocation(data),
+    async (data) => {
+      const { id, ...rest } = data;
+      await setDoc(doc(db, "locations", id), {
+        ...rest,
+        storeId: profile?.storeId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
+}
+
+export function useUpdateLocation() {
+  return useAppMutation<{ id: string; updates: Partial<Location> }>(
+    (store, { id, updates }) => store.updateLocation(id, updates),
+    async ({ id, updates }) => {
+      await updateDoc(doc(db, "locations", id), {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
+}
+
+export function useDeleteLocation() {
+  return useAppMutation<string>(
+    (store, id) => store.deleteLocation(id),
+    async (id) => {
+      await deleteDoc(doc(db, "locations", id));
+    }
+  );
+}
+
+// ─── Expense mutations ──────────────────────────────────
+export function useCreateExpense() {
+  const { profile } = useAuth();
+  return useAppMutation<Expense>(
+    (store, data) => store.addExpense(data),
+    async (data) => {
+      const { id, ...rest } = data;
+      await setDoc(doc(db, "expenses", id), {
+        ...rest,
+        storeId: profile?.storeId,
+        createdAt: data.createdAt || serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
+}
+
+export function useDeleteExpense() {
+  return useAppMutation<string>(
+    (store, id) => store.deleteExpense(id),
+    async (id) => {
+      await deleteDoc(doc(db, "expenses", id));
+    }
+  );
+}
+
+// ─── Customer mutations ─────────────────────────────────
+export function useCreateCustomer() {
+  const { profile } = useAuth();
+  return useAppMutation<Customer>(
+    (store, data) => store.addCustomer(data),
+    async (data) => {
+      const { id, ...rest } = data;
+      await setDoc(doc(db, "customers", id), {
+        ...rest,
+        storeId: profile?.storeId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
+}
+
+export function useUpdateCustomer() {
+  return useAppMutation<{ id: string; updates: Partial<Customer> }>(
+    (store, { id, updates }) => store.updateCustomer(id, updates),
+    async ({ id, updates }) => {
+      await updateDoc(doc(db, "customers", id), {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
+}
+
+// ─── Notification mutations ──────────────────────────────
+export function useUpdateNotification() {
+  return useAppMutation<{ id: string; updates: Partial<Notification> }>(
+    (store, { id, updates }) => {
+      const n = store.getNotifications().find(n => n.id === id);
+      if (n) Object.assign(n, updates);
+    },
+    async ({ id, updates }) => {
+      await updateDoc(doc(db, "notifications", id), {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
+}
+
+export function useDeleteNotification() {
+  return useAppMutation<string>(
+    (store, id) => store.dismissNotification(id),
+    async (id) => {
+      await deleteDoc(doc(db, "notifications", id));
+    }
+  );
+}
+
+// ─── Refund mutations ───────────────────────────────────
+export function useCreateRefund() {
+  const { profile } = useAuth();
+  return useAppMutation<import("@/types/finance").Refund>(
+    (store, data) => store.addRefund(data),
+    async (data) => {
+      const { id, ...rest } = data;
+      await runTransaction(db, async (transaction) => {
+        // 1. Record refund
+        transaction.set(doc(db, "refunds", id), {
+          ...rest,
+          storeId: profile?.storeId,
+          createdAt: serverTimestamp()
+        });
+
+        // 2. Adjust stock if item is returned to inventory (optional, but good practice)
+        // For now we just record the refund
+      });
+    }
+  );
+}
+
+export function useCreateNotification() {
+  const { profile } = useAuth();
+  return useAppMutation<Notification>(
+    (store, data) => store.addNotification(data),
+    async (data) => {
+      const { id, ...rest } = data;
+      await setDoc(doc(db, "notifications", id), {
+        ...rest,
+        storeId: profile?.storeId || "default-store",
+        createdAt: data.createdAt || serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  );
+}
+

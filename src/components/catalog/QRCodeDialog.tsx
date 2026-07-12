@@ -1,5 +1,6 @@
 import { QRCodeSVG } from "qrcode.react";
 import { QrCode, Download, Printer } from "lucide-react";
+import { getPublicUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,8 +18,9 @@ interface QRCodeDialogProps {
 }
 
 export function QRCodeDialog({ item, trigger }: QRCodeDialogProps) {
+  const isDevUrl = window.location.origin.includes("ais-dev-");
   // Append source=qr for CRM tracking
-  const orderUrl = `${window.location.origin}/store/product/${item.id}?source=qr`;
+  const orderUrl = getPublicUrl(`${window.location.origin}/store/product/${item.id}?source=qr`);
 
   const downloadQR = () => {
     const svg = document.getElementById(`qr-${item.id}`);
@@ -57,6 +59,17 @@ export function QRCodeDialog({ item, trigger }: QRCodeDialogProps) {
             Customers can scan this code to view and order {item.name}.
           </DialogDescription>
         </DialogHeader>
+
+        {isDevUrl && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 space-y-1">
+            <p className="font-bold flex items-center gap-1.5 text-amber-800">
+              <span className="text-sm">💡</span> Sandbox Testing Tip
+            </p>
+            <p className="leading-relaxed">
+              To test the QR scan on your phone, this code is set to use the <strong>Public Shared App URL</strong>.
+            </p>
+          </div>
+        )}
         
         <div className="flex flex-col items-center justify-center space-y-6 py-4">
           <div className="rounded-2xl border-8 border-white bg-white p-4 shadow-xl">

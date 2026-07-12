@@ -1,12 +1,14 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Plus, Upload } from "lucide-react";
+import { Plus, Upload, QrCode } from "lucide-react";
 import { toast } from "sonner";
 import { Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CSVExportButton, type CSVColumn } from "@/components/data/CSVExportButton";
 import { CSVImportSheet, type ImportField } from "@/components/data/CSVImportSheet";
+import { QuickEntryModal } from "@/components/catalog/QuickEntryModal";
+import { InStoreQRGeneratorModal } from "@/components/catalog/InStoreQRGeneratorModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +64,23 @@ function CatalogPage() {
     }
   }, [newItem, navigate]);
 
+  // Hook into onboarding triggers (Scanner & CSV import auto-open)
+  useEffect(() => {
+    const triggerScanner = sessionStorage.getItem("nexa_open_scanner_after_onboarding");
+    if (triggerScanner === "true") {
+      sessionStorage.removeItem("nexa_open_scanner_after_onboarding");
+      setIsQuickEntryOpen(true);
+      toast.success("Welcome! Scan your packaged goods using the camera.");
+    }
+
+    const triggerImport = sessionStorage.getItem("nexa_open_import_after_onboarding");
+    if (triggerImport === "true") {
+      sessionStorage.removeItem("nexa_open_import_after_onboarding");
+      setImportOpen(true);
+      toast.success("Welcome! Choose your spreadsheet to match and import.");
+    }
+  }, []);
+
   const [filters, setFilters] = useState<ItemFilters>({});
   const [sort, setSort] = useState<SortState>({ key: "name", dir: "asc" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -70,6 +89,8 @@ function CatalogPage() {
   const [deleteTarget, setDeleteTarget] = useState<Item | null>(null);
   const [movementItemId, setMovementItemId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(false);
+  const [isInStoreQRGeneratorOpen, setIsInStoreQRGeneratorOpen] = useState(false);
   const [view, setView] = useState<"list" | "grid">(() => {
     return (localStorage.getItem("stackwise_catalog_view") as "list" | "grid") || "list";
   });
@@ -125,9 +146,15 @@ function CatalogPage() {
   }, [navigate]);
   const items = useMemo(() => {
     let result = allItems.filter((i) => i.status !== ItemStatus.Archived);
-    if (filters.status === "in-stock") result = result.filter((i) => i.currentStock > i.reorderPoint);
-    else if (filters.status === "low-stock") result = result.filter((i) => i.currentStock > 0 && i.currentStock <= i.reorderPoint);
-    else if (filters.status === "out-of-stock") result = result.filter((i) => i.currentStock === 0);
+    if (filters.status === "in-stock") {
+      result = result.filter((i) => i.currentStock > i.reorderPoint && !i.needsReview);
+    } else if (filters.status === "low-stock") {
+      result = result.filter((i) => i.currentStock > 0 && i.currentStock <= i.reorderPoint && !i.needsReview);
+    } else if (filters.status === "out-of-stock") {
+      result = result.filter((i) => i.currentStock === 0 && !i.needsReview);
+    } else if (filters.status === "needs-review") {
+      result = result.filter((i) => i.needsReview === true);
+    }
     return result;
   }, [allItems, filters.status]);
 
@@ -148,8 +175,8 @@ function CatalogPage() {
 
   const handleSave = useCallback((data: Partial<Item>) => {
     if (editItem) {
-      updateItem.mutate({ id: editItem.id, updates: data }, {
-        onSuccess: () => { toast.success("Item updated"); setSheetOpen(false); setEditItem(null); },
+      updateItem.mutate({ id: editItem.id, updates: { ...data, needsReview: false } }, {
+        onSuccess: () => { toast.success("Item updated & reviewed!"); setSheetOpen(false); setEditItem(null); },
         onError: (e) => toast.error(e.message || "Failed to update item. Please try again."),
       });
     } else {
@@ -169,8 +196,13 @@ function CatalogPage() {
         sellingPrice: data.sellingPrice ?? 0,
         locationId: data.locationId ?? null,
         supplierId: data.supplierId ?? null,
-        imageUrl: null,
+        imageUrl: data.imageUrl ?? null,
+        unitConversions: data.unitConversions ?? [],
         customFields: {},
+        agriculture: data.agriculture,
+        pharmacy: data.pharmacy,
+        restaurant: data.restaurant,
+        textile: data.textile,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -244,6 +276,24 @@ function CatalogPage() {
             </Button>
           </PermissionGate>
           <PermissionGate permission="create_item">
+            <Button 
+              variant="outline"
+              onClick={() => setIsInStoreQRGeneratorOpen(true)} 
+              className="hidden gap-1.5 sm:inline-flex border-blue-200 hover:border-blue-400 bg-blue-500/5 hover:bg-blue-500/10 text-blue-700 font-semibold"
+            >
+              <QrCode className="h-4 w-4" />In-Store QR
+            </Button>
+          </PermissionGate>
+          <PermissionGate permission="create_item">
+            <Button 
+              variant="outline"
+              onClick={() => setIsQuickEntryOpen(true)} 
+              className="hidden gap-1.5 sm:inline-flex border-amber-200 hover:border-amber-400 bg-amber-500/5 hover:bg-amber-500/10 text-amber-700 font-semibold"
+            >
+              <QrCode className="h-4 w-4" />Quick Entry
+            </Button>
+          </PermissionGate>
+          <PermissionGate permission="create_item">
             <Button onClick={openCreate} className="hidden gap-1.5 sm:inline-flex">
               <Plus className="h-4 w-4" />New Item
             </Button>
@@ -260,6 +310,7 @@ function CatalogPage() {
           locations={locations} 
           view={view}
           onViewChange={handleViewChange}
+          needsReviewCount={allItems.filter((i) => i.needsReview).length}
         />
       </Card>
 
@@ -292,6 +343,9 @@ function CatalogPage() {
           categories={categories}
           onRowClick={(item) => openDetail(item)}
           actionRenderer={actionRenderer}
+          selected={selected}
+          onSelectedChange={setSelected}
+          showCheckboxes={can("edit_item")}
         />
       )}
       </ErrorBoundary>
@@ -340,7 +394,7 @@ function CatalogPage() {
         <button
           type="button"
           onClick={openCreate}
-          className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-amber-accent shadow-lg transition-transform hover:scale-105 sm:hidden"
+          className="fixed bottom-24 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-amber-accent shadow-lg transition-transform hover:scale-105 active:scale-95 sm:hidden"
           aria-label="New Item"
         >
           <Plus className="h-6 w-6" />
@@ -417,6 +471,16 @@ function CatalogPage() {
           toast.success(`Imported ${created} items${failed > 0 ? `, ${failed} failed` : ""}`);
           return { created, failed };
         }}
+      />
+
+      <QuickEntryModal
+        open={isQuickEntryOpen}
+        onOpenChange={setIsQuickEntryOpen}
+      />
+
+      <InStoreQRGeneratorModal
+        open={isInStoreQRGeneratorOpen}
+        onOpenChange={setIsInStoreQRGeneratorOpen}
       />
     </div>
   );

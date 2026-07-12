@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Package, CheckCircle2, AlertTriangle, XCircle, ChevronDown, DollarSign, Users, TrendingUp, ShoppingCart, TrendingDown, Receipt, Clock, Store, Plus, Send, ClipboardList, Settings as SettingsIcon, LayoutGrid, Search as SearchIcon, History, User } from "lucide-react";
+import { Package, CheckCircle2, AlertTriangle, XCircle, ChevronDown, DollarSign, Users, TrendingUp, ShoppingCart, TrendingDown, Receipt, Clock, Store, Plus, Send, ClipboardList, Settings as SettingsIcon, LayoutGrid, Search as SearchIcon, History, User, Sprout, Scissors } from "lucide-react";
 import { toast } from "sonner";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { NeedsAttention } from "@/components/dashboard/NeedsAttention";
@@ -10,6 +10,8 @@ import { AgricultureDashboard } from "@/components/dashboard/AgricultureDashboar
 import { PharmacyDashboard } from "@/components/dashboard/PharmacyDashboard";
 import { RestaurantDashboard } from "@/components/dashboard/RestaurantDashboard";
 import { ManufacturingDashboard } from "@/components/dashboard/ManufacturingDashboard";
+import { SocialCommerceDashboard } from "@/components/dashboard/SocialCommerceDashboard";
+import { TextileDashboard } from "@/components/dashboard/TextileDashboard";
 import { DashboardReorderSection } from "@/components/insights/DashboardReorderSection";
 import { DashboardAnomalySection } from "@/components/insights/DashboardAnomalySection";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
@@ -17,14 +19,16 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-import { useStockSummary } from "@/hooks/useInventoryData";
+import { useStockSummary, useSales, useExpenses, useRefunds, useItems, useMovements, useSuppliers } from "@/hooks/useInventoryData";
+import { useUsers } from "@/hooks/useUsers";
 import { useAlertGenerator } from "@/hooks/useStockAlertGenerator";
 import { useDemo } from "@/hooks/useDemo";
 import { useRole } from "@/hooks/useRole";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { useOnboarding, type TourStep } from "@/hooks/useOnboarding";
 
 const NAIRA = "₦";
-const USD_TO_NGN = 1_580;
+const USD_TO_NGN = 1;
 
 const TOUR_STEPS: TourStep[] = [
   { title: "Welcome to Stackwise!", description: "Let's take a quick tour of all the key features. This will only take a minute." },
@@ -73,21 +77,30 @@ export const Route = createFileRoute("/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Stackwise" }] }),
 });
 
-function DashboardPage() {
+export function DashboardPage() {
   const navigate = useNavigate();
   const { data: summary } = useStockSummary();
-  const { demoStore, isDemo, onboarding } = useDemo();
+  const { isDemo, onboarding: demoOnboarding } = useDemo();
+  const { settings: liveSettings } = useSystemSettings();
   const { isAdmin, isManager, isRequestor, role, stores, currentStoreId, members } = useRole();
   useAlertGenerator();
 
+  const onboarding = isDemo ? demoOnboarding : liveSettings;
+
+  const { data: items, isLoading: itemsLoading } = useItems();
+  const { data: movements, isLoading: movementsLoading } = useMovements();
+  const { data: suppliers, isLoading: suppliersLoading } = useSuppliers();
+  const { data: sales, isLoading: salesLoading } = useSales();
+  const { data: expenses, isLoading: expensesLoading } = useExpenses();
+  const { data: refunds, isLoading: refundsLoading } = useRefunds();
+  const { data: users, isLoading: usersLoading } = useUsers();
+
+  const isLoading = itemsLoading || movementsLoading || suppliersLoading || salesLoading || expensesLoading || refundsLoading || usersLoading;
+
   const currentStore = stores.find(s => s.id === currentStoreId);
-  const items = demoStore?.getItems() ?? [];
-  const movements = demoStore?.getMovements() ?? [];
-  const suppliers = demoStore?.getSuppliers() ?? [];
-  const sales = demoStore?.getSales() ?? [];
-  const users = demoStore?.getUsers() ?? [];
 
   const tour = useOnboarding("dashboard");
+  const { startTour } = tour;
   const [openSection, setOpenSection] = useState<string | null>("metrics");
 
   const toggleSection = (id: string) => {
@@ -95,17 +108,47 @@ function DashboardPage() {
   };
 
   useEffect(() => {
-    if (isDemo && !tour.hasCompleted) {
-      const timer = setTimeout(() => tour.startTour(), 500);
+    // Check if we need to redirect due to onboarding entry selection (Scan or Excel)
+    const triggerScanner = sessionStorage.getItem("nexa_open_scanner_after_onboarding") === "true";
+    const triggerImport = sessionStorage.getItem("nexa_open_import_after_onboarding") === "true";
+    if (triggerScanner || triggerImport) {
+      navigate({ to: "/app/catalog", replace: true });
+      return;
+    }
+
+    // Requestors should be redirected to requests page
+    if (isRequestor) {
+      navigate({ to: "/app/requests", replace: true });
+      return;
+    }
+    
+    // Start tour if newly onboarded or explicitly triggered via settings
+    const justOnboarded = sessionStorage.getItem("stackwise-just-onboarded") === "true";
+    const settingsTrigger = sessionStorage.getItem("stackwise-trigger-tour") === "true";
+    
+    if ((justOnboarded || settingsTrigger) && !isRequestor) {
+      sessionStorage.removeItem("stackwise-just-onboarded");
+      sessionStorage.removeItem("stackwise-trigger-tour");
+      const timer = setTimeout(() => startTour(true), 500);
       return () => clearTimeout(timer);
     }
-  }, [isDemo, tour.hasCompleted, tour]);
+  }, [startTour, isRequestor, navigate]);
+
+  // Synchronize active tour target element and open the appropriate Accordion section
+  useEffect(() => {
+    if (!tour.isActive) return;
+    const step = TOUR_STEPS[tour.currentStep];
+    if (step?.target === "needs-attention") {
+      setOpenSection("attention");
+    } else if (step?.target === "metrics") {
+      setOpenSection("metrics");
+    }
+  }, [tour.currentStep, tour.isActive]);
 
   const handleTourComplete = () => {
     tour.completeTour();
     toast.success("Tour complete! Explore freely or start the walkthrough.");
   };
-
 
   // Sales metrics
   const totalRevenue = sales.reduce((s, sale) => s + sale.totalNgn, 0);
@@ -118,8 +161,8 @@ function DashboardPage() {
   const uniqueCustomers = new Set(sales.filter((s) => s.customerPhone).map((s) => s.customerPhone)).size;
 
   // Expense & refund metrics
-  const allExpenses = demoStore?.getExpenses() ?? [];
-  const allRefunds = demoStore?.getRefunds() ?? [];
+  const allExpenses = expenses;
+  const allRefunds = refunds;
   const totalExpenses = allExpenses.reduce((s, e) => s + e.amount, 0);
   const totalRefunds = allRefunds.reduce((s, r) => s + r.amountNgn, 0);
   const netProfit = totalRevenue - totalExpenses - totalRefunds;
@@ -131,11 +174,15 @@ function DashboardPage() {
     return () => clearInterval(t);
   }, []);
 
-  const storeName = currentStore?.name || onboarding.storeName || (onboarding.businessType
+  const storeName = currentStore?.name || onboarding?.storeName || (onboarding?.businessType
     ? onboarding.businessType.charAt(0).toUpperCase() + onboarding.businessType.slice(1) + " Store"
     : "NEXA StoreOS");
 
   const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+
+  if (isLoading) {
+    return <div className="flex h-screen items-center justify-center font-mono text-sm text-muted-foreground animate-pulse">Initializing dashboard...</div>;
+  }
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-4">
@@ -177,7 +224,7 @@ function DashboardPage() {
           <Users className="h-3.5 w-3.5 text-blue-500" />
           <span className="font-semibold">{members.length} Members</span>
         </div>
-        {onboarding.categories.length > 0 && onboarding.categories.map((cat) => (
+        {onboarding?.categories && onboarding.categories.length > 0 && onboarding.categories.map((cat) => (
           <span key={cat} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary capitalize border border-primary/20">
             {cat.replace(/-/g, " ")}
           </span>
@@ -230,6 +277,35 @@ function DashboardPage() {
                 <h2 className="text-lg font-bold tracking-tight">Production Floor</h2>
               </div>
               <ManufacturingDashboard />
+            </div>
+          </div>
+        )}
+
+        {onboarding?.businessType === "social_commerce" && (
+          <div className="rounded-2xl border border-fuchsia-200 bg-fuchsia-50 p-1">
+            <div className="bg-background rounded-[calc(1rem-1px)] p-4 md:p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                   <Globe className="h-5 w-5 text-fuchsia-600" />
+                   <h2 className="text-lg font-bold tracking-tight">Online Presence</h2>
+                </div>
+                <Button size="sm" variant="outline" asChild>
+                   <a href="/app/ecommerce">Manage Catalog</a>
+                </Button>
+              </div>
+              <SocialCommerceDashboard />
+            </div>
+          </div>
+        )}
+
+        {onboarding?.businessType === "textile" && (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-1">
+            <div className="bg-background rounded-[calc(1rem-1px)] p-4 md:p-6 shadow-sm">
+              <div className="flex items-center gap-2 mb-6">
+                <Scissors className="h-5 w-5 text-rose-600" />
+                <h2 className="text-lg font-bold tracking-tight">Textile Inventory & Fabrics</h2>
+              </div>
+              <TextileDashboard />
             </div>
           </div>
         )}

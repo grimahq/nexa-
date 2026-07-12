@@ -58,10 +58,12 @@ export class DemoStore {
     { id: "promo-2", code: "FLAT500", discountType: "flat", discountValue: 500, isActive: true, usageCount: 0, maxUses: 50, createdAt: new Date().toISOString() },
   ];
   private sector: string;
+  private selectedCategories?: string[];
 
-  constructor(sector: string = "general") {
+  constructor(sector: string = "general", selectedCategories?: string[]) {
     this.sector = sector;
-    this.data = generateSeedData(sector);
+    this.selectedCategories = selectedCategories;
+    this.data = generateSeedData(sector, selectedCategories);
   }
 
   getVersion() {
@@ -69,7 +71,7 @@ export class DemoStore {
   }
 
   reset() {
-    this.data = generateSeedData(this.sector);
+    this.data = generateSeedData(this.sector, this.selectedCategories);
     this.users = SEED_USERS.map((u) => ({ ...u }));
     this.sales = [];
     this.expenses = [];

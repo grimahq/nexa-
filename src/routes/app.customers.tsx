@@ -16,6 +16,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { toast } from "sonner";
+import { useSales } from "@/hooks/useInventoryData";
+import { getWhatsAppUrl } from "@/lib/whatsapp";
 
 const NAIRA = "₦";
 
@@ -43,7 +45,7 @@ const MESSAGE_TEMPLATES = [
 ];
 
 function CustomersPage() {
-  const { demoStore } = useDemo();
+  const { isDemo, demoStore } = useDemo();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<CustomerTab>("all");
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
@@ -51,12 +53,17 @@ function CustomersPage() {
   const [messageText, setMessageText] = useState("");
   const [messageTarget, setMessageTarget] = useState<CustomerRecord | null>(null);
 
+  const { data: sales, isLoading } = useSales();
+
+  const thirtyDaysAgo = useMemo(() => new Date(Date.now() - 30 * 86400000).toISOString(), []);
+
   const customers = useMemo(() => {
-    const sales = demoStore?.getSales() ?? [];
-    const creditCustomers = demoStore?.getCreditCustomers() ?? [];
     const debtMap = new Map<string, number>();
-    for (const cc of creditCustomers) {
-      if (cc.balanceNgn > 0) debtMap.set(cc.customerPhone, cc.balanceNgn);
+    if (isDemo && demoStore) {
+      const creditCustomers = demoStore.getCreditCustomers();
+      for (const cc of creditCustomers) {
+        if (cc.balanceNgn > 0) debtMap.set(cc.customerPhone, cc.balanceNgn);
+      }
     }
 
     const map = new Map<string, CustomerRecord>();
@@ -87,9 +94,7 @@ function CustomersPage() {
       if (c) c.debtBalance = debt;
     }
     return Array.from(map.values()).sort((a, b) => b.totalSpent - a.totalSpent);
-  }, [demoStore]);
-
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+  }, [sales, isDemo, demoStore]);
 
   const filtered = useMemo(() => {
     let list = customers;
@@ -111,6 +116,10 @@ function CustomersPage() {
     totalDebt: customers.reduce((s, c) => s + c.debtBalance, 0),
   }), [customers]);
 
+  if (isLoading) {
+    return <div className="flex h-64 items-center justify-center font-mono text-sm text-muted-foreground animate-pulse">Loading customers...</div>;
+  }
+
   const toggleSelect = (phone: string) => {
     setSelectedCustomers((prev) => {
       const next = new Set(prev);
@@ -121,9 +130,7 @@ function CustomersPage() {
   };
 
   const openWhatsApp = (phone: string, text: string) => {
-    const cleaned = phone.replace(/\D/g, "");
-    const intlPhone = cleaned.startsWith("0") ? `234${cleaned.slice(1)}` : cleaned;
-    const url = `https://wa.me/${intlPhone}?text=${encodeURIComponent(text)}`;
+    const url = getWhatsAppUrl(phone, text);
     window.open(url, "_blank");
   };
 

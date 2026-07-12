@@ -30,6 +30,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useItems, useLocations } from "@/hooks/useInventoryData";
 import { useCreateMovement } from "@/hooks/useInventoryMutations";
+import { useAuth } from "@/contexts/AuthContext";
+import { useDemo } from "@/hooks/useDemo";
 import { MovementType } from "@/types/inventory";
 import type { Item } from "@/types/inventory";
 
@@ -53,6 +55,8 @@ export function TransferStockSheet({
   onOpenChange,
   preselectedItemId,
 }: TransferStockSheetProps) {
+  const { user, profile } = useAuth();
+  const { isDemo } = useDemo();
   const { data: items } = useItems();
   const { data: locations } = useLocations();
   const createMovement = useCreateMovement();
@@ -101,6 +105,8 @@ export function TransferStockSheet({
     const fromLoc = locations.find((l) => l.id === values.fromLocationId);
     const toLoc = locations.find((l) => l.id === values.toLocationId);
 
+    const performerName = isDemo ? "Demo User" : (profile?.name || user?.displayName || user?.email?.split('@')[0] || "User");
+
     createMovement.mutate(
       {
         id: crypto.randomUUID(),
@@ -111,7 +117,7 @@ export function TransferStockSheet({
         toLocationId: values.toLocationId,
         reference: `Transfer: ${fromLoc?.name ?? ""} → ${toLoc?.name ?? ""}`,
         notes: "",
-        performedBy: "demo-user",
+        performedBy: performerName,
         createdAt: new Date().toISOString(),
       },
       {

@@ -11,6 +11,7 @@ export function TourLauncher() {
 
   const handleLaunchTour = () => {
     tour.resetTour();
+    sessionStorage.setItem("stackwise-trigger-tour", "true");
     navigate({ to: "/app/dashboard" });
     toast.info("Tour starting on dashboard...");
   };

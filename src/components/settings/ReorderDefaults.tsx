@@ -6,35 +6,62 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
+
 const FACTORY = { reorderPoint: 10, leadTimeDays: 7, safetyMultiplier: 1.5, orderQuantity: 25 };
 
 export function ReorderDefaults() {
-  const { demoStore, bumpVersion } = useDemo();
-  const stored = demoStore?.getReorderDefaults() ?? FACTORY;
+  const { isDemo, demoStore, bumpVersion } = useDemo();
+  const { settings, updateSettings } = useSystemSettings();
+  const stored = isDemo
+    ? (demoStore?.getReorderDefaults() ?? FACTORY)
+    : (settings.reorderDefaults ?? FACTORY);
 
   const [values, setValues] = useState(stored);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { setValues(stored); }, [demoStore]);
+  useEffect(() => { setValues(stored); }, [stored]);
 
   const set = (key: keyof typeof values, v: string) => {
     setValues((prev) => ({ ...prev, [key]: Number(v) || 0 }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (values.reorderPoint < 0 || values.leadTimeDays < 1 || values.safetyMultiplier < 1 || values.orderQuantity < 1) {
       toast.error("Please fix validation errors"); return;
     }
     setSaving(true);
-    demoStore?.setReorderDefaults(values);
-    bumpVersion();
-    setTimeout(() => { setSaving(false); toast.success("Reorder defaults saved"); }, 300);
+    if (isDemo) {
+      demoStore?.setReorderDefaults(values);
+      bumpVersion();
+    } else {
+      try {
+        await updateSettings({ reorderDefaults: values });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : "Failed to save reorder defaults";
+        toast.error(errMsg);
+        setSaving(false);
+        return;
+      }
+    }
+    setSaving(false);
+    toast.success("Reorder defaults saved");
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setValues(FACTORY);
-    demoStore?.setReorderDefaults(FACTORY);
-    bumpVersion();
+    if (isDemo) {
+      demoStore?.setReorderDefaults(FACTORY);
+      bumpVersion();
+    } else {
+      try {
+        await updateSettings({ reorderDefaults: FACTORY });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : "Failed to restore defaults";
+        toast.error(errMsg);
+        return;
+      }
+    }
     toast.success("Defaults restored");
   };
 

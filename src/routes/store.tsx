@@ -20,15 +20,27 @@ function StoreLayout() {
   const [cartCount, setCartCount] = useState(0);
   const location = useLocation();
 
-  // Handle affiliate tracking
+  const [tableNumber, setTableNumber] = useState<string | null>(() => {
+    return localStorage.getItem("stackwise_table_number");
+  });
+
+  // Handle table detection and affiliate tracking
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    
+    const tableParam = params.get("table");
+    if (tableParam && tableParam !== tableNumber) {
+      localStorage.setItem("stackwise_table_number", tableParam);
+      setTableNumber(tableParam);
+      console.log("Customer table detected:", tableParam);
+    }
+
     const affId = params.get("aff");
     if (affId) {
       localStorage.setItem("stackwise_affiliate_id", affId);
       console.log("Tracking affiliate ID:", affId);
     }
-  }, [location.search]);
+  }, [location.search, tableNumber]);
 
   // Sync cart count
   useEffect(() => {
@@ -51,6 +63,25 @@ function StoreLayout() {
 
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col">
+      {/* Pinned Dine-In Table Banner */}
+      {tableNumber && (
+        <div className="bg-amber-500 text-amber-950 font-semibold px-4 py-2 text-xs md:text-sm flex items-center justify-between shadow-inner animate-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-2">
+            <span className="text-sm md:text-base">🍽️</span>
+            <span>You are ordering for <strong className="underline underline-offset-2">Table {tableNumber}</strong>. Browse, order, and pay instantly!</span>
+          </div>
+          <button 
+            onClick={() => {
+              localStorage.removeItem("stackwise_table_number");
+              setTableNumber(null);
+            }}
+            className="text-[10px] uppercase font-bold tracking-wider bg-amber-950/15 hover:bg-amber-950/25 px-2.5 py-1 rounded transition-all"
+          >
+            Leave Table
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">

@@ -17,9 +17,14 @@ import type { CustomFieldDefinition } from "@/types/inventory";
 const MAX_FIELDS = 20;
 const FIELD_TYPES = ["text", "number", "boolean", "select"] as const;
 
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
+
 export function CustomFieldManager() {
-  const { demoStore, bumpVersion, version } = useDemo();
-  const fields = demoStore?.getCustomFieldDefs() ?? [];
+  const { isDemo, demoStore, bumpVersion } = useDemo();
+  const { settings, updateSettings } = useSystemSettings();
+  const fields = isDemo 
+    ? (demoStore?.getCustomFieldDefs() ?? [])
+    : (settings.customFieldDefs ?? []);
 
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -30,9 +35,8 @@ export function CustomFieldManager() {
 
   useEffect(() => { if (adding) nameRef.current?.focus(); }, [adding]);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!newName.trim()) { toast.error("Field name is required"); return; }
-    if (!demoStore) return;
     const def: CustomFieldDefinition = {
       id: crypto.randomUUID(),
       name: newName.trim(),
@@ -41,28 +45,65 @@ export function CustomFieldManager() {
       required: false,
       createdAt: new Date().toISOString(),
     };
-    demoStore.addCustomFieldDef(def);
-    bumpVersion();
+    
+    if (isDemo) {
+      if (!demoStore) return;
+      demoStore.addCustomFieldDef(def);
+      bumpVersion();
+    } else {
+      try {
+        const updatedDefs = [...(settings.customFieldDefs ?? []), def];
+        await updateSettings({ customFieldDefs: updatedDefs });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : "Failed to add custom field";
+        toast.error(errMsg);
+        return;
+      }
+    }
     toast.success("Custom field added");
     setNewName(""); setNewType("text"); setNewOptions(""); setAdding(false);
   };
 
-  const handleDelete = () => {
-    if (!deleteTarget || !demoStore) return;
-    demoStore.deleteCustomFieldDef(deleteTarget.id);
-    bumpVersion();
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    
+    if (isDemo) {
+      if (!demoStore) return;
+      demoStore.deleteCustomFieldDef(deleteTarget.id);
+      bumpVersion();
+    } else {
+      try {
+        const updatedDefs = (settings.customFieldDefs ?? []).filter((d) => d.id !== deleteTarget.id);
+        await updateSettings({ customFieldDefs: updatedDefs });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : "Failed to remove custom field";
+        toast.error(errMsg);
+        return;
+      }
+    }
     toast.success("Custom field removed");
     setDeleteTarget(null);
   };
 
-  const moveField = (index: number, direction: -1 | 1) => {
-    if (!demoStore) return;
-    const ids = fields.map((f) => f.id);
+  const moveField = async (index: number, direction: -1 | 1) => {
+    const list = [...fields];
     const newIdx = index + direction;
-    if (newIdx < 0 || newIdx >= ids.length) return;
-    [ids[index], ids[newIdx]] = [ids[newIdx], ids[index]];
-    demoStore.reorderCustomFieldDefs(ids);
-    bumpVersion();
+    if (newIdx < 0 || newIdx >= list.length) return;
+    [list[index], list[newIdx]] = [list[newIdx], list[index]];
+    
+    if (isDemo) {
+      if (!demoStore) return;
+      const ids = list.map((f) => f.id);
+      demoStore.reorderCustomFieldDefs(ids);
+      bumpVersion();
+    } else {
+      try {
+        await updateSettings({ customFieldDefs: list });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : "Failed to reorder fields";
+        toast.error(errMsg);
+      }
+    }
   };
 
   if (fields.length === 0 && !adding) {

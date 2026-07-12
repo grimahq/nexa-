@@ -1,0 +1,212 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile and system-wide settings.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "manager", "staff"] },
+        "avatar": { "type": "string" },
+        "stores": { "type": "array", "items": { "type": "string" } },
+        "onboarding": {
+          "type": "object",
+          "properties": {
+            "businessType": { "type": "string" },
+            "categories": { "type": "array", "items": { "type": "string" } },
+            "storeName": { "type": "string" },
+            "storePhone": { "type": "string" },
+            "storeAddress": { "type": "string" },
+            "receiptFooter": { "type": "string" },
+            "taxRate": { "type": "number" },
+            "brandColor": { "type": "string" },
+            "logoUrl": { "type": "string" }
+          }
+        }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Item": {
+      "title": "Inventory Item",
+      "description": "A product or material in inventory.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sku": { "type": "string" },
+        "barcode": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "discontinued", "draft"] },
+        "unit": { "type": "string" },
+        "unitType": { "type": "string", "enum": ["count", "weight", "length", "volume"] },
+        "currentStock": { "type": "number" },
+        "reorderPoint": { "type": "number" },
+        "reorderQuantity": { "type": "number" },
+        "costPrice": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "locationId": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "emoji": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "isEcommerceEnabled": { "type": "boolean" },
+        "affiliateCommission": { "type": "number" },
+        "unitConversions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "unitId": { "type": "string" },
+              "multiplier": { "type": "number" },
+              "priceNgn": { "type": "number" }
+            }
+          }
+        },
+        "customFields": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "sku", "name", "status", "unit", "currentStock", "sellingPrice"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Item categorization.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "parentId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name"]
+    },
+    "SaleTransaction": {
+      "title": "Sale Transaction",
+      "description": "Record of a completed sale.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "itemId": { "type": "string" },
+              "itemName": { "type": "string" },
+              "sku": { "type": "string" },
+              "quantity": { "type": "number" },
+              "unit": { "type": "string" },
+              "multiplier": { "type": "number" },
+              "unitPriceNgn": { "type": "number" }
+            }
+          }
+        },
+        "totalNgn": { "type": "number" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "items", "totalNgn", "createdAt"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Business expense record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "amount": { "type": "number" },
+        "category": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "amount", "category", "date"]
+    },
+    "Refund": {
+      "title": "Refund",
+      "description": "Refund transaction.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "saleId": { "type": "string" },
+        "itemId": { "type": "string" },
+        "itemName": { "type": "string" },
+        "quantity": { "type": "number" },
+        "amountNgn": { "type": "number" },
+        "reason": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "saleId", "amountNgn"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System or stock alert.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "link": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "type", "title", "message", "read"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Customer record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    }
+  },
+  "firestore": {
+    "users": {
+        "schema": "User",
+        "description": "Root collection for users."
+    },
+    "items": {
+        "schema": "Item",
+        "description": "Global items collection."
+    },
+    "categories": {
+        "schema": "Category",
+        "description": "Product categories."
+    },
+    "sales": {
+        "schema": "SaleTransaction",
+        "description": "Sales records."
+    },
+    "expenses": {
+        "schema": "Expense",
+        "description": "Business expenses."
+    },
+    "refunds": {
+        "schema": "Refund",
+        "description": "Refund records."
+    },
+    "notifications": {
+        "schema": "Notification",
+        "description": "System alerts."
+    },
+    "customers": {
+        "schema": "Customer",
+        "description": "Customer records."
+    }
+  }
+}

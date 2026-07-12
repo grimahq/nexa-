@@ -117,9 +117,21 @@ export function ItemDetailSheet({
           </TabsList>
 
           <TabsContent value="overview" className="mt-6 space-y-6">
-            {/* Image placeholder */}
-            <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border bg-muted/30">
-              <Package className="h-10 w-10 text-muted-foreground/40" />
+            {/* Image display */}
+            <div className="relative group aspect-square max-h-64 mx-auto w-full flex items-center justify-center rounded-xl border border-divider bg-muted/20 overflow-hidden">
+              {item.imageUrl ? (
+                <img 
+                  src={item.imageUrl} 
+                  alt={item.name} 
+                  className="h-full w-full object-contain p-4"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-2 text-muted-foreground/40">
+                  <Package className="h-12 w-12" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">No Image</span>
+                </div>
+              )}
             </div>
 
             {/* Quantity hero */}
@@ -151,8 +163,8 @@ export function ItemDetailSheet({
               <DetailRow label="Location" value={location?.name} />
               <DetailRow label="Measurements" value={item.measurements} />
               <DetailRow label="Color" value={item.color} />
-              <DetailRow label="Cost Per Unit" value={`₦${item.costPrice.toLocaleString()}`} mono />
-              <DetailRow label="Sale Price" value={`₦${item.sellingPrice.toLocaleString()}`} mono />
+              <DetailRow label="Cost Per Unit" value={`₦${item.costPrice?.toLocaleString() ?? "0"}`} mono />
+              <DetailRow label="Sale Price" value={`₦${item.sellingPrice?.toLocaleString() ?? "0"}`} mono />
               <div className="col-span-2 py-2 border-t border-b border-border my-2">
                 <div className="flex items-center justify-between">
                   <div>
@@ -162,16 +174,72 @@ export function ItemDetailSheet({
                   {item.isEcommerceEnabled && item.affiliateCommission && item.affiliateCommission > 0 && (
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Affiliate Comm.</p>
-                      <p className="text-sm font-semibold text-green-600">₦{item.affiliateCommission.toLocaleString()}</p>
+                      <p className="text-sm font-semibold text-green-600">₦{item.affiliateCommission?.toLocaleString() ?? "0"}</p>
                     </div>
                   )}
                 </div>
               </div>
+              
+              {item.textile && (
+                <div className="col-span-2 py-3 border-b border-border">
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Textile & Fabric Specifications</p>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-lg bg-rose-50/25 border border-rose-100/50 p-3 dark:bg-rose-950/10 dark:border-rose-900/40">
+                    <DetailRow label="Fabric Content" value={item.textile.fabricContent} />
+                    <DetailRow label="Weave Type" value={item.textile.weaveType} />
+                    <div className="col-span-2">
+                      <DetailRow label="Fabric Weight" value={item.textile.gsm ? `${item.textile.gsm} GSM` : "—"} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              {item.unitConversions && item.unitConversions.length > 0 && (
+                <div className="col-span-2 py-3 border-b border-border">
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Configured Selling Units (Wholesale / Bulk)</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {item.unitConversions.map((conv, idx) => {
+                      const calculatedPrice = conv.priceNgn !== undefined 
+                        ? conv.priceNgn 
+                        : item.sellingPrice * conv.multiplier;
+
+                      return (
+                        <div key={idx} className="rounded-lg border border-border p-2.5 bg-muted/5 flex flex-col gap-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs uppercase text-foreground">{conv.unitId}</span>
+                            <span className="text-[10px] text-muted-foreground font-medium">1 {conv.unitId} = {conv.multiplier} {item.unit}</span>
+                          </div>
+                          <div className="flex items-baseline justify-between mt-1">
+                            <span className="text-xs text-muted-foreground">Selling Price</span>
+                            <span className="text-sm font-bold font-mono text-primary">₦{calculatedPrice.toLocaleString("en-NG", { minimumFractionDigits: 0 })}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div className="col-span-2">
                 <DetailRow label="Description" value={item.description} />
               </div>
-              <DetailRow label="Created" value={format(new Date(item.createdAt), "MMM d, yyyy")} />
-              <DetailRow label="Updated" value={format(new Date(item.updatedAt), "MMM d, yyyy")} />
+              <DetailRow 
+                label="Created" 
+                value={(() => {
+                  if (!item.createdAt) return "—";
+                  try {
+                    const d = new Date(item.createdAt);
+                    return isNaN(d.getTime()) ? "—" : format(d, "MMM d, yyyy");
+                  } catch (e) { return "—"; }
+                })()} 
+              />
+              <DetailRow 
+                label="Updated" 
+                value={(() => {
+                  if (!item.updatedAt) return "—";
+                  try {
+                    const d = new Date(item.updatedAt);
+                    return isNaN(d.getTime()) ? "—" : format(d, "MMM d, yyyy");
+                  } catch (e) { return "—"; }
+                })()} 
+              />
             </div>
 
             {/* Barcode */}

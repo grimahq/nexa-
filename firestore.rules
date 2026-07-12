@@ -1,0 +1,171 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ─── GLOBAL HELPERS ─────────────────────────────────
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { 
+      return isSignedIn() && (
+        request.auth.token.email == 'nexatechnologies.dev@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      ); 
+    }
+    function isFutureAdmin() {
+      return isSignedIn() && (
+        isAdmin() || 
+        (getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // ─── VALIDATION HELPERS ─────────────────────────────
+    function isValidUser(data) {
+      return data.id is string
+          && data.name is string
+          && data.email is string;
+    }
+
+    function isValidItem(data) {
+      return data.name is string
+          && data.sku is string
+          && data.sellingPrice is number 
+          && data.currentStock is number;
+    }
+
+    function isValidStore(data) {
+      return data.id is string && data.storeName is string;
+    }
+
+    // ─── DEFAULT DENY & BYPASS ─────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ─── CONNECTIVITY ───────────────────────────────────
+    match /_system_/connectivity_test {
+      allow read: if true;
+    }
+
+    // ─── USERS ──────────────────────────────────────────
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && incoming().id == userId;
+      allow update: if isSignedIn() && (
+        (isOwner(userId) && (!incoming().diff(existing()).affectedKeys().hasAny(['role']) || isAdmin())) ||
+        isAdmin()
+      );
+      allow delete: if isAdmin() && userId != request.auth.uid;
+    }
+
+    // ─── STORES ─────────────────────────────────────────
+    match /stores/{storeId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (resource != null && resource.data.ownerId == request.auth.uid) ||
+        storeId == request.auth.uid
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ─── ADMINS ─────────────────────────────────────────
+    match /admins/{adminId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && (
+        isAdmin() || 
+        (isOwner(adminId) && getAfter(/databases/$(database)/documents/users/$(adminId)).data.role == 'admin') ||
+        (!exists(/databases/$(database)/documents/settings/store) && isOwner(adminId))
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ─── SETTINGS ───────────────────────────────────────
+    match /settings/{docId} {
+      allow read: if isSignedIn() || (docId == 'store');
+      allow write: if isFutureAdmin() || !exists(/databases/$(database)/documents/settings/store);
+    }
+
+    // ─── INVENTORY ITEMS ────────────────────────────────
+    match /items/{itemId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidItem(incoming()) && isValidId(itemId);
+      allow update: if (isAdmin() || (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['currentStock', 'updatedAt']))) 
+                    && isValidItem(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // ─── CATEGORIES ─────────────────────────────────────
+    match /categories/{catId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── SALES ──────────────────────────────────────────
+    match /sales/{saleId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && incoming().createdBy == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ─── EXPENSES ───────────────────────────────────────
+    match /expenses/{expId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── CUSTOMERS ──────────────────────────────────────
+    match /customers/{customerId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    
+    // ─── NOTIFICATIONS ──────────────────────────────────
+    match /notifications/{notifId} {
+      allow read: if isSignedIn();
+      allow update: if isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow delete: if isAdmin();
+    }
+
+    // ─── PURCHASE ORDERS ────────────────────────────────
+    match /purchaseOrders/{orderId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || (isSignedIn() && (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager'));
+    }
+
+    // ─── MOVEMENTS ──────────────────────────────────────
+    match /movements/{movId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // ─── SUPPLIERS ──────────────────────────────────────
+    match /suppliers/{supId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── LOCATIONS ──────────────────────────────────────
+    match /locations/{locId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── REQUESTS ───────────────────────────────────────
+    match /requests/{reqId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // ─── REFUNDS ────────────────────────────────────────
+    match /refunds/{refId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

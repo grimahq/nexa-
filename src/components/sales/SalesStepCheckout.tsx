@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useDemo } from "@/hooks/useDemo";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Item, SaleTransaction } from "@/types/inventory";
@@ -12,22 +13,43 @@ import type { Discount } from "@/types/finance";
 import { SalesReceipt } from "./SalesReceipt";
 
 const NAIRA = "₦";
-const USD_TO_NGN = 1_580;
+const USD_TO_NGN = 1;
 
 export interface CheckoutItem {
   item: Item;
   quantity: number;
   selectedUnit?: string;
   calculatedUnitPrice?: number;
+  configStr?: string;
 }
 
 interface SalesStepCheckoutProps {
   items: CheckoutItem[];
   onComplete: () => void;
+  diningMode?: "dine-in" | "takeaway" | "delivery";
+  tableNumber?: string;
+  packagingFee?: number;
+  estimatedReadyTime?: number;
 }
 
-export function SalesStepCheckout({ items, onComplete }: SalesStepCheckoutProps) {
-  const { demoStore, bumpVersion, onboarding } = useDemo();
+import { useInventoryMutation } from "@/hooks/useInventoryMutation";
+import { useAuth } from "@/contexts/AuthContext";
+import { getWhatsAppUrl } from "@/lib/whatsapp";
+
+export function SalesStepCheckout({ 
+  items, 
+  onComplete, 
+  diningMode = "dine-in", 
+  tableNumber = "4", 
+  packagingFee = 0, 
+  estimatedReadyTime = 0 
+}: SalesStepCheckoutProps) {
+  const { isDemo, demoStore, bumpVersion, onboarding: demoOnboarding } = useDemo();
+  const { settings: liveSettings } = useSystemSettings();
+  
+  const onboarding = isDemo ? demoOnboarding : liveSettings;
+  const { addSale } = useInventoryMutation();
+  const { user } = useAuth();
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [lastSale, setLastSale] = useState<SaleTransaction | null>(null);
@@ -37,7 +59,8 @@ export function SalesStepCheckout({ items, onComplete }: SalesStepCheckoutProps)
   const [payOnCredit, setPayOnCredit] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer" | "card">("cash");
 
-  const subtotal = items.reduce((s, ci) => s + (ci.calculatedUnitPrice ?? ci.item.sellingPrice) * USD_TO_NGN * ci.quantity, 0);
+  const subtotalItems = items.reduce((s, ci) => s + (ci.calculatedUnitPrice ?? ci.item.sellingPrice) * USD_TO_NGN * ci.quantity, 0);
+  const subtotal = subtotalItems + packagingFee;
 
   // ... (rest of memoized values remain similar)
 
@@ -104,26 +127,55 @@ export function SalesStepCheckout({ items, onComplete }: SalesStepCheckoutProps)
     }
   };
 
+  const formatConfigShort = (configStr: string) => {
+    try {
+      const config = JSON.parse(configStr);
+      const parts = [];
+      if (config.portion) parts.push(config.portion.name);
+      if (config.color) parts.push(config.color);
+      if (config.size) parts.push(`Size ${config.size}`);
+      if (config.proteins && config.proteins.length > 0) {
+        parts.push(config.proteins.map((p: { name: string }) => p.name).join("+"));
+      }
+      if (config.spiceLevel) parts.push(config.spiceLevel);
+      if (config.swallowType) parts.push(config.swallowType);
+      if (config.comboSelections && config.comboSelections.length > 0) {
+        parts.push(config.comboSelections.map((c: { itemName: string }) => `${c.itemName}`).join(", "));
+      }
+      if (config.note) parts.push(`"${config.note}"`);
+      return parts.join(", ");
+    } catch(e) {
+      return "";
+    }
+  };
+
   const handleWhatsAppShare = () => {
     if (!customerPhone.trim()) {
       toast.error("Please enter a phone number to share");
       return;
     }
-    const phone = customerPhone.replace(/\D/g, "");
-    const waPhone = phone.startsWith("0") ? "234" + phone.slice(1) : (phone.length === 10 ? "234" + phone : phone);
     
-    const itemsText = items.map(ci => {
+    let itemsText = items.map(ci => {
       const unitPrice = ci.calculatedUnitPrice ?? ci.item.sellingPrice;
       const unit = ci.selectedUnit || ci.item.unit;
-      return `${ci.item.name} (${unit}) x${ci.quantity}: ${NAIRA}${(unitPrice * USD_TO_NGN * ci.quantity).toLocaleString()}`;
+      const configDesc = ci.configStr ? ` (${formatConfigShort(ci.configStr)})` : "";
+      return `• ${ci.item.name}${configDesc} (${unit}) x${ci.quantity}: ${NAIRA}${(unitPrice * USD_TO_NGN * ci.quantity).toLocaleString()}`;
     }).join("\n");
-    const text = `🧾 *Order Summary* from ${onboarding.storeName || "Our Store"}\n\n${itemsText}\n\n*Total: ${NAIRA}${grandTotal.toLocaleString()}*\n\nThank you!`;
+
+    if (packagingFee > 0) {
+      itemsText += `\n• Container Packaging Fee: ${NAIRA}${packagingFee.toLocaleString()}`;
+    }
+
+    const storeName = onboarding.storeName || "Our Store";
+    const greeting = customerName.trim() ? `Hello *${customerName.trim()}*, ` : "Hello, ";
     
-    const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(text)}`;
+    const text = `${greeting}here is your *Order Summary* from *${storeName}*:\n\n${itemsText}\n\n*Total: ${NAIRA}${grandTotal.toLocaleString()}*\n\nThank you for choosing us! 🙏`;
+    
+    const url = getWhatsAppUrl(customerPhone, text);
     window.open(url, "_blank");
   };
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     const sale: SaleTransaction = {
       id: `sale-${Date.now()}`,
       customerName: customerName.trim() || undefined,
@@ -136,9 +188,11 @@ export function SalesStepCheckout({ items, onComplete }: SalesStepCheckoutProps)
           if (conv) multiplier = conv.multiplier;
         }
         
+        const configDesc = ci.configStr ? ` (${formatConfigShort(ci.configStr)})` : "";
+        
         return {
           itemId: ci.item.id,
-          itemName: ci.item.name,
+          itemName: `${ci.item.name}${configDesc}`,
           sku: ci.item.sku,
           quantity: ci.quantity,
           unit,
@@ -148,11 +202,15 @@ export function SalesStepCheckout({ items, onComplete }: SalesStepCheckoutProps)
         };
       }),
       totalNgn: grandTotal,
+      notes: onboarding?.businessType === "restaurant" ? `${diningMode === "dine-in" ? `Dine-in (Table ${tableNumber})` : diningMode === "takeaway" ? "Takeaway Order" : "Delivery Order"}${estimatedReadyTime > 0 ? ` - Cooking Ready: ~${estimatedReadyTime}m` : ""}` : undefined,
+      createdBy: user?.uid,
+      source: isDemo ? "demo" : "pos",
       createdAt: new Date().toISOString(),
     };
 
-    if (demoStore) {
-      demoStore.addSale(sale);
+    await addSale(sale);
+
+    if (isDemo && demoStore) {
       if (promoApplied && promoCode) demoStore.usePromo(promoCode);
       if (payOnCredit && customerPhone.trim()) {
         demoStore.addCreditTransaction(customerPhone.trim(), customerName.trim() || "Unknown", {
@@ -164,7 +222,6 @@ export function SalesStepCheckout({ items, onComplete }: SalesStepCheckoutProps)
           createdAt: new Date().toISOString(),
         });
       }
-      bumpVersion();
     }
 
     setLastSale(sale);
@@ -327,21 +384,41 @@ export function SalesStepCheckout({ items, onComplete }: SalesStepCheckoutProps)
       {/* Order summary */}
       <div className="space-y-2">
         <h3 className="text-sm font-semibold text-foreground">Order Summary</h3>
-        <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-1.5">
+        <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-2">
           {items.map((ci) => {
             const unitPrice = ci.calculatedUnitPrice ?? ci.item.sellingPrice;
             const unit = ci.selectedUnit || ci.item.unit;
             return (
-              <div key={`${ci.item.id}:${unit}`} className="flex justify-between text-xs">
-                <span className="text-muted-foreground truncate mr-2">
-                  {ci.item.name} ({unit}) × {ci.quantity}
-                </span>
+              <div key={`${ci.item.id}:${unit}`} className="flex justify-between items-start text-xs border-b border-border/30 last:border-0 pb-1.5 last:pb-0">
+                <div className="text-muted-foreground mr-2 flex flex-col">
+                  <span className="font-bold text-foreground">{ci.item.name} ({unit}) × {ci.quantity}</span>
+                  {ci.configStr && (() => {
+                    const formatted = formatConfigShort(ci.configStr);
+                    return formatted ? <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5">{formatted}</span> : null;
+                  })()}
+                </div>
                 <span className="font-mono font-medium text-foreground shrink-0">
                   {NAIRA}{(unitPrice * USD_TO_NGN * ci.quantity).toLocaleString("en-NG", { minimumFractionDigits: 0 })}
                 </span>
               </div>
             );
           })}
+          
+          {onboarding?.businessType === "restaurant" && (
+            <div className="flex flex-col gap-1 pt-2 border-t border-border/50 text-[10px] uppercase font-bold tracking-wider">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Dining Context</span>
+                <span className="text-primary font-bold">{diningMode === "dine-in" ? `Dine-in (Table ${tableNumber})` : diningMode === "takeaway" ? "Takeaway" : "Delivery"}</span>
+              </div>
+              {estimatedReadyTime > 0 && (
+                <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                  <span>Est. Prep Time</span>
+                  <span>~{estimatedReadyTime} mins</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {discountAmount > 0 && (
             <div className="flex justify-between text-xs text-primary pt-1 border-t border-border/50">
               <span>Discount</span>

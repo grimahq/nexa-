@@ -112,7 +112,15 @@ export function MovementsTable({ movements, itemNameMap, locationNameMap }: Move
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Time</span>
-                    <span>{formatDistanceToNow(new Date(m.createdAt), { addSuffix: true })}</span>
+                    <span>
+                      {(() => {
+                        if (!m.createdAt) return "—";
+                        try {
+                          const d = new Date(m.createdAt);
+                          return isNaN(d.getTime()) ? "—" : formatDistanceToNow(d, { addSuffix: true });
+                        } catch (e) { return "—"; }
+                      })()}
+                    </span>
                   </div>
                   {expandedId === m.id && (
                     <div className="pt-2 border-t border-border mt-2 space-y-1">
@@ -179,9 +187,25 @@ export function MovementsTable({ movements, itemNameMap, locationNameMap }: Move
                       <TableCell>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="cursor-default text-sm text-muted-foreground">{formatDistanceToNow(new Date(m.createdAt), { addSuffix: true })}</span>
+                            <span className="cursor-default text-sm text-muted-foreground">
+                              {(() => {
+                                if (!m.createdAt) return "—";
+                                try {
+                                  const d = new Date(m.createdAt);
+                                  return isNaN(d.getTime()) ? "—" : formatDistanceToNow(d, { addSuffix: true });
+                                } catch (e) { return "—"; }
+                              })()}
+                            </span>
                           </TooltipTrigger>
-                          <TooltipContent>{format(new Date(m.createdAt), "PPpp")}</TooltipContent>
+                          <TooltipContent>
+                            {(() => {
+                              if (!m.createdAt) return "Unknown Date";
+                              try {
+                                const d = new Date(m.createdAt);
+                                return isNaN(d.getTime()) ? "Unknown Date" : format(d, "PPpp");
+                              } catch (e) { return "Unknown Date"; }
+                            })()}
+                          </TooltipContent>
                         </Tooltip>
                       </TableCell>
                     </TableRow>

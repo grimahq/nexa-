@@ -17,6 +17,7 @@ import { ForecastSummary } from "@/components/insights/ForecastSummary";
 import { DemandForecastChart } from "@/components/insights/DemandForecastChart";
 import { ReorderSuggestionCard } from "@/components/insights/ReorderSuggestionCard";
 import { AnomalyAlertCard } from "@/components/insights/AnomalyAlertCard";
+import { useItems, useMovements, useSuppliers } from "@/hooks/useInventoryData";
 import { useDemo } from "@/hooks/useDemo";
 import { useUpdateItem } from "@/hooks/useInventoryMutations";
 import { analyzeAllItems, type ReorderAnalysis } from "@/lib/reorder-engine";
@@ -38,7 +39,7 @@ type AnomalySeverityFilter = "all" | "warning" | "critical";
 type AnomalyTypeFilter = "all" | "quantity_spike" | "frequent_adjustments" | "unusual_timing";
 
 function AiInsightsPage() {
-  const { demoStore } = useDemo();
+  const { isDemo, demoStore } = useDemo();
   const { can } = usePermissions();
   const updateItem = useUpdateItem();
 
@@ -50,23 +51,23 @@ function AiInsightsPage() {
   const [showDismissed, setShowDismissed] = useState(false);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
-  const items = demoStore?.getItems() ?? [];
-  const movements = demoStore?.getMovements() ?? [];
-  const suppliers = demoStore?.getSuppliers() ?? [];
+  const { data: items, isLoading: itemsLoading } = useItems();
+  const { data: movements, isLoading: movementsLoading } = useMovements();
+  const { data: suppliers, isLoading: suppliersLoading } = useSuppliers();
 
   const allAnalyses = useMemo(
-    () => analyzeAllItems(items, movements, suppliers),
+    () => analyzeAllItems(items || [], movements || [], suppliers || []),
     [items, movements, suppliers],
   );
 
   // Anomaly detection
   const allAnomalies = useMemo(() => {
     const cutoff = subDays(new Date(), 90);
-    const recent = movements.filter((m) => new Date(m.createdAt) >= cutoff);
+    const recent = (movements || []).filter((m) => new Date(m.createdAt) >= cutoff);
     return analyzeMovements(recent);
   }, [movements]);
 
-  const itemMap = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+  const itemMap = useMemo(() => new Map((items || []).map((i) => [i.id, i])), [items]);
 
   const filteredAnomalies = useMemo(() => {
     let result = [...allAnomalies];
@@ -108,6 +109,14 @@ function AiInsightsPage() {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-muted-foreground">You don't have permission to view this page.</p>
+      </div>
+    );
+  }
+
+  if (itemsLoading || movementsLoading || suppliersLoading) {
+    return (
+      <div className="flex h-60 items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
   }

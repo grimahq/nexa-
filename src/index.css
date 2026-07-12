@@ -1,4 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Nexa OS - Sophisticated Tech Palette */
+  --color-primary: #0f172a; /* Slate 900 */
+  --color-primary-foreground: #f8fafc; /* Slate 50 */
+  
+  --color-secondary: #f1f5f9; /* Slate 100 */
+  --color-secondary-foreground: #0f172a;
+  
+  --color-accent: #3b82f6; /* Azure Blue */
+  --color-accent-foreground: #ffffff;
+
+  --color-background: #ffffff;
+  --color-foreground: #020617; /* Slate 950 */
+
+  --color-popover: #ffffff;
+  --color-popover-foreground: #020617; /* Slate 950 */
+
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+  
+  --color-border: #e2e8f0;
+  --color-input: #e2e8f0;
+  --color-ring: #3b82f6;
+
+  /* Custom Stock Status Colors */
+  --color-stock-healthy: #10b981;
+  --color-stock-warning: #f59e0b;
+  --color-stock-critical: #ef4444;
+
+  --radius-lg: 0.75rem;
+  --radius-md: calc(var(--radius-lg) - 2px);
+  --radius-sm: calc(var(--radius-lg) - 4px);
+}
 
 @layer base {
   @media print {

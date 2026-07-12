@@ -1,0 +1,364 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { 
+  onAuthStateChanged, 
+  signOut, 
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+  type User 
+} from "firebase/auth";
+import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, limit, deleteDoc, writeBatch } from "firebase/firestore";
+import { auth, db, handleFirestoreError, OperationType } from "@/lib/firebase";
+import { toast } from "sonner";
+
+interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  storeId?: string;
+  createdAt: string;
+  joinedAt?: string;
+  onboardingCompleted?: boolean;
+  onboarding?: {
+    storeName: string;
+    brandColor?: string;
+    businessType?: string;
+    [key: string]: string | number | boolean | undefined;
+  };
+}
+
+interface AuthContextValue {
+  user: User | null;
+  profile: UserProfile | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let unsubProfile: (() => void) | null = null;
+    
+    // Check if we need to promote an already logged-in user (e.g. from Landing Page "Get Started")
+    const checkPromotion = async (u: User, p: UserProfile | null) => {
+      if (!u) return;
+      const isCreateStoreFlow = sessionStorage.getItem("nexa_intended_business") !== null;
+      const isDevAccount = u.email === 'nexatechnologies.dev@gmail.com';
+      
+      if ((isDevAccount || isCreateStoreFlow) && p && p.role !== "admin") {
+        console.log("Promoting user to admin based on flow/email", u.email);
+        const profileRef = doc(db, "users", u.uid);
+        const batch = writeBatch(db);
+        batch.update(profileRef, { role: "admin", updatedAt: new Date().toISOString() });
+        batch.set(doc(db, "admins", u.uid), { 
+          email: u.email || "",
+          createdAt: new Date().toISOString()
+        });
+        
+        try {
+          await batch.commit();
+          sessionStorage.removeItem("nexa_intended_business");
+          // Profile listener will pick up the update
+        } catch (error) {
+          console.error("Promotion failed:", error);
+        }
+      }
+    };
+
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      // Clear previous snapshot listener
+      if (unsubProfile) {
+        unsubProfile();
+        unsubProfile = null;
+      }
+
+      setUser(u);
+      
+      if (u) {
+        setLoading(true);
+        const profileRef = doc(db, "users", u.uid);
+        
+        try {
+          // Wrap profile fetch in a safety timeout of 1500ms
+          const snap = await Promise.race([
+            getDoc(profileRef),
+            new Promise<never>((_, reject) => 
+              setTimeout(() => reject(new Error("Profile fetch timed out after 1500ms")), 1500)
+            )
+          ]);
+          
+          const isCreateStoreFlow = sessionStorage.getItem("nexa_intended_business") !== null;
+          const isDevAccount = u.email === 'nexatechnologies.dev@gmail.com';
+
+          if (snap.exists()) {
+            const data = snap.data() as UserProfile;
+            localStorage.setItem("nexa_profile_" + u.uid, JSON.stringify(data));
+            
+            // Allow existing users to join the store under invitation if they don't have a storeId
+            const inviteStoreId = sessionStorage.getItem("nexa_invite_storeId");
+            if (inviteStoreId && !data.storeId) {
+              const inviteRole = sessionStorage.getItem("nexa_invite_role") || "manager";
+              console.log("Linking existing user to invited storeId", inviteStoreId);
+              try {
+                await setDoc(profileRef, { 
+                  storeId: inviteStoreId, 
+                  role: inviteRole,
+                  onboardingCompleted: true 
+                }, { merge: true });
+                data.storeId = inviteStoreId;
+                data.role = inviteRole;
+                data.onboardingCompleted = true;
+                localStorage.setItem("nexa_profile_" + u.uid, JSON.stringify(data));
+                toast.success("Successfully joined the store!");
+              } catch (err) {
+                console.error("Failed to link user to invited store:", err);
+              } finally {
+                sessionStorage.removeItem("nexa_invite_storeId");
+                sessionStorage.removeItem("nexa_invite_role");
+                sessionStorage.removeItem("nexa_invite_storeName");
+              }
+            } else if ((data.role === "admin" || isDevAccount) && !data.storeId) {
+              console.log("Recovering storeId for admin", u.email);
+              try {
+                const updatedStoreId = u.uid;
+                await setDoc(profileRef, { storeId: updatedStoreId }, { merge: true });
+                data.storeId = updatedStoreId;
+
+                // Also ensure store doc exists
+                const storeRef = doc(db, "stores", updatedStoreId);
+                const storeSnap = await getDoc(storeRef);
+                if (!storeSnap.exists()) {
+                  console.log("Creating missing store doc for recovered admin");
+                  await setDoc(storeRef, {
+                    id: updatedStoreId,
+                    storeName: "My Store",
+                    isOnboarded: false,
+                    ownerId: u.uid,
+                    createdAt: new Date().toISOString()
+                  });
+                } else if (storeSnap.data()?.isOnboarded && !data.onboardingCompleted) {
+                  // If store is onboarded but profile isn't, sync them
+                  await setDoc(profileRef, { onboardingCompleted: true }, { merge: true });
+                  data.onboardingCompleted = true;
+                }
+                localStorage.setItem("nexa_profile_" + u.uid, JSON.stringify(data));
+              } catch (err) {
+                console.error("Failed to recover store/profile data:", err);
+                // We keep going, the user might see limited data but at least they get in
+                data.storeId = u.uid; 
+              }
+            } else if (data.storeId) {
+              // Sync existing profile with store onboarding status
+              try {
+                const storeSnap = await getDoc(doc(db, "stores", data.storeId));
+                if (storeSnap.exists() && storeSnap.data()?.isOnboarded && !data.onboardingCompleted) {
+                  await setDoc(profileRef, { onboardingCompleted: true }, { merge: true });
+                  data.onboardingCompleted = true;
+                  localStorage.setItem("nexa_profile_" + u.uid, JSON.stringify(data));
+                }
+              } catch (e) {
+                console.warn("Failed to sync store onboarding status", e);
+              }
+            }
+            
+            setProfile(data);
+            
+            // Handle promotion if needed
+            await checkPromotion(u, data);
+          } else {
+            console.log("No profile found for user, checking if they should be admin...");
+            // New user detection
+            let allUsersSnap;
+            try {
+              // Note: If this fails with permission denied, it's likely strict rules being applied.
+              // We check if we are in a "create store" flow which implies intent to be an admin.
+              allUsersSnap = await Promise.race([
+                getDocs(query(collection(db, "users"), limit(1))),
+                new Promise<never>((_, reject) => 
+                  setTimeout(() => reject(new Error("Timeout checking first user")), 1500)
+                )
+              ]);
+            } catch (error) {
+              console.error("Initial users check failed:", error);
+              // Fallback for dev account or onboarding flow or if we assume first-user-is-admin
+              if (isDevAccount || isCreateStoreFlow) {
+                allUsersSnap = { empty: true };
+              } else {
+                // If we can't check, we assume not-admin to be safe, but we must still create a profile
+                allUsersSnap = { empty: false };
+              }
+            }
+
+            // If DB is empty OR it's the dev account OR the user clicked "Create New Store"
+            const inviteStoreId = sessionStorage.getItem("nexa_invite_storeId");
+            const inviteRole = sessionStorage.getItem("nexa_invite_role") || "requestor";
+
+            const shouldBeAdmin = !inviteStoreId && (allUsersSnap.empty || isCreateStoreFlow || isDevAccount);
+            const newRole = inviteStoreId ? inviteRole : (shouldBeAdmin ? "admin" : "requestor");
+            const regName = sessionStorage.getItem("nexa_reg_name");
+            
+            const newStoreId = inviteStoreId ? inviteStoreId : (shouldBeAdmin ? u.uid : null);
+
+            const newProfile: UserProfile = {
+              id: u.uid,
+              name: regName || u.displayName || u.email?.split("@")[0] || "User",
+              email: u.email || "",
+              role: newRole,
+              storeId: newStoreId || undefined,
+              createdAt: new Date().toISOString(),
+              joinedAt: new Date().toISOString(),
+              onboardingCompleted: inviteStoreId ? true : false,
+            };
+            
+            const batch = writeBatch(db);
+            batch.set(profileRef, newProfile);
+            
+            if (!inviteStoreId && newRole === "admin" && newStoreId) {
+              batch.set(doc(db, "admins", u.uid), { 
+                email: u.email || "",
+                storeId: newStoreId,
+                createdAt: new Date().toISOString()
+              });
+              
+              const storeRef = doc(db, "stores", newStoreId);
+              batch.set(storeRef, {
+                id: newStoreId,
+                storeName: "My New Store",
+                isOnboarded: false,
+                businessType: "retail",
+                ownerId: u.uid,
+                createdAt: new Date().toISOString()
+              });
+            }
+            
+            try {
+              await Promise.race([
+                batch.commit(),
+                new Promise<void>((_, reject) => 
+                  setTimeout(() => reject(new Error("Timeout committing profile batch")), 1500)
+                )
+              ]);
+              setProfile(newProfile);
+              localStorage.setItem("nexa_profile_" + u.uid, JSON.stringify(newProfile));
+              sessionStorage.removeItem("nexa_intended_business");
+              sessionStorage.removeItem("nexa_reg_name");
+              sessionStorage.removeItem("nexa_invite_storeId");
+              sessionStorage.removeItem("nexa_invite_role");
+              sessionStorage.removeItem("nexa_invite_storeName");
+            } catch (error) {
+              console.warn("Batch commit failed or timed out. Falling back to local profile state:", error);
+              setProfile(newProfile);
+              localStorage.setItem("nexa_profile_" + u.uid, JSON.stringify(newProfile));
+              sessionStorage.removeItem("nexa_intended_business");
+              sessionStorage.removeItem("nexa_reg_name");
+              sessionStorage.removeItem("nexa_invite_storeId");
+              sessionStorage.removeItem("nexa_invite_role");
+              sessionStorage.removeItem("nexa_invite_storeName");
+            }
+          }
+        } catch (error) {
+          console.warn("Critical Auth/Profile Error: Profile unavailable or Firestore unreachable. Using cache/local fallback.", error);
+          
+          const cachedProfileStr = localStorage.getItem("nexa_profile_" + u.uid);
+          if (cachedProfileStr) {
+            try {
+              const cached = JSON.parse(cachedProfileStr) as UserProfile;
+              setProfile(cached);
+              setLoading(false);
+              return;
+            } catch (e) {
+              console.error("Failed to parse cached profile", e);
+            }
+          }
+
+          // No cache, build safe run-time fallback
+          const isCreateStoreFlow = sessionStorage.getItem("nexa_intended_business") !== null;
+          const isDevAccount = u.email === 'nexatechnologies.dev@gmail.com';
+          const regName = sessionStorage.getItem("nexa_reg_name");
+          const inviteStoreId = sessionStorage.getItem("nexa_invite_storeId");
+          const inviteRole = sessionStorage.getItem("nexa_invite_role") || "requestor";
+
+          const newRole = inviteStoreId ? inviteRole : ((isDevAccount || isCreateStoreFlow) ? "admin" : "requestor");
+          const newStoreId = inviteStoreId ? inviteStoreId : (newRole === "admin" ? u.uid : "fallback-store");
+
+          const fallbackProfile: UserProfile = {
+            id: u.uid,
+            name: regName || u.displayName || u.email?.split("@")[0] || "User",
+            email: u.email || "",
+            role: newRole,
+            storeId: newStoreId,
+            createdAt: new Date().toISOString(),
+            joinedAt: new Date().toISOString(),
+            onboardingCompleted: inviteStoreId ? true : false,
+          };
+          
+          localStorage.setItem("nexa_profile_" + u.uid, JSON.stringify(fallbackProfile));
+          setProfile(fallbackProfile);
+        } finally {
+          setLoading(false);
+        }
+
+        // Listen for profile changes
+        unsubProfile = onSnapshot(profileRef, (s) => {
+          if (s.exists()) {
+            const data = s.data() as UserProfile;
+            setProfile(data);
+            localStorage.setItem("nexa_profile_" + u.uid, JSON.stringify(data));
+          }
+        }, (error) => {
+          console.warn("Profile snapshot listener encountered an error:", error.message);
+        });
+      } else {
+        setProfile(null);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      if (unsubProfile) unsubProfile();
+    };
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    await signInWithEmailAndPassword(auth, email.trim(), password);
+  };
+
+  const register = async (email: string, password: string, name: string) => {
+    const trimmedName = name.trim();
+    sessionStorage.setItem("nexa_reg_name", trimmedName);
+    const { user: newUser } = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    if (newUser) {
+      await updateProfile(newUser, { displayName: trimmedName });
+    }
+  };
+
+  const logout = async () => {
+    try {
+      sessionStorage.clear();
+      await signOut(auth);
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, profile, loading, login, register, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
+  return context;
+};

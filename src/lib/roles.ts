@@ -1,9 +1,11 @@
 export type UserRoleType = "admin" | "manager" | "requestor";
 
 export interface RolePermissions {
+  canViewDashboard: boolean;
   canManageItems: boolean;
   canLogMovements: boolean;
   canManagePOs: boolean;
+  canViewSuppliers: boolean;
   canManageSuppliers: boolean;
   canApproveRequests: boolean;
   canCreateRequests: boolean;
@@ -13,13 +15,20 @@ export interface RolePermissions {
   canSell: boolean;
   canViewSalesHistory: boolean;
   canViewRequests: boolean;
+  canViewExpenses: boolean;
+  canViewReturns: boolean;
+  canViewEcommerce: boolean;
+  canViewLocations: boolean;
+  canViewCustomers: boolean;
 }
 
 const ROLE_PERMISSIONS: Record<UserRoleType, RolePermissions> = {
   admin: {
+    canViewDashboard: true,
     canManageItems: true,
     canLogMovements: true,
     canManagePOs: true,
+    canViewSuppliers: true,
     canManageSuppliers: true,
     canApproveRequests: true,
     canCreateRequests: true,
@@ -29,25 +38,39 @@ const ROLE_PERMISSIONS: Record<UserRoleType, RolePermissions> = {
     canSell: true,
     canViewSalesHistory: true,
     canViewRequests: true,
+    canViewExpenses: true,
+    canViewReturns: true,
+    canViewEcommerce: true,
+    canViewLocations: true,
+    canViewCustomers: true,
   },
   manager: {
+    canViewDashboard: true,
     canManageItems: true,
     canLogMovements: true,
-    canManagePOs: true,
-    canManageSuppliers: true,
+    canManagePOs: false,
+    canViewSuppliers: false,
+    canManageSuppliers: false,
     canApproveRequests: true,
     canCreateRequests: true,
-    canViewAnalytics: true,
+    canViewAnalytics: false,
     canAccessSettings: false,
     canManageUsers: false,
     canSell: true,
     canViewSalesHistory: true,
     canViewRequests: true,
+    canViewExpenses: true,
+    canViewReturns: true,
+    canViewEcommerce: false,
+    canViewLocations: false,
+    canViewCustomers: true,
   },
   requestor: {
+    canViewDashboard: false,
     canManageItems: false,
     canLogMovements: false,
     canManagePOs: false,
+    canViewSuppliers: false,
     canManageSuppliers: false,
     canApproveRequests: false,
     canCreateRequests: true,
@@ -57,6 +80,11 @@ const ROLE_PERMISSIONS: Record<UserRoleType, RolePermissions> = {
     canSell: false,
     canViewSalesHistory: false,
     canViewRequests: true,
+    canViewExpenses: false,
+    canViewReturns: false,
+    canViewEcommerce: false,
+    canViewLocations: false,
+    canViewCustomers: false,
   },
 };
 

@@ -16,7 +16,7 @@ import { useDemo } from "@/hooks/useDemo";
 import { toast } from "sonner";
 import { SalesReceipt } from "./SalesReceipt";
 
-const USD_TO_NGN = 1_580;
+const USD_TO_NGN = 1;
 const NAIRA = "₦";
 
 export interface CartItem {

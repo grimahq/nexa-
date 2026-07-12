@@ -12,6 +12,8 @@ import { useDemo } from "@/hooks/useDemo";
 import { toast } from "sonner";
 import type { Refund, RefundReason } from "@/types/finance";
 import { REFUND_REASONS } from "@/types/finance";
+import { useRefunds, useSales } from "@/hooks/useInventoryData";
+import { useCreateRefund } from "@/hooks/useInventoryMutations";
 
 const NAIRA = "₦";
 
@@ -21,18 +23,20 @@ export const Route = createFileRoute("/app/returns")({
 });
 
 function ReturnsPage() {
-  const { demoStore, bumpVersion, version } = useDemo();
+  const { isDemo, demoStore, bumpVersion } = useDemo();
   const [formOpen, setFormOpen] = useState(false);
   const [filterReason, setFilterReason] = useState<string>("all");
 
-  const refunds = useMemo(() => {
-    void version;
-    return demoStore?.getRefunds() ?? [];
-  }, [demoStore, version]);
+  const { data: refunds, isLoading: refundsLoading } = useRefunds();
+  const { data: sales, isLoading: salesLoading } = useSales();
 
-  const sales = useMemo(() => demoStore?.getSales() ?? [], [demoStore, version]);
+  const isLoading = refundsLoading || salesLoading;
 
   const filtered = filterReason === "all" ? refunds : refunds.filter((r) => r.reason === filterReason);
+
+  if (isLoading) {
+    return <div className="flex h-64 items-center justify-center font-mono text-sm text-muted-foreground animate-pulse">Loading returns...</div>;
+  }
 
   const totalRefunded = filtered.reduce((s, r) => s + r.amountNgn, 0);
 
@@ -112,18 +116,17 @@ function ReturnsPage() {
         </div>
       )}
 
-      <RefundFormSheet open={formOpen} onOpenChange={setFormOpen} sales={sales} demoStore={demoStore} bumpVersion={bumpVersion} />
+      <RefundFormSheet open={formOpen} onOpenChange={setFormOpen} sales={sales} />
     </div>
   );
 }
 
-function RefundFormSheet({ open, onOpenChange, sales, demoStore, bumpVersion }: {
+function RefundFormSheet({ open, onOpenChange, sales }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   sales: { id: string; items: { itemId: string; itemName: string; quantity: number; unitPriceNgn: number }[]; createdAt: string }[];
-  demoStore: ReturnType<typeof useDemo>["demoStore"];
-  bumpVersion: () => void;
 }) {
+  const { mutate: createRefund, isLoading } = useCreateRefund();
   const [saleId, setSaleId] = useState("");
   const [itemId, setItemId] = useState("");
   const [qty, setQty] = useState(1);
@@ -134,7 +137,7 @@ function RefundFormSheet({ open, onOpenChange, sales, demoStore, bumpVersion }: 
   const selectedItem = selectedSale?.items.find((i) => i.itemId === itemId);
 
   const handleSubmit = () => {
-    if (!selectedSale || !selectedItem || !demoStore) return;
+    if (!selectedSale || !selectedItem) return;
     const refund: Refund = {
       id: `ref-${Date.now()}`,
       saleId,
@@ -146,14 +149,17 @@ function RefundFormSheet({ open, onOpenChange, sales, demoStore, bumpVersion }: 
       notes,
       createdAt: new Date().toISOString(),
     };
-    demoStore.addRefund(refund);
-    bumpVersion();
-    toast.success(`Refund processed: ${NAIRA}${refund.amountNgn.toLocaleString("en-NG")}`);
-    onOpenChange(false);
-    setSaleId("");
-    setItemId("");
-    setQty(1);
-    setNotes("");
+    createRefund(refund, {
+      onSuccess: () => {
+        toast.success(`Refund processed: ${NAIRA}${refund.amountNgn.toLocaleString("en-NG")}`);
+        onOpenChange(false);
+        setSaleId("");
+        setItemId("");
+        setQty(1);
+        setNotes("");
+      },
+      onError: () => toast.error("Failed to process refund")
+    });
   };
 
   return (
@@ -220,8 +226,8 @@ function RefundFormSheet({ open, onOpenChange, sales, demoStore, bumpVersion }: 
             </div>
           )}
 
-          <Button onClick={handleSubmit} disabled={!selectedItem} className="w-full gap-2">
-            <RotateCcw className="h-4 w-4" /> Process Refund
+          <Button onClick={handleSubmit} disabled={!selectedItem || isLoading} className="w-full gap-2">
+            <RotateCcw className="h-4 w-4" /> {isLoading ? "Processing..." : "Process Refund"}
           </Button>
         </div>
       </SheetContent>

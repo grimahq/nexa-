@@ -11,6 +11,8 @@ import { ReceiveShipmentSheet } from "@/components/purchase-orders/ReceiveShipme
 import { usePurchaseOrders, useSuppliers, useItems, useMovements } from "@/hooks/useInventoryData";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useRole } from "@/hooks/useRole";
+import { useAuth } from "@/contexts/AuthContext";
+import { useDemo } from "@/hooks/useDemo";
 import {
   useDeletePurchaseOrder,
   useUpdatePurchaseOrder,
@@ -39,6 +41,8 @@ export const Route = createFileRoute("/app/purchase-orders")({
 
 function PurchaseOrdersPage() {
   const { po: poParam } = Route.useSearch();
+  const { user, profile } = useAuth();
+  const { isDemo } = useDemo();
   const { data: purchaseOrders } = usePurchaseOrders();
   const { data: suppliers } = useSuppliers();
   const { data: catalogItems } = useItems();
@@ -177,8 +181,9 @@ function PurchaseOrdersPage() {
           onConfirm={(receivedLines, notes) => {
             const now = new Date().toISOString();
             const po = receivePO!;
+            const performerName = isDemo ? "Demo User" : (profile?.name || user?.displayName || user?.email?.split('@')[0] || "User");
 
-            // 1. Create stock movements for each received line
+            // 1. Create stock movements for each received line (this automatically updates the item core currentStock via internal transaction/hooks)
             for (const line of receivedLines) {
               createMovement.mutate({
                 id: crypto.randomUUID(),
@@ -189,21 +194,12 @@ function PurchaseOrdersPage() {
                 toLocationId: null,
                 reference: po.orderNumber,
                 notes: notes || `Received via ${po.orderNumber}`,
-                performedBy: "demo-user",
+                performedBy: performerName,
                 createdAt: now,
               });
-
-              // 2. Update item currentStock
-              const item = catalogItems.find((i) => i.id === line.itemId);
-              if (item) {
-                updateItem.mutate({
-                  id: item.id,
-                  updates: { currentStock: item.currentStock + line.qty, updatedAt: now },
-                });
-              }
             }
 
-            // 3. Update PO line items received quantities
+            // 2. Update PO line items received quantities
             const updatedItems = po.items.map((li) => {
               const received = receivedLines.find((r) => r.lineItemId === li.id);
               if (received) {

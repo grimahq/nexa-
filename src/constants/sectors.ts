@@ -114,6 +114,25 @@ export const SECTOR_CONFIGS: Record<string, SectorConfig> = {
     features: { hasExpiry: false, hasBatches: true, hasTableBooking: false, hasProduction: true, hasWarranty: true, isFreshGood: false },
     primaryAction: "Start Production",
   },
+  social_commerce: {
+    id: BusinessType.SocialCommerce,
+    labels: {
+      dashboard: "Vendor Hub",
+      catalog: "Online Store",
+      inventory: "Product Base",
+      sales: "WA/FB Orders",
+      customers: "Followers",
+      suppliers: "Wholesalers",
+      movements: "Stock Changes",
+      reports: "Sale Analytics",
+      store: "Public Link",
+      item: "Listing",
+      unit: "Unit",
+    },
+    icons: { catalog: Smartphone, item: ShoppingBag },
+    features: { hasExpiry: false, hasBatches: false, hasTableBooking: false, hasProduction: false, hasWarranty: false, isFreshGood: false },
+    primaryAction: "Create Listing",
+  },
   general: {
     id: BusinessType.General,
     labels: {

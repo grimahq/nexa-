@@ -1,16 +1,29 @@
-import { useState, useEffect, useCallback } from "react";
-import { ShoppingCart, ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { ShoppingCart, ArrowLeft, ArrowRight, Check, Utensils, Box, Truck, QrCode, Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useItems } from "@/hooks/useInventoryData";
+import { useDemo } from "@/hooks/useDemo";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { cn } from "@/lib/utils";
 import { SUPPORTED_UNITS } from "@/types/inventory";
 import { SalesStepBrowse } from "./SalesStepBrowse";
 import { SalesStepCart, type CartItem } from "./SalesStepCart";
 import { SalesStepCheckout } from "./SalesStepCheckout";
+import { SalesQuickScanCheckout } from "./SalesQuickScanCheckout";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { QRCodeSVG } from "qrcode.react";
+import { resolvePrice } from "@/utils/pricing";
 
 const NAIRA = "₦";
-const USD_TO_NGN = 1_580;
+const USD_TO_NGN = 1;
 
 const STEPS = [
   { id: "browse", label: "Browse", icon: ShoppingCart },
@@ -22,8 +35,43 @@ type StepId = (typeof STEPS)[number]["id"];
 
 export function SalesGrid() {
   const { data: items } = useItems();
-  const [cart, setCart] = useState<Map<string, number>>(new Map());
+  const { isDemo, onboarding: demoOnboarding } = useDemo();
+  const { settings: liveSettings } = useSystemSettings();
+  const onboarding = isDemo ? demoOnboarding : liveSettings;
+  const isRestaurant = onboarding?.businessType === "restaurant";
+
+  const [posMode, setPosMode] = useState<"standard" | "quickscan">("standard");
+  const [diningMode, setDiningMode] = useState<"dine-in" | "takeaway" | "delivery">("dine-in");
+  const [tableNumber, setTableNumber] = useState("4");
+  const [isTableSelectorOpen, setIsTableSelectorOpen] = useState(false);
+
+  // Tiered Pricing & Price Override States
+  const [activeTier, setActiveTier] = useState<"retail" | "wholesale" | "distributor">("retail");
+  const [priceOverrides, setPriceOverrides] = useState<Map<string, number>>(new Map());
+
+  const [cart, setCart] = useState<Map<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem("stackwise-pos-cart");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return new Map(parsed);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to restore cart state:", e);
+    }
+    return new Map();
+  });
   const [step, setStep] = useState<StepId>("browse");
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("stackwise-pos-cart", JSON.stringify(Array.from(cart.entries())));
+    } catch (e) {
+      console.error("Failed to serialize cart state:", e);
+    }
+  }, [cart]);
 
   const goToCart = useCallback(() => setStep("cart"), []);
 
@@ -34,14 +82,14 @@ export function SalesGrid() {
     return () => window.removeEventListener("pos-go-to-cart", handler);
   }, [goToCart]);
 
-  const addToCart = (itemId: string, customQty?: number, unitId?: string) => {
+  const addToCart = (itemId: string, customQty?: number, unitId?: string, configStr?: string) => {
     setCart((prev) => {
       const next = new Map(prev);
       const item = items.find(i => i.id === itemId);
       if (!item) return prev;
 
       const effectiveUnit = unitId || item.unit;
-      const key = `${itemId}:${effectiveUnit}`;
+      const key = configStr ? `${itemId}:${effectiveUnit}:${configStr}` : `${itemId}:${effectiveUnit}`;
       const unitDef = SUPPORTED_UNITS.find(u => u.id === effectiveUnit);
       const step = unitDef?.step || 1;
       const current = next.get(key) ?? 0;
@@ -56,14 +104,14 @@ export function SalesGrid() {
     });
   };
 
-  const removeFromCart = (itemId: string, unitId?: string) => {
+  const removeFromCart = (itemId: string, unitId?: string, configStr?: string) => {
     setCart((prev) => {
       const next = new Map(prev);
       const item = items.find(i => i.id === itemId);
       if (!item) return prev;
 
       const effectiveUnit = unitId || item.unit;
-      const key = `${itemId}:${effectiveUnit}`;
+      const key = configStr ? `${itemId}:${effectiveUnit}:${configStr}` : `${itemId}:${effectiveUnit}`;
       const unitDef = SUPPORTED_UNITS.find(u => u.id === effectiveUnit);
       const step = unitDef?.step || 1;
       const current = next.get(key) ?? 0;
@@ -75,40 +123,117 @@ export function SalesGrid() {
     });
   };
 
-  const cartItems: CartItem[] = [];
-  cart.forEach((qty, compositeKey) => {
-    const [itemId, unitId] = compositeKey.split(":");
-    const item = items.find((i) => i.id === itemId);
-    if (!item) return;
-
-    // Calculate price for the unit
-    let unitPrice = item.sellingPrice;
-    if (unitId !== item.unit && item.unitConversions) {
-      const conv = item.unitConversions.find(c => c.unitId === unitId);
-      if (conv) {
-        unitPrice = conv.priceNgn !== undefined 
-          ? conv.priceNgn / USD_TO_NGN // convert back to USD for internal consistency
-          : item.sellingPrice * conv.multiplier;
+  const cartItems = useMemo<CartItem[]>(() => {
+    const list: CartItem[] = [];
+    const itemsList = items || [];
+    cart.forEach((qty, compositeKey) => {
+      let itemId = compositeKey;
+      let unitId = "";
+      let configStr = "";
+      const firstColon = compositeKey.indexOf(":");
+      if (firstColon !== -1) {
+        itemId = compositeKey.substring(0, firstColon);
+        const remaining = compositeKey.substring(firstColon + 1);
+        const secondColon = remaining.indexOf(":");
+        if (secondColon !== -1) {
+          unitId = remaining.substring(0, secondColon);
+          configStr = remaining.substring(secondColon + 1);
+        } else {
+          unitId = remaining;
+        }
       }
-    }
+      
+      const item = itemsList.find((i) => i.id === itemId);
+      if (!item) return;
 
-    cartItems.push({ 
-      item, 
-      quantity: qty, 
-      selectedUnit: unitId,
-      calculatedUnitPrice: unitPrice
+      // Calculate price for the unit using resolvePrice
+      const pricingMode = onboarding?.pricingMode || "single";
+      const basePrice = resolvePrice(item, pricingMode, activeTier);
+
+      // Check if there is a manual override for this compositeKey
+      const overridePrice = priceOverrides.get(compositeKey);
+      let unitPrice = overridePrice !== undefined ? overridePrice : basePrice;
+
+      if (overridePrice === undefined && unitId !== item.unit && item.unitConversions) {
+        const conv = item.unitConversions.find(c => c.unitId === unitId);
+        if (conv) {
+          unitPrice = conv.priceNgn !== undefined 
+            ? conv.priceNgn / USD_TO_NGN // convert back to USD for internal consistency
+            : basePrice * conv.multiplier;
+        }
+      }
+
+      // Apply configuration modifications if present
+      if (configStr) {
+        try {
+          const config = JSON.parse(configStr);
+          if (config.portion) {
+            unitPrice = config.portion.price;
+          }
+          if (config.proteins) {
+            const addonSum = config.proteins.reduce((sum: number, p: { price: number }) => sum + p.price, 0);
+            unitPrice += addonSum;
+          }
+          if (config.comboSelections) {
+            const comboAddonSum = config.comboSelections.reduce((sum: number, cs: { priceModifier?: number }) => sum + (cs.priceModifier || 0), 0);
+            unitPrice += comboAddonSum;
+          }
+        } catch (e) {
+          console.error("Failed to parse configStr:", e);
+        }
+      }
+
+      list.push({ 
+        item, 
+        quantity: qty, 
+        selectedUnit: unitId,
+        calculatedUnitPrice: unitPrice,
+        configStr
+      });
     });
-  });
+    return list;
+  }, [cart, items, activeTier, priceOverrides, onboarding?.pricingMode]);
 
   const totalItems = Array.from(cart.values()).reduce((s, q) => s + q, 0);
-  const totalNaira = cartItems.reduce((s, ci) => {
-    const price = ci.calculatedUnitPrice ?? ci.item.sellingPrice;
-    return s + price * USD_TO_NGN * ci.quantity;
-  }, 0);
+
+  // Calculate packaging container fee: N500 if takeaway or delivery in restaurant mode
+  const packagingFee = (isRestaurant && (diningMode === "takeaway" || diningMode === "delivery")) ? 500 : 0;
+
+  // Calculate estimated ready time by summing preparation fields
+  const estimatedReadyTime = useMemo(() => {
+    return cartItems.reduce((sum, ci) => {
+      const prep = ci.item.restaurant?.preparationTime || 5; // default 5m if undefined
+      return sum + prep * ci.quantity;
+    }, 0);
+  }, [cartItems]);
+
+  const totalNaira = useMemo(() => {
+    const itemsSum = cartItems.reduce((s, ci) => {
+      const price = ci.calculatedUnitPrice ?? ci.item.sellingPrice;
+      return s + price * USD_TO_NGN * ci.quantity;
+    }, 0);
+    return itemsSum + packagingFee;
+  }, [cartItems, packagingFee]);
 
   const handleComplete = () => {
     setCart(new Map());
+    setPriceOverrides(new Map());
+    setActiveTier("retail");
     setStep("browse");
+    // If table ordered, mark this table in localStorage as "cooking"
+    if (isRestaurant && diningMode === "dine-in" && tableNumber) {
+      try {
+        const key = `pos-table-status-${tableNumber}`;
+        localStorage.setItem(key, JSON.stringify({
+          status: "cooking",
+          orderTime: new Date().toISOString(),
+          itemsCount: totalItems,
+          totalPrice: totalNaira,
+        }));
+      } catch(e) {
+        console.warn("Table status write failed:", e);
+      }
+    }
   };
 
   const stepIdx = STEPS.findIndex((s) => s.id === step);
@@ -116,11 +241,42 @@ export function SalesGrid() {
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Step indicator header */}
-      <div className="border-b border-border bg-card px-4 py-3">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-lg font-semibold text-foreground">Point of Sale</h1>
-          {totalItems > 0 && step === "browse" && (
-            <Button size="sm" className="gap-2" onClick={goToCart}>
+      <div className="border-b border-border bg-card px-4 py-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col">
+            <h1 className="text-lg font-black tracking-tight text-foreground leading-none">Point of Sale</h1>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Nexa Retail & Restaurant Hub</p>
+          </div>
+          
+          <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setPosMode("standard")}
+              className={cn(
+                "px-3 py-1 text-xs font-bold rounded-lg transition-all",
+                posMode === "standard" 
+                  ? "bg-background text-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Catalogue
+            </button>
+            <button
+              type="button"
+              onClick={() => setPosMode("quickscan")}
+              className={cn(
+                "px-3 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1",
+                posMode === "quickscan" 
+                  ? "bg-background text-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <span>Quick Scan ⚡</span>
+            </button>
+          </div>
+
+          {totalItems > 0 && step === "browse" && posMode === "standard" && (
+            <Button size="sm" className="gap-2 rounded-xl" onClick={goToCart}>
               <ShoppingCart className="h-4 w-4" />
               Cart
               <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 rounded-full px-1 text-[10px]">
@@ -130,57 +286,259 @@ export function SalesGrid() {
           )}
         </div>
 
-        {/* Step tabs */}
-        <div className="flex items-center gap-1">
-          {STEPS.map((s, i) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => {
-                if (s.id === "checkout" && cartItems.length === 0) return;
-                if (s.id === "cart" || s.id === "browse") setStep(s.id);
-                if (s.id === "checkout" && cartItems.length > 0) setStep(s.id);
-              }}
-              className={cn(
-                "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all",
-                step === s.id
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : i < stepIdx
-                    ? "bg-primary/10 text-primary"
-                    : "bg-muted text-muted-foreground",
-                s.id === "checkout" && cartItems.length === 0 && "opacity-40 cursor-not-allowed"
+        {/* Restaurant Order Context Bar (Dine-In, Takeaway, Delivery) */}
+        {isRestaurant && step === "browse" && (
+          <div className="flex flex-col gap-2 bg-muted/20 p-2 border border-border/40 rounded-2xl">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1">
+              <span>Order Context</span>
+              {diningMode === "dine-in" && (
+                <span className="text-amber-500 animate-pulse">Table Status: Occupied & Syncing</span>
               )}
-            >
-              <span className="flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold">
-                {i + 1}
-              </span>
-              <span className="hidden sm:inline">{s.label}</span>
-            </button>
-          ))}
-        </div>
+              {packagingFee > 0 && (
+                <span className="text-primary">+₦{packagingFee} Packaging Applied</span>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setDiningMode("dine-in");
+                  setIsTableSelectorOpen(true);
+                }}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-xs font-bold transition-all relative",
+                  diningMode === "dine-in"
+                    ? "bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/20"
+                    : "bg-background border-border text-foreground/80 hover:bg-muted"
+                )}
+              >
+                <Utensils className="h-3.5 w-3.5" />
+                Dine-in · T{tableNumber}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDiningMode("takeaway");
+                  setIsTableSelectorOpen(false);
+                }}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-xs font-bold transition-all",
+                  diningMode === "takeaway"
+                    ? "bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/20"
+                    : "bg-background border-border text-foreground/80 hover:bg-muted"
+                )}
+              >
+                <Box className="h-3.5 w-3.5" />
+                Takeaway
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDiningMode("delivery");
+                  setIsTableSelectorOpen(false);
+                }}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-xs font-bold transition-all",
+                  diningMode === "delivery"
+                    ? "bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/20"
+                    : "bg-background border-border text-foreground/80 hover:bg-muted"
+                )}
+              >
+                <Truck className="h-3.5 w-3.5" />
+                Delivery
+              </button>
+            </div>
+
+            {/* Micro grid for table selector */}
+            {isTableSelectorOpen && (
+              <div className="mt-2 p-2 bg-background border border-border rounded-xl space-y-1.5">
+                <span className="text-[9px] font-bold uppercase text-muted-foreground block">Select Table Number</span>
+                <div className="grid grid-cols-6 gap-1">
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((tNum) => (
+                    <button
+                      key={tNum}
+                      type="button"
+                      onClick={() => {
+                        setTableNumber(tNum.toString());
+                        setIsTableSelectorOpen(false);
+                      }}
+                      className={cn(
+                        "h-8 text-xs font-bold rounded-lg border",
+                        tableNumber === tNum.toString()
+                          ? "bg-amber-500 border-amber-500 text-white"
+                          : "bg-muted/40 border-border text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      T{tNum}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {diningMode === "dine-in" && (
+              <div className="flex items-center justify-between mt-1 px-1 py-1.5 border-t border-border/40 text-xs">
+                <span className="text-muted-foreground font-medium">Ordering & Self-Pay QR Code</span>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 px-2 py-0 rounded-lg border-amber-200 hover:border-amber-400 bg-amber-500/5 hover:bg-amber-500/10 text-amber-600 transition-colors">
+                      <QrCode className="h-3 w-3" /> Get T{tableNumber} QR
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-white">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <QrCode className="h-5 w-5 text-amber-500" />
+                        Table {tableNumber} Entry QR
+                      </DialogTitle>
+                      <DialogDescription>
+                        Customers scan this code to browse the restaurant menu on their phones, place direct orders, and pay via Moniepoint Transfer.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex flex-col items-center justify-center space-y-6 py-4">
+                      <div className="rounded-2xl border-8 border-neutral-100 bg-white p-4 shadow-xl">
+                        <QRCodeSVG
+                          id={`qr-table-${tableNumber}`}
+                          value={`${window.location.origin}/store?table=${tableNumber}`}
+                          size={220}
+                          level="H"
+                          includeMargin={false}
+                          className="h-44 w-44"
+                        />
+                      </div>
+
+                      <div className="flex flex-col items-center text-center space-y-1">
+                        <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200">
+                          Table {tableNumber} Link Active
+                        </Badge>
+                        <p className="text-xs font-mono text-muted-foreground select-all break-all px-4 mt-1 bg-muted py-1 rounded max-w-sm truncate">
+                          {`${window.location.origin}/store?table=${tableNumber}`}
+                        </p>
+                      </div>
+
+                      <div className="flex w-full gap-3">
+                        <Button 
+                          variant="outline" 
+                          className="flex-1 gap-2 rounded-xl" 
+                          onClick={() => {
+                            const svg = document.getElementById(`qr-table-${tableNumber}`);
+                            if (!svg) return;
+                            const svgData = new XMLSerializer().serializeToString(svg);
+                            const canvas = document.createElement("canvas");
+                            const ctx = canvas.getContext("2d");
+                            const img = new Image();
+                            img.onload = () => {
+                              canvas.width = 1000;
+                              canvas.height = 1000;
+                              ctx?.drawImage(img, 0, 0, 1000, 1000);
+                              const pngFile = canvas.toDataURL("image/png");
+                              const downloadLink = document.createElement("a");
+                              downloadLink.download = `Table-${tableNumber}-QR.png`;
+                              downloadLink.href = pngFile;
+                              downloadLink.click();
+                            };
+                            img.src = "data:image/svg+xml;base64," + btoa(svgData);
+                          }}
+                        >
+                          <Download className="h-4 w-4" /> Download
+                        </Button>
+                        <Button 
+                          className="flex-1 gap-2 rounded-xl" 
+                          onClick={() => window.print()}
+                        >
+                          <Printer className="h-4 w-4" /> Print Label
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step tabs */}
+        {posMode === "standard" && (
+          <div className="flex items-center gap-1">
+            {STEPS.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => {
+                  if (s.id === "checkout" && cartItems.length === 0) return;
+                  if (s.id === "cart" || s.id === "browse") setStep(s.id);
+                  if (s.id === "checkout" && cartItems.length > 0) setStep(s.id);
+                }}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all",
+                  step === s.id
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : i < stepIdx
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted text-muted-foreground",
+                  s.id === "checkout" && cartItems.length === 0 && "opacity-40 cursor-not-allowed"
+                )}
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold">
+                  {i + 1}
+                </span>
+                <span className="hidden sm:inline">{s.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Step content */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        {step === "browse" && (
-          <SalesStepBrowse cart={cart} onAdd={addToCart} onRemove={removeFromCart} />
-        )}
-        {step === "cart" && (
-          <SalesStepCart
-            items={cartItems}
-            onAdd={addToCart}
-            onRemove={removeFromCart}
-            onClear={() => setCart(new Map())}
-            onNext={() => setStep("checkout")}
-          />
-        )}
-        {step === "checkout" && (
-          <SalesStepCheckout items={cartItems} onComplete={handleComplete} />
+        {posMode === "quickscan" ? (
+          <SalesQuickScanCheckout />
+        ) : (
+          <>
+            {step === "browse" && (
+              <SalesStepBrowse cart={cart} onAdd={addToCart} onRemove={removeFromCart} />
+            )}
+            {step === "cart" && (
+              <SalesStepCart
+                items={cartItems}
+                onAdd={addToCart}
+                onRemove={removeFromCart}
+                onClear={() => {
+                  setCart(new Map());
+                  setPriceOverrides(new Map());
+                }}
+                onNext={() => setStep("checkout")}
+                packagingFee={packagingFee}
+                estimatedReadyTime={estimatedReadyTime}
+                pricingMode={onboarding?.pricingMode || "single"}
+                activeTier={activeTier}
+                onChangeTier={setActiveTier}
+                onOverridePrice={(key, price) => {
+                  setPriceOverrides((prev) => {
+                    const next = new Map(prev);
+                    next.set(key, price);
+                    return next;
+                  });
+                }}
+              />
+            )}
+            {step === "checkout" && (
+              <SalesStepCheckout 
+                items={cartItems} 
+                onComplete={handleComplete} 
+                diningMode={diningMode}
+                tableNumber={tableNumber}
+                packagingFee={packagingFee}
+                estimatedReadyTime={estimatedReadyTime}
+              />
+            )}
+          </>
         )}
       </div>
 
       {/* Bottom navigation between steps */}
-      {step !== "browse" && (
+      {posMode === "standard" && step !== "browse" && (
         <div className="border-t border-border bg-card px-4 py-3 flex items-center gap-3">
           <Button
             variant="outline"

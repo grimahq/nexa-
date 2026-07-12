@@ -2,12 +2,13 @@
 
 ## Current State
 
-- Phase: PRD-28 — Onboarding & Help
-- Status: Complete — ALL 28 PRDs DONE 🎉
+- Phase: PRD-03 — Landing Page
+- Status: Testing & Verification in progress
 
 ## Last Completed
 
-- PRD-28 — Onboarding & Help (5/5 passed)
+- PRD-01 — Design System & App Shell (8/8 passed)
+- PRD-02 — Demo Mode Infrastructure (7/7 passed)
 
 ## Known Issues
 

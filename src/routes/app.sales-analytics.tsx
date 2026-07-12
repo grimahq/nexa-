@@ -4,9 +4,10 @@ import { TrendingUp, TrendingDown, DollarSign, Calendar, BarChart3, Package } fr
 import { useDemo } from "@/hooks/useDemo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSales, useExpenses, useItems, useRefunds } from "@/hooks/useInventoryData";
 
 const NAIRA = "₦";
-const USD_TO_NGN = 1_580;
+const USD_TO_NGN = 1;
 
 export const Route = createFileRoute("/app/sales-analytics")({
   component: SalesAnalyticsPage,
@@ -17,19 +18,15 @@ function fmtN(n: number): string {
   return `${NAIRA}${n.toLocaleString("en-NG", { minimumFractionDigits: 0 })}`;
 }
 
-function SalesAnalyticsPage() {
-  const { demoStore, version } = useDemo();
+export function SalesAnalyticsPage() {
+  const { data: sales, isLoading: salesLoading } = useSales();
+  const { data: expenses, isLoading: expensesLoading } = useExpenses();
+  const { data: refunds, isLoading: refundsLoading } = useRefunds();
+  const { data: items, isLoading: itemsLoading } = useItems();
 
-  const sales = useMemo(() => {
-    void version;
-    return demoStore?.getSales() ?? [];
-  }, [demoStore, version]);
+  const isLoading = salesLoading || expensesLoading || refundsLoading || itemsLoading;
 
-  const expenses = useMemo(() => demoStore?.getExpenses() ?? [], [demoStore, version]);
-  const refunds = useMemo(() => demoStore?.getRefunds() ?? [], [demoStore, version]);
-  const items = useMemo(() => demoStore?.getItems() ?? [], [demoStore, version]);
-
-  const now = new Date();
+  const now = useMemo(() => new Date(), []);
 
   // Helpers
   const isToday = (d: string) => new Date(d).toDateString() === now.toDateString();
@@ -84,6 +81,10 @@ function SalesAnalyticsPage() {
   const expensiveItems = useMemo(() => {
     return [...items].sort((a, b) => b.sellingPrice - a.sellingPrice).slice(0, 10);
   }, [items]);
+
+  if (isLoading) {
+    return <div className="flex h-64 items-center justify-center font-mono text-sm text-muted-foreground animate-pulse">Loading analytics...</div>;
+  }
 
   return (
     <div className="mx-auto max-w-[1200px] space-y-4 p-4">

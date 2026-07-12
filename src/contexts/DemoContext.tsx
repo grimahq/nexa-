@@ -1,6 +1,7 @@
-import { createContext, useCallback, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useMemo, useState, useEffect, type ReactNode } from "react";
 import { DemoStore } from "@/lib/demo-store";
 import { SUPPORTED_UNITS, ItemStatus, type Item } from "@/types/inventory";
+import { useAuth } from "./AuthContext";
 
 export interface OnboardingSelection {
   businessType: string | null;
@@ -12,7 +13,7 @@ export interface OnboardingSelection {
   taxRate: number;
   brandColor?: string;
   logoUrl?: string;
-  initialItems?: Array<{ name: string; price: string; stock: string; unit: string }>;
+  initialItems?: Array<{ name: string; price: string; stock: string; unit: string; categoryId?: string }>;
 }
 
 const DEFAULT_ONBOARDING: OnboardingSelection = { businessType: null, categories: [], storeName: "My Store", storePhone: "", storeAddress: "", receiptFooter: "Thank you for your patronage!", taxRate: 0, brandColor: "#0d9488", logoUrl: "" };
@@ -37,7 +38,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const [onboarding, setOnboarding] = useState<OnboardingSelection>(DEFAULT_ONBOARDING);
 
   const enterDemoMode = useCallback((ob?: OnboardingSelection) => {
-    const s = new DemoStore(ob?.businessType || "general");
+    const s = new DemoStore(ob?.businessType || "general", ob?.categories);
     
     // Clear default items if we have custom ones
     if (ob?.initialItems && ob.initialItems.length > 0) {
@@ -51,7 +52,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           sku: `SKU-${100 + idx}`,
           name: pi.name,
           description: "Added during onboarding",
-          categoryId: ob.categories[0] || "misc",
+          categoryId: pi.categoryId || ob.categories[0] || "misc",
           status: ItemStatus.Active,
           unit: pi.unit,
           unitType: unitType,
@@ -91,6 +92,14 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   }, [store]);
 
   const bumpVersion = useCallback(() => setVersion((v) => v + 1), []);
+  const { user } = useAuth();
+
+  // Automatically exit demo mode when a real user logs in
+  useEffect(() => {
+    if (user && store) {
+      exitDemoMode();
+    }
+  }, [user, store, exitDemoMode]);
 
   const updateOnboarding = useCallback((updates: Partial<OnboardingSelection>) => {
     setOnboarding((prev) => ({ ...prev, ...updates }));

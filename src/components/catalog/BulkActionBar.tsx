@@ -1,4 +1,4 @@
-import { X, Printer } from "lucide-react";
+import { X, Printer, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -7,6 +7,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetHeader,
+  SheetDescription,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import type { Category, Supplier, Location } from "@/types/inventory";
 import { ItemStatus } from "@/types/inventory";
 
@@ -45,23 +53,24 @@ export function BulkActionBar({
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-between gap-3 border-t border-border bg-card px-4 py-3 shadow-lg animate-in slide-in-from-bottom duration-300 sm:px-6"
+      className="fixed inset-x-0 bottom-14 md:bottom-0 z-40 flex items-center justify-between gap-3 border-t border-border bg-card px-4 py-3.5 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] animate-in slide-in-from-bottom duration-300 sm:px-6"
       role="toolbar"
       aria-label="Bulk actions"
     >
-      <span className="shrink-0 text-sm font-medium text-foreground">
+      <span className="shrink-0 text-xs sm:text-sm font-semibold text-foreground">
         {selectedCount} item{selectedCount !== 1 ? "s" : ""} selected
       </span>
 
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Desktop Layout - Horizontal Bar */}
+      <div className="hidden md:flex flex-wrap items-center gap-2">
         {/* Category */}
         <Select onValueChange={onUpdateCategory}>
           <SelectTrigger className="h-8 w-[140px] text-xs">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
-            {categories.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            {categories?.filter((c) => c && c.id).map((c, index) => (
+              <SelectItem key={`cat-dsktp-${c.id}-${index}`} value={c.id}>{c.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -72,8 +81,8 @@ export function BulkActionBar({
             <SelectValue placeholder="Supplier" />
           </SelectTrigger>
           <SelectContent>
-            {suppliers.map((s) => (
-              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+            {suppliers?.filter((s) => s && s.id).map((s, index) => (
+              <SelectItem key={`sup-dsktp-${s.id}-${index}`} value={s.id}>{s.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -84,8 +93,8 @@ export function BulkActionBar({
             <SelectValue placeholder="Location" />
           </SelectTrigger>
           <SelectContent>
-            {locations.map((l) => (
-              <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+            {locations?.filter((l) => l && l.id).map((l, index) => (
+              <SelectItem key={`loc-dsktp-${l.id}-${index}`} value={l.id}>{l.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -96,8 +105,8 @@ export function BulkActionBar({
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            {STATUS_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            {STATUS_OPTIONS?.filter((o) => o && o.value).map((o, index) => (
+              <SelectItem key={`status-dsktp-${o.value}-${index}`} value={o.value}>{o.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -112,6 +121,111 @@ export function BulkActionBar({
         <Button variant="ghost" size="sm" onClick={onDeselectAll} className="h-8 gap-1 text-xs">
           <X className="h-3 w-3" />
           Deselect All
+        </Button>
+      </div>
+
+      {/* Mobile/Tablet Layout - Bottom Drawer */}
+      <div className="flex md:hidden items-center gap-2">
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button size="sm" className="h-8 gap-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Bulk Edit
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="p-6 rounded-t-2xl max-h-[85vh] overflow-y-auto">
+            <SheetHeader className="mb-5 text-left">
+              <SheetTitle className="text-lg font-bold">Bulk Actions</SheetTitle>
+              <SheetDescription className="text-xs">
+                Batch update all {selectedCount} selected items. Changes apply immediately.
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="space-y-4 py-2">
+              {/* Category selector */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Category
+                </label>
+                <Select onValueChange={onUpdateCategory}>
+                  <SelectTrigger className="h-10 w-full text-sm">
+                    <SelectValue placeholder="Select Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories?.filter((c) => c && c.id).map((c, index) => (
+                      <SelectItem key={`cat-mbl-${c.id}-${index}`} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Supplier selector */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Supplier
+                </label>
+                <Select onValueChange={onUpdateSupplier}>
+                  <SelectTrigger className="h-10 w-full text-sm">
+                    <SelectValue placeholder="Select Supplier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {suppliers?.filter((s) => s && s.id).map((s, index) => (
+                      <SelectItem key={`sup-mbl-${s.id}-${index}`} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Location selector */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Location
+                </label>
+                <Select onValueChange={onUpdateLocation}>
+                  <SelectTrigger className="h-10 w-full text-sm">
+                    <SelectValue placeholder="Select Location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations?.filter((l) => l && l.id).map((l, index) => (
+                      <SelectItem key={`loc-mbl-${l.id}-${index}`} value={l.id}>{l.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Status selector */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Status
+                </label>
+                <Select onValueChange={(v) => onUpdateStatus(v as ItemStatus)}>
+                  <SelectTrigger className="h-10 w-full text-sm">
+                    <SelectValue placeholder="Select Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS?.filter((o) => o && o.value).map((o, index) => (
+                      <SelectItem key={`status-mbl-${o.value}-${index}`} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Print Labels & Deselect in Mobile */}
+              <div className="pt-4 flex flex-col gap-2">
+                {onPrintLabels && (
+                  <Button variant="outline" size="default" onClick={onPrintLabels} className="w-full gap-2">
+                    <Printer className="h-4 w-4" />
+                    Print Labels for {selectedCount} items
+                  </Button>
+                )}
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        <Button variant="ghost" size="sm" onClick={onDeselectAll} className="h-8 gap-1 text-xs px-2">
+          <X className="h-3 w-3" />
+          Clear
         </Button>
       </div>
     </div>

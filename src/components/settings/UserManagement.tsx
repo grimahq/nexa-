@@ -22,9 +22,17 @@ const ROLE_LABELS: Record<RoleType, string> = { admin: "Admin", manager: "Invent
 const ROLE_COLORS: Record<RoleType, string> = { admin: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200", manager: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200", requestor: "bg-muted text-muted-foreground" };
 const CURRENT_USER_ID = "user-01"; // Alice is the logged-in admin in demo
 
+import { useUsers, type AppUser } from "@/hooks/useUsers";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
+import { db, handleFirestoreError, OperationType } from "@/lib/firebase";
+import { doc, updateDoc, setDoc } from "firebase/firestore";
+
 export function UserManagement() {
-  const { demoStore, bumpVersion, version } = useDemo();
-  const users = useMemo(() => demoStore?.getUsers() ?? [], [demoStore, version]);
+  const { isDemo, demoStore, bumpVersion } = useDemo();
+  const { data: users, isLoading } = useUsers();
+  const { user: currentUser, profile } = useAuth();
+  const { settings } = useSystemSettings();
 
   const [search, setSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -32,9 +40,10 @@ export function UserManagement() {
   const [inviteRole, setInviteRole] = useState<RoleType>("requestor");
   const [inviteError, setInviteError] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [linkRole, setLinkRole] = useState<RoleType>("manager");
 
-  const [roleChange, setRoleChange] = useState<{ user: DemoUser; newRole: RoleType } | null>(null);
-  const [deactivateTarget, setDeactivateTarget] = useState<DemoUser | null>(null);
+  const [roleChange, setRoleChange] = useState<{ user: AppUser; newRole: RoleType } | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<AppUser | null>(null);
 
   const filtered = useMemo(() => {
     if (!search) return users;
@@ -44,48 +53,195 @@ export function UserManagement() {
 
   const adminCount = users.filter((u) => u.role === "admin" && u.status === "active").length;
 
-  const isLastAdmin = (user: DemoUser) => user.role === "admin" && user.status === "active" && adminCount <= 1;
+  const isLastAdmin = (user: AppUser) => user.role === "admin" && user.status === "active" && adminCount <= 1;
+
+  const CURRENT_USER_ID = currentUser?.uid || "unknown";
+
+  const storeName = settings?.storeName || "My Store";
+
+  const getInviteLink = (role: RoleType) => {
+    const baseUrl = window.location.origin;
+    const storeIdStr = profile?.storeId || "demo-store";
+    const storeNameStr = encodeURIComponent(storeName);
+    return `${baseUrl}/?storeId=${storeIdStr}&storeName=${storeNameStr}&role=${role}`;
+  };
 
   // ─── Invite ───────────────────────────────────────────
-  const handleInvite = () => {
+  const handleInvite = async () => {
     const email = inviteEmail.trim().toLowerCase();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setInviteError("Valid email required"); return; }
     if (users.some((u) => u.email.toLowerCase() === email)) { setInviteError("User already exists"); return; }
+    
     setInviteLoading(true);
-    setTimeout(() => {
-      demoStore?.addUser({ id: crypto.randomUUID(), name: email.split("@")[0], email, role: inviteRole, status: "pending", joinedAt: new Date().toISOString() });
-      bumpVersion();
-      toast.success(`Invitation sent to ${email}`);
-      setInviteOpen(false); setInviteEmail(""); setInviteRole("requestor"); setInviteError(""); setInviteLoading(false);
-    }, 400);
+    try {
+      if (isDemo && demoStore) {
+        demoStore.addUser({ id: crypto.randomUUID(), name: email.split("@")[0], email, role: inviteRole, status: "pending", joinedAt: new Date().toISOString() });
+        bumpVersion();
+      } else {
+        const id = crypto.randomUUID();
+        await setDoc(doc(db, "users", id), {
+          id,
+          name: email.split("@")[0],
+          email,
+          role: inviteRole,
+          storeId: profile?.storeId || null,
+          status: "active", // For now, just create as active in live since we don't have real invites
+          createdAt: new Date().toISOString(),
+          joinedAt: new Date().toISOString()
+        });
+      }
+      toast.success(`User ${email} created successfully`);
+      setInviteOpen(false); setInviteEmail(""); setInviteRole("requestor"); setInviteError("");
+    } catch (err) {
+      toast.error("Failed to create user");
+      handleFirestoreError(err, OperationType.CREATE, "users");
+    } finally {
+      setInviteLoading(false);
+    }
   };
 
   // ─── Role change ──────────────────────────────────────
-  const confirmRoleChange = () => {
-    if (!roleChange || !demoStore) return;
-    demoStore.updateUser(roleChange.user.id, { role: roleChange.newRole });
-    bumpVersion();
-    toast.success(`${roleChange.user.name}'s role changed to ${ROLE_LABELS[roleChange.newRole]}`);
-    setRoleChange(null);
+  const confirmRoleChange = async () => {
+    if (!roleChange) return;
+    try {
+      if (isDemo && demoStore) {
+        demoStore.updateUser(roleChange.user.id, { role: roleChange.newRole });
+        bumpVersion();
+      } else {
+        await updateDoc(doc(db, "users", roleChange.user.id), {
+          role: roleChange.newRole,
+          updatedAt: new Date().toISOString()
+        });
+      }
+      toast.success(`${roleChange.user.name}'s role changed to ${ROLE_LABELS[roleChange.newRole]}`);
+      setRoleChange(null);
+    } catch (err) {
+      toast.error("Failed to update role");
+    }
   };
 
   // ─── Deactivate / Reactivate ──────────────────────────
-  const confirmDeactivate = () => {
-    if (!deactivateTarget || !demoStore) return;
-    demoStore.updateUser(deactivateTarget.id, { status: "inactive" });
-    bumpVersion();
-    toast.success(`${deactivateTarget.name} deactivated`);
-    setDeactivateTarget(null);
+  const confirmDeactivate = async () => {
+    if (!deactivateTarget) return;
+    try {
+      if (isDemo && demoStore) {
+        demoStore.updateUser(deactivateTarget.id, { status: "inactive" });
+        bumpVersion();
+      } else {
+        await updateDoc(doc(db, "users", deactivateTarget.id), {
+          status: "inactive",
+          updatedAt: new Date().toISOString()
+        });
+      }
+      toast.success(`${deactivateTarget.name} deactivated`);
+      setDeactivateTarget(null);
+    } catch (err) {
+      toast.error("Failed to deactivate user");
+    }
   };
 
-  const handleReactivate = (user: DemoUser) => {
-    demoStore?.updateUser(user.id, { status: "active" });
-    bumpVersion();
-    toast.success(`${user.name} reactivated`);
+  const handleReactivate = async (u: AppUser) => {
+    try {
+      if (isDemo && demoStore) {
+        demoStore.updateUser(u.id, { status: "active" });
+        bumpVersion();
+      } else {
+        await updateDoc(doc(db, "users", u.id), {
+          status: "active",
+          updatedAt: new Date().toISOString()
+        });
+      }
+      toast.success(`${u.name} reactivated`);
+    } catch (err) {
+      toast.error("Failed to reactivate user");
+    }
   };
+
+  if (isLoading) {
+    return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
+  }
 
   if (users.length === 0) {
-    return <EmptyState icon={Users} title="No users found" description="Users will appear here once people sign up or are invited." />;
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-end">
+           <Button size="sm" onClick={() => setInviteOpen(true)}>
+             <Plus className="mr-1.5 h-3.5 w-3.5" /> Create User
+           </Button>
+        </div>
+        <EmptyState icon={Users} title="No users found" description="Users will appear here once they sign up or are added." />
+        
+        <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Invite User</DialogTitle>
+              <DialogDescription>Add a new team member to your live store.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label>Email</Label>
+                <Input type="email" value={inviteEmail} onChange={(e) => { setInviteEmail(e.target.value); setInviteError(""); }} placeholder="user@example.com" />
+                {inviteError && <p className="text-xs text-destructive">{inviteError}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Role</Label>
+                <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as RoleType)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Inventory Manager</SelectItem>
+                    <SelectItem value="requestor">Requestor</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="rounded-xl border border-emerald-500/10 bg-emerald-500/5 p-4 space-y-3 mt-4">
+                <div className="space-y-0.5">
+                  <h4 className="font-semibold text-emerald-400 text-sm">Or use Shareable Link</h4>
+                  <p className="text-xs text-muted-foreground">Send this unique URL to let team members register and join directly.</p>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Select value={linkRole} onValueChange={(v) => setLinkRole(v as RoleType)}>
+                    <SelectTrigger className="w-[140px] h-9 text-xs bg-white text-foreground">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="manager">Inventory Manager</SelectItem>
+                      <SelectItem value="requestor">Requestor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <div className="relative flex-1">
+                    <Input 
+                      readOnly 
+                      value={getInviteLink(linkRole)} 
+                      className="h-9 pr-14 text-xs bg-white text-muted-foreground font-mono select-all" 
+                    />
+                    <Button 
+                      size="xs" 
+                      variant="secondary" 
+                      className="absolute right-1 top-1 h-7 text-xs px-2.5"
+                      onClick={() => {
+                        navigator.clipboard.writeText(getInviteLink(linkRole));
+                        toast.success("Invite link copied!");
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setInviteOpen(false)}>Cancel</Button>
+              <Button onClick={handleInvite} disabled={inviteLoading}>{inviteLoading ? "Creating…" : "Create User"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
   }
 
   return (
@@ -130,7 +286,18 @@ export function UserManagement() {
                     {user.status}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">{format(new Date(user.joinedAt), "MMM d, yyyy")}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {(() => {
+                    const dateStr = user.joinedAt || (user as Record<string, unknown>).createdAt as string;
+                    if (!dateStr) return "N/A";
+                    try {
+                      const date = new Date(dateStr);
+                      return isNaN(date.getTime()) ? "N/A" : format(date, "MMM d, yyyy");
+                    } catch (e) {
+                      return "N/A";
+                    }
+                  })()}
+                </TableCell>
                 <TableCell>
                   <UserActions user={user} currentUserId={CURRENT_USER_ID} isLastAdmin={isLastAdmin(user)}
                     onDeactivate={() => setDeactivateTarget(user)} onReactivate={() => handleReactivate(user)} />
@@ -182,6 +349,45 @@ export function UserManagement() {
                   <SelectItem value="requestor">Requestor</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="rounded-xl border border-emerald-500/10 bg-emerald-500/5 p-4 space-y-3 mt-4">
+              <div className="space-y-0.5">
+                <h4 className="font-semibold text-emerald-400 text-sm">Or use Shareable Link</h4>
+                <p className="text-xs text-muted-foreground">Send this unique URL to let team members register and join directly.</p>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Select value={linkRole} onValueChange={(v) => setLinkRole(v as RoleType)}>
+                  <SelectTrigger className="w-[140px] h-9 text-xs bg-white text-foreground">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Inventory Manager</SelectItem>
+                    <SelectItem value="requestor">Requestor</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <div className="relative flex-1">
+                  <Input 
+                    readOnly 
+                    value={getInviteLink(linkRole)} 
+                    className="h-9 pr-14 text-xs bg-white text-muted-foreground font-mono select-all" 
+                  />
+                  <Button 
+                    size="xs" 
+                    variant="secondary" 
+                    className="absolute right-1 top-1 h-7 text-xs px-2.5"
+                    onClick={() => {
+                      navigator.clipboard.writeText(getInviteLink(linkRole));
+                      toast.success("Invite link copied!");
+                    }}
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
           <DialogFooter>

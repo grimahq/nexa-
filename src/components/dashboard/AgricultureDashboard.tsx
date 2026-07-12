@@ -1,8 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useItems } from "@/hooks/useInventoryData";
-import { Calendar, CloudSun, Droplets, MapPin, Sprout } from "lucide-react";
+import { Calendar, CloudSun, Droplets, MapPin, Sprout, Plus } from "lucide-react";
 import { format, isAfter, isBefore, addDays, parseISO } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export function AgricultureDashboard() {
   const { data: items } = useItems();
@@ -159,5 +161,3 @@ export function AgricultureDashboard() {
     </div>
   );
 }
-
-import { cn } from "@/lib/utils";

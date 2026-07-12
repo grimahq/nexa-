@@ -19,8 +19,11 @@ const ROUTE_ACCESS: Record<string, UserRoleType[]> = {
  * Returns true if the given role can access the path.
  * Unknown paths default to admin-only.
  */
-export function canAccessRoute(path: string, role: UserRoleType): boolean {
+export function canAccessRoute(path: string, role: UserRoleType, isSuperAdmin?: boolean): boolean {
+  if (path.startsWith("/app/super-admin")) {
+    return !!isSuperAdmin;
+  }
   const allowed = ROUTE_ACCESS[path];
-  if (!allowed) return role === "admin";
-  return allowed.includes(role);
+  if (!allowed) return role === "admin" || !!isSuperAdmin;
+  return allowed.includes(role) || !!isSuperAdmin;
 }

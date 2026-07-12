@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { format, isWithinInterval, startOfDay, endOfDay, subDays } from "date-fns";
-import { CalendarIcon, Receipt, TrendingUp, Printer, MessageCircle, RotateCcw, User, Clock, CreditCard, Banknote, Smartphone } from "lucide-react";
+import { CalendarIcon, Receipt, TrendingUp, Printer, MessageCircle, RotateCcw, User, Clock, CreditCard, Banknote, Smartphone, Globe, Monitor } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -18,7 +18,9 @@ import { cn } from "@/lib/utils";
 import { useDemo } from "@/hooks/useDemo";
 import { useRole } from "@/hooks/useRole";
 import type { SaleTransaction } from "@/types/inventory";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { getWhatsAppUrl, buildPersonalizedReceiptText } from "@/lib/whatsapp";
 
 const NAIRA = "₦";
 
@@ -61,21 +63,9 @@ export function SalesHistoryPage() {
       toast.error("No phone number on this sale. Cannot send receipt.");
       return;
     }
-    const lines = [
-      `🧾 *${storeName}*`,
-      `Receipt #${sale.id.slice(-8).toUpperCase()}`,
-      `Date: ${format(new Date(sale.createdAt), "dd MMM yyyy, HH:mm")}`,
-      sale.customerName ? `Customer: ${sale.customerName}` : "",
-      "",
-      "─────────────────",
-      ...sale.items.map((li) => `${li.itemName}\n  ${li.quantity} × ${fmtNgn(li.unitPriceNgn)} = ${fmtNgn(li.unitPriceNgn * li.quantity)}`),
-      "─────────────────",
-      `*TOTAL: ${fmtNgn(sale.totalNgn)}*`,
-      "",
-      "Thank you! 🙏",
-    ].filter(Boolean).join("\n");
-    const phone = sale.customerPhone.replace(/\D/g, "");
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lines)}`, "_blank");
+    const text = buildPersonalizedReceiptText(sale, storeName);
+    const url = getWhatsAppUrl(sale.customerPhone, text);
+    window.open(url, "_blank");
   };
 
   return (
@@ -145,6 +135,7 @@ export function SalesHistoryPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
+                <TableHead>Source</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Payment</TableHead>
                 <TableHead className="text-right">Items</TableHead>
@@ -160,6 +151,17 @@ export function SalesHistoryPage() {
                 >
                   <TableCell className="text-sm">
                     {format(new Date(sale.createdAt), "dd MMM, HH:mm")}
+                  </TableCell>
+                  <TableCell>
+                    {sale.source === "social" ? (
+                      <Badge variant="outline" className="gap-1.5 py-0.5 px-2 bg-fuchsia-500/5 text-fuchsia-600 border-fuchsia-500/20 text-[10px] font-bold">
+                        <Globe className="h-3 w-3" /> STORE
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="gap-1.5 py-0.5 px-2 bg-slate-500/5 text-slate-600 border-slate-500/20 text-[10px] font-bold">
+                        <Monitor className="h-3 w-3" /> POS
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">

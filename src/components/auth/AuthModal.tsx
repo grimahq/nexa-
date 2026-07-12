@@ -1,0 +1,259 @@
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/contexts/AuthContext";
+import { useDemo } from "@/hooks/useDemo";
+import { useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
+import { Loader2, ShieldCheck, Mail, Lock, User, Play } from "lucide-react";
+
+interface AuthModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  defaultTab?: "login" | "signup";
+}
+
+export function AuthModal({ isOpen, onClose, defaultTab = "login" }: AuthModalProps) {
+  const { login, register } = useAuth();
+  const { enterDemoMode } = useDemo();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState<"login" | "signup">(defaultTab);
+
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    name: "",
+  });
+
+  const handleAction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const cleanEmail = formData.email.trim();
+    const cleanPassword = formData.password;
+    const cleanName = formData.name.trim();
+
+    try {
+      if (tab === "login") {
+        await login(cleanEmail, cleanPassword);
+        toast.success("Successfully logged in");
+      } else {
+        if (!cleanName) {
+          toast.error("Please enter your name");
+          setLoading(false);
+          return;
+        }
+        try {
+          await register(cleanEmail, cleanPassword, cleanName);
+          toast.success("Account created successfully");
+        } catch (regError: unknown) {
+          const regErrObj = regError as { code?: string; message?: string };
+          const regCode = regErrObj?.code || "";
+          const regRawMessage = regErrObj?.message || "";
+          if (regCode === "auth/email-already-in-use" || regRawMessage.includes("email-already-in-use")) {
+            // Attempt to login instead!
+            await login(cleanEmail, cleanPassword);
+            toast.success("Logged in with existing account");
+          } else {
+            throw regError;
+          }
+        }
+      }
+      onClose();
+    } catch (error: unknown) {
+      // Try to extract code/message from various error formats
+      const errObj = error as { code?: string; message?: string };
+      const code = errObj?.code || "";
+      const rawMessage = errObj?.message || "";
+
+      const isExpectedUserError = 
+        code === "auth/wrong-password" || 
+        code === "auth/user-not-found" || 
+        code === "auth/invalid-credential" ||
+        code === "auth/invalid-email" ||
+        code === "auth/weak-password" ||
+        code === "auth/email-already-in-use" ||
+        rawMessage.includes("invalid-credential") ||
+        rawMessage.includes("auth/invalid-credential") ||
+        rawMessage.includes("wrong-password") ||
+        rawMessage.includes("user-not-found") ||
+        rawMessage.includes("email-already-in-use");
+
+      if (isExpectedUserError) {
+        console.warn("Auth warning (expected user error):", rawMessage || code);
+      } else {
+        console.error("Auth error:", error);
+      }
+
+      let message = "Authentication failed. Please check your credentials.";
+      
+      if (code === "auth/email-already-in-use") {
+        message = "This email is already registered. Please sign in instead.";
+        setTab("login");
+      } else if (
+        code === "auth/wrong-password" || 
+        code === "auth/user-not-found" || 
+        code === "auth/invalid-credential" ||
+        rawMessage.includes("invalid-credential") ||
+        rawMessage.includes("auth/invalid-credential")
+      ) {
+        message = "Invalid email or password.";
+      } else if (code === "auth/invalid-email") {
+        message = "Please enter a valid email address.";
+      } else if (code === "auth/operation-not-allowed") {
+        message = "Email/Password sign-in is not enabled in Firebase Console.";
+      } else if (code === "auth/weak-password") {
+        message = "Password should be at least 6 characters.";
+      } else if (rawMessage) {
+        // If it's a JSON string from handleFirestoreError, it might be here
+        try {
+          const parsed = JSON.parse(rawMessage);
+          if (parsed.error) message = parsed.error;
+          else message = rawMessage;
+        } catch {
+          message = rawMessage;
+        }
+      }
+      
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoBypass = () => {
+    enterDemoMode({
+      businessType: "retail",
+      categories: ["Apparel", "Electronics", "Groceries"],
+      storeName: "Nexa Demo OS",
+      storePhone: "+1 (555) 019-2834",
+      storeAddress: "742 Evergreen Terrace, Springfield",
+      receiptFooter: "Thank you for shopping at Nexa Demo OS!",
+      taxRate: 8.25,
+      brandColor: "#059669"
+    });
+    localStorage.setItem("stackwise-onboarding-done", "true");
+    toast.success("Demo session initialized locally!");
+    onClose();
+    navigate({ to: "/app/dashboard" });
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <div className="flex justify-center mb-4">
+            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+              <ShieldCheck className="h-6 w-6 text-primary" />
+            </div>
+          </div>
+          <DialogTitle className="text-center text-2xl font-bold">
+            {tab === "login" ? "Welcome back" : "Create your account"}
+          </DialogTitle>
+          <DialogDescription className="text-center">
+            {tab === "login" 
+              ? "Enter your credentials to access your store" 
+              : "Get started with Nexa OS and scale your business"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "login" | "signup")} className="mt-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="login">Login</TabsTrigger>
+            <TabsTrigger value="signup">Sign Up</TabsTrigger>
+          </TabsList>
+
+          <form onSubmit={handleAction} className="space-y-4 mt-6">
+            {tab === "signup" && (
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="name"
+                    placeholder="John Doe"
+                    className="pl-10"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="name@company.com"
+                  className="pl-10"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  className="pl-10"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {tab === "login" ? "Sign In" : "Create Account"}
+            </Button>
+
+            {tab === "login" && (
+              <>
+                <div className="relative flex py-1 items-center">
+                  <div className="flex-grow border-t border-muted-foreground/25"></div>
+                  <span className="flex-shrink mx-3 text-[10px] tracking-wider uppercase font-medium text-muted-foreground/75">Or bypass for testing</span>
+                  <div className="flex-grow border-t border-muted-foreground/25"></div>
+                </div>
+
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full gap-2 border-dashed border-emerald-500/50 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5 transition-all text-sm font-medium"
+                  onClick={handleDemoBypass}
+                >
+                  <Play className="h-3.5 w-3.5 fill-current" />
+                  Launch Instant Demo Mode
+                </Button>
+              </>
+            )}
+          </form>
+        </Tabs>
+
+        <div className="mt-4 text-center text-xs text-muted-foreground">
+          By continuing, you agree to our Terms of Service and Privacy Policy.
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

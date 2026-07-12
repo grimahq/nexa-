@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useDemo } from "@/hooks/useDemo";
+import { useAuth } from "@/contexts/AuthContext";
 import type {
   Item,
   Category,
@@ -17,78 +18,265 @@ interface QueryResult<T> {
   error: Error | null;
 }
 
+import { useFirebaseCollection, useFirebaseDoc } from "./useFirebaseData";
+import { where, orderBy, limit as firestoreLimit } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
+import type { SaleTransaction } from "@/types/inventory";
+import type { Expense, Refund } from "@/types/finance";
+import type { Customer } from "@/types/crm";
+
 export function useItems(filters?: ItemFilters): QueryResult<Item[]> {
   const { isDemo, demoStore, version } = useDemo();
+  const { profile } = useAuth();
+  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  
+  // Firebase fetch
+  const constraints = useMemo(() => {
+    const c = [];
+    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    if (filters?.categoryId) c.push(where("categoryId", "==", filters.categoryId));
+    if (filters?.supplierId) c.push(where("supplierId", "==", filters.supplierId));
+    if (filters?.status) c.push(where("status", "==", filters.status));
+    return c;
+  }, [filters?.categoryId, filters?.supplierId, filters?.status, profile?.storeId]);
+
+  const { data: firebaseData, loading } = useFirebaseCollection<Item>("items", constraints, { enabled });
+
   return useMemo(() => {
     if (isDemo && demoStore) return { data: demoStore.getItems(filters), isLoading: false, error: null };
-    return { data: [] as Item[], isLoading: false, error: null };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDemo, demoStore, version, filters?.categoryId, filters?.supplierId, filters?.status, filters?.search, filters?.locationId]);
+    
+    let list = firebaseData;
+    if (filters?.search) {
+      const q = filters.search.toLowerCase();
+      list = list.filter(i => i.name.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q));
+    }
+
+    return { data: list, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, filters, firebaseData, loading]);
 }
 
 export function useItemById(id: string): QueryResult<Item | undefined> {
   const { isDemo, demoStore, version } = useDemo();
+  const enabled = !isDemo && !!auth.currentUser;
+  const { data: firebaseData, loading } = useFirebaseDoc<Item>("items", id, { enabled });
+
   return useMemo(() => {
     if (isDemo && demoStore) return { data: demoStore.getItemById(id), isLoading: false, error: null };
-    return { data: undefined, isLoading: false, error: null };
-  }, [isDemo, demoStore, version, id]);
+    return { data: firebaseData, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, id, firebaseData, loading]);
 }
 
 export function useCategories(): QueryResult<Category[]> {
   const { isDemo, demoStore, version } = useDemo();
+  const { profile } = useAuth();
+  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  
+  const constraints = useMemo(() => {
+    return profile?.storeId ? [where("storeId", "==", profile.storeId)] : [];
+  }, [profile?.storeId]);
+
+  const { data: firebaseData, loading } = useFirebaseCollection<Category>("categories", constraints, { enabled });
+
   return useMemo(() => {
     if (isDemo && demoStore) return { data: demoStore.getCategories(), isLoading: false, error: null };
-    return { data: [] as Category[], isLoading: false, error: null };
-  }, [isDemo, demoStore, version]);
+    return { data: firebaseData, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, firebaseData, loading]);
 }
 
 export function useSuppliers(): QueryResult<Supplier[]> {
   const { isDemo, demoStore, version } = useDemo();
+  const { profile } = useAuth();
+  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  
+  const constraints = useMemo(() => {
+    return profile?.storeId ? [where("storeId", "==", profile.storeId)] : [];
+  }, [profile?.storeId]);
+
+  const { data: firebaseData, loading } = useFirebaseCollection<Supplier>("suppliers", constraints, { enabled });
+
   return useMemo(() => {
     if (isDemo && demoStore) return { data: [...demoStore.getSuppliers()], isLoading: false, error: null };
-    return { data: [] as Supplier[], isLoading: false, error: null };
-  }, [isDemo, demoStore, version]);
+    return { data: firebaseData, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, firebaseData, loading]);
 }
 
 export function useLocations(): QueryResult<Location[]> {
   const { isDemo, demoStore, version } = useDemo();
+  const { profile } = useAuth();
+  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  
+  const constraints = useMemo(() => {
+    return profile?.storeId ? [where("storeId", "==", profile.storeId)] : [];
+  }, [profile?.storeId]);
+
+  const { data: firebaseData, loading } = useFirebaseCollection<Location>("locations", constraints, { enabled });
+
   return useMemo(() => {
     if (isDemo && demoStore) return { data: demoStore.getLocations(), isLoading: false, error: null };
-    return { data: [] as Location[], isLoading: false, error: null };
-  }, [isDemo, demoStore, version]);
+    return { data: firebaseData, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, firebaseData, loading]);
 }
 
-export function useMovements(limit?: number): QueryResult<StockMovement[]> {
+export function useMovements(limitVal?: number): QueryResult<StockMovement[]> {
   const { isDemo, demoStore, version } = useDemo();
+  const { profile } = useAuth();
+  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+
+  const constraints = useMemo(() => {
+    const c = [orderBy("createdAt", "desc")];
+    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    if (limitVal) c.push(firestoreLimit(limitVal));
+    return c;
+  }, [limitVal, profile?.storeId]);
+
+  const { data: firebaseData, loading } = useFirebaseCollection<StockMovement>("movements", constraints, { enabled });
+
   return useMemo(() => {
     if (isDemo && demoStore) {
-      const data = limit ? demoStore.getRecentMovements(limit) : demoStore.getMovements();
+      const data = limitVal ? demoStore.getRecentMovements(limitVal) : demoStore.getMovements();
       return { data, isLoading: false, error: null };
     }
-    return { data: [] as StockMovement[], isLoading: false, error: null };
-  }, [isDemo, demoStore, version, limit]);
+    return { data: firebaseData, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, limitVal, firebaseData, loading]);
 }
 
 export function useStockSummary(): QueryResult<StockSummary> {
   const { isDemo, demoStore, version } = useDemo();
+  const { profile } = useAuth();
+  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+  
+  const constraints = useMemo(() => {
+    return profile?.storeId ? [where("storeId", "==", profile.storeId)] : [];
+  }, [profile?.storeId]);
+
+  const { data: items, loading } = useFirebaseCollection<Item>("items", constraints, { enabled });
+
   return useMemo(() => {
     if (isDemo && demoStore) return { data: demoStore.getStockSummary(), isLoading: false, error: null };
-    return { data: { total: 0, inStock: 0, lowStock: 0, outOfStock: 0 }, isLoading: false, error: null };
-  }, [isDemo, demoStore, version]);
+    
+    const summary: StockSummary = {
+      total: items.length,
+      inStock: items.filter((i) => i.currentStock > i.reorderPoint).length,
+      lowStock: items.filter((i) => i.currentStock > 0 && i.currentStock <= i.reorderPoint).length,
+      outOfStock: items.filter((i) => i.currentStock === 0).length,
+    };
+
+    return { data: summary, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, items, loading]);
 }
 
 export function usePurchaseOrders(): QueryResult<PurchaseOrder[]> {
   const { isDemo, demoStore, version } = useDemo();
+  const { profile } = useAuth();
+  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+
+  const constraints = useMemo(() => {
+    const c = [orderBy("createdAt", "desc")];
+    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    return c;
+  }, [profile?.storeId]);
+
+  const { data: firebaseData, loading } = useFirebaseCollection<PurchaseOrder>("purchaseOrders", constraints, { enabled });
+
   return useMemo(() => {
     if (isDemo && demoStore) return { data: [...demoStore.getPurchaseOrders()], isLoading: false, error: null };
-    return { data: [] as PurchaseOrder[], isLoading: false, error: null };
-  }, [isDemo, demoStore, version]);
+    return { data: firebaseData, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, firebaseData, loading]);
 }
 
 export function useRequests(): QueryResult<InventoryRequest[]> {
   const { isDemo, demoStore, version } = useDemo();
+  const { profile } = useAuth();
+  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+
+  const constraints = useMemo(() => {
+    const c = [orderBy("createdAt", "desc")];
+    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    return c;
+  }, [profile?.storeId]);
+
+  const { data: firebaseData, loading } = useFirebaseCollection<InventoryRequest>("requests", constraints, { enabled });
+
   return useMemo(() => {
     if (isDemo && demoStore) return { data: [...demoStore.getRequests()], isLoading: false, error: null };
-    return { data: [] as InventoryRequest[], isLoading: false, error: null };
-  }, [isDemo, demoStore, version]);
+    return { data: firebaseData, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, firebaseData, loading]);
 }
+
+export function useSales(): QueryResult<SaleTransaction[]> {
+  const { isDemo, demoStore, version } = useDemo();
+  const { profile } = useAuth();
+  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+
+  const constraints = useMemo(() => {
+    const c = [orderBy("createdAt", "desc")];
+    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    return c;
+  }, [profile?.storeId]);
+
+  const { data: firebaseData, loading } = useFirebaseCollection<SaleTransaction>("sales", constraints, { enabled });
+
+  return useMemo(() => {
+    if (isDemo && demoStore) return { data: [...demoStore.getSales()], isLoading: false, error: null };
+    return { data: firebaseData, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, firebaseData, loading]);
+}
+
+export function useExpenses(): QueryResult<Expense[]> {
+  const { isDemo, demoStore, version } = useDemo();
+  const { profile } = useAuth();
+  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+
+  const constraints = useMemo(() => {
+    const c = [orderBy("date", "desc")];
+    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    return c;
+  }, [profile?.storeId]);
+
+  const { data: firebaseData, loading } = useFirebaseCollection<Expense>("expenses", constraints, { enabled });
+
+  return useMemo(() => {
+    if (isDemo && demoStore) return { data: [...demoStore.getExpenses()], isLoading: false, error: null };
+    return { data: firebaseData, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, firebaseData, loading]);
+}
+
+export function useCustomers(): QueryResult<Customer[]> {
+  const { isDemo, demoStore, version } = useDemo();
+  const { profile } = useAuth();
+  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+
+  const constraints = useMemo(() => {
+    const c = [orderBy("name", "asc")];
+    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    return c;
+  }, [profile?.storeId]);
+
+  const { data: firebaseData, loading } = useFirebaseCollection<Customer>("customers", constraints, { enabled });
+
+  return useMemo(() => {
+    if (isDemo && demoStore) return { data: [...demoStore.getCustomers()], isLoading: false, error: null };
+    return { data: firebaseData, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, firebaseData, loading]);
+}
+
+export function useRefunds(): QueryResult<Refund[]> {
+  const { isDemo, demoStore, version } = useDemo();
+  const { profile } = useAuth();
+  const enabled = !isDemo && !!auth.currentUser && !!profile?.storeId;
+
+  const constraints = useMemo(() => {
+    const c = [orderBy("createdAt", "desc")];
+    if (profile?.storeId) c.push(where("storeId", "==", profile.storeId));
+    return c;
+  }, [profile?.storeId]);
+
+  const { data: firebaseData, loading } = useFirebaseCollection<Refund>("refunds", constraints, { enabled });
+
+  return useMemo(() => {
+    if (isDemo && demoStore) return { data: [...demoStore.getRefunds()], isLoading: false, error: null };
+    return { data: firebaseData, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, firebaseData, loading]);
+}
+
+

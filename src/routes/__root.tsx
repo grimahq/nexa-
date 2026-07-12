@@ -2,6 +2,7 @@ import { Outlet, createRootRoute, HeadContent, Scripts, Link } from "@tanstack/r
 import { DemoProvider } from "@/contexts/DemoContext";
 import { useDemo } from "@/hooks/useDemo";
 import { RoleProvider } from "@/contexts/RoleContext";
+import { SystemSettingsProvider, useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { Toaster } from "@/components/ui/sonner";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { AlertCircle, Home } from "lucide-react";
@@ -14,18 +15,18 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "NEXA -version2" },
-      { name: "description", content: "Manage inventory with real-time stock tracking, supplier management, purchase orders, and AI-powered demand forecasting. Includes role-based access, barcode sup" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "NEXA -version2" },
-      { property: "og:description", content: "Manage inventory with real-time stock tracking, supplier management, purchase orders, and AI-powered demand forecasting. Includes role-based access, barcode sup" },
+      { title: "Nexa OS — Sophisticated Business Command Center" },
+      { name: "description", content: "Nexa OS delivers professional-grade business management tools, including real-time stock tracking, advanced analytics, and AI-powered insights." },
+      { name: "author", content: "Nexa Technologies" },
+      { property: "og:title", content: "Nexa OS — Sophisticated Business Command Center" },
+      { property: "og:description", content: "Nexa OS delivers professional-grade business management tools, including real-time stock tracking, advanced analytics, and AI-powered insights." },
       { property: "og:type", content: "website" },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ce8fd1f7-8ca4-425d-a29c-052d48d54d68/id-preview-991ef288--eaf13a24-9d23-4ea5-ae81-bd8ed9669775.lovable.app-1774415671292.png" },
+      { property: "og:image", content: "/og-image.png" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ce8fd1f7-8ca4-425d-a29c-052d48d54d68/id-preview-991ef288--eaf13a24-9d23-4ea5-ae81-bd8ed9669775.lovable.app-1774415671292.png" },
-      { name: "twitter:title", content: "NEXA -version2" },
-      { name: "twitter:description", content: "Manage inventory with real-time stock tracking, supplier management, purchase orders, and AI-powered demand forecasting. Includes role-based access, barcode sup" },
+      { name: "twitter:site", content: "@nexa_os" },
+      { name: "twitter:image", content: "/og-image.png" },
+      { name: "twitter:title", content: "Nexa OS — Sophisticated Business Command Center" },
+      { name: "twitter:description", content: "Nexa OS delivers professional-grade business management tools, including real-time stock tracking, advanced analytics, and AI-powered insights." },
     ],
     links: [
       {
@@ -38,22 +39,31 @@ export const Route = createRootRoute({
   notFoundComponent: NotFoundComponent,
 });
 
+import { AuthProvider } from "@/contexts/AuthContext";
+
 function RootComponent() {
   return (
-    <DemoProvider>
-      <RoleProvider>
-        <GlobalStyles />
-        <ErrorBoundary>
-          <Outlet />
-        </ErrorBoundary>
-        <Toaster position="bottom-right" richColors />
-      </RoleProvider>
-    </DemoProvider>
+    <AuthProvider>
+      <SystemSettingsProvider>
+        <DemoProvider>
+          <RoleProvider>
+            <GlobalStyles />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
+            <Toaster position="bottom-right" richColors />
+          </RoleProvider>
+        </DemoProvider>
+      </SystemSettingsProvider>
+    </AuthProvider>
   );
 }
 
 function GlobalStyles() {
-  const { onboarding } = useDemo();
+  const { isDemo, onboarding: demoOnboarding } = useDemo();
+  const { settings: liveSettings } = useSystemSettings();
+  
+  const onboarding = isDemo ? demoOnboarding : liveSettings;
   
   // Dynamically inject brand color if set
   if (!onboarding.brandColor) return null;
@@ -62,7 +72,13 @@ function GlobalStyles() {
     <style dangerouslySetInnerHTML={{ __html: `
       :root {
         --primary: ${onboarding.brandColor};
+        --color-primary: ${onboarding.brandColor};
         --sidebar-primary: ${onboarding.brandColor};
+        --color-sidebar-primary: ${onboarding.brandColor};
+        --ring: ${onboarding.brandColor};
+        --color-ring: ${onboarding.brandColor};
+        --accent: ${onboarding.brandColor};
+        --color-accent: ${onboarding.brandColor};
       }
     `}} />
   );

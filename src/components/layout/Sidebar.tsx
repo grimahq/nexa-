@@ -20,6 +20,9 @@ import {
   Users,
   Globe,
   Link2,
+  ShieldAlert,
+  Building2,
+  MessageSquare,
 } from "lucide-react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
@@ -106,26 +109,37 @@ interface SidebarProps {
 export function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const { permissions, stores, currentStoreId } = useRole();
+  const { permissions, stores, currentStoreId, isSuperAdmin } = useRole();
   const { onboarding } = useDemo();
   const sector = useSector();
 
   const navGroups: NavGroup[] = [
+    ...(isSuperAdmin ? [{
+      label: "SaaS Operations",
+      items: [
+        { label: "Dashboard", href: "/app/super-admin", icon: ShieldAlert },
+        { label: "Stores", href: "/app/super-admin/stores", icon: Building2 },
+        { label: "Users", href: "/app/super-admin/users", icon: Users },
+        { label: "Updates", href: "/app/super-admin/updates", icon: MessageSquare },
+        { label: "Landing", href: "/app/super-admin/landing", icon: Globe },
+      ],
+    }] : []),
     {
       label: "Operations",
       items: [
-        { label: sector.labels.dashboard, href: "/app/dashboard", icon: LayoutDashboard },
+        { label: sector.labels.dashboard, href: "/app/dashboard", icon: LayoutDashboard, permKey: "canViewDashboard" },
         { label: sector.labels.sales, href: "/app/sales", icon: ShoppingCart, permKey: "canSell" },
         { label: "Sales History", href: "/app/sales-history", icon: History, permKey: "canViewSalesHistory" },
         { label: "Sales Analytics", href: "/app/sales-analytics", icon: TrendingUp, permKey: "canViewAnalytics" },
-        { label: sector.labels.customers, href: "/app/customers", icon: Users, permKey: "canSell" },
+        { label: sector.labels.customers, href: "/app/customers", icon: Users, permKey: "canViewCustomers" },
         { label: sector.labels.catalog, href: "/app/catalog", icon: sector.icons.catalog, permKey: "canManageItems" },
         { label: sector.labels.movements, href: "/app/movements", icon: ArrowLeftRight, permKey: "canLogMovements" },
-        { label: "Locations", href: "/app/locations", icon: MapPin },
+        { label: "Locations", href: "/app/locations", icon: MapPin, permKey: "canViewLocations" },
       ],
     },
     {
       label: "Digital Store",
+      permKey: "canViewEcommerce",
       items: [
         { label: "Storefront", href: "/app/ecommerce", icon: Globe },
         { label: "Affiliates", href: "/app/affiliates", icon: Link2 },
@@ -134,16 +148,16 @@ export function Sidebar({ onNavigate }: SidebarProps) {
     {
       label: "Finance",
       items: [
-        { label: "Returns", href: "/app/returns", icon: RotateCcw },
-        { label: "Expenses", href: "/app/expenses", icon: Receipt },
+        { label: "Returns", href: "/app/returns", icon: RotateCcw, permKey: "canViewReturns" },
+        { label: "Expenses", href: "/app/expenses", icon: Receipt, permKey: "canViewExpenses" },
       ],
     },
     {
       label: "Procurement",
-      permKey: "canManagePOs",
+      permKey: "canViewSuppliers",
       items: [
-        { label: sector.labels.suppliers, href: "/app/suppliers", icon: Truck },
-        { label: "Purchase orders", href: "/app/purchase-orders", icon: ClipboardList },
+        { label: sector.labels.suppliers, href: "/app/suppliers", icon: Truck, permKey: "canViewSuppliers" },
+        { label: "Purchase orders", href: "/app/purchase-orders", icon: ClipboardList, permKey: "canManagePOs" },
       ],
     },
     {
@@ -158,6 +172,8 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       label: "Admin",
       permKey: "canAccessSettings",
       items: [
+        ...(isSuperAdmin ? [{ label: "Super Admin", href: "/app/super-admin", icon: ShieldAlert }] : []),
+        { label: "Staff", href: "/app/settings?tab=users", icon: Users, permKey: "canManageUsers" },
         { label: "Settings", href: "/app/settings", icon: Settings },
       ],
     },

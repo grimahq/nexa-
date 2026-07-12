@@ -23,6 +23,7 @@ import { useApprovalActions } from "@/components/requests/ApprovalActions";
 import { useItems, useRequests } from "@/hooks/useInventoryData";
 import { useRole } from "@/hooks/useRole";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAuth } from "@/contexts/AuthContext";
 import { useDemo } from "@/hooks/useDemo";
 import { RequestStatus } from "@/types/inventory";
 import type { InventoryRequest } from "@/types/inventory";
@@ -55,13 +56,24 @@ function applyFilters(requests: InventoryRequest[], filters: RequestFilters): In
 
 function RequestsPage() {
   const { data: catalogItems } = useItems();
-  const { data: requests } = useRequests();
+  const { data: allRequests } = useRequests();
   const { role } = useRole();
   const { can } = usePermissions();
   const { demoStore, bumpVersion } = useDemo();
+  const { profile } = useAuth();
   const navigate = useNavigate();
   const { request: requestParam } = Route.useSearch();
+  
   const isManagerOrAdmin = role === "admin" || role === "manager";
+  const isRequestor = role === "requestor";
+
+  const requests = useMemo(() => {
+    if (isRequestor && profile) {
+      return allRequests.filter(r => r.requestedBy === profile.name || r.id === profile.id); // Simple fallback, properly should be by userId
+    }
+    return allRequests;
+  }, [allRequests, isRequestor, profile]);
+
   const canApproveReq = can("approve_request");
   const [formOpen, setFormOpen] = useState(false);
   const [filters, setFilters] = useState<RequestFilters>(EMPTY_REQUEST_FILTERS);

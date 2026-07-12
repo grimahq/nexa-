@@ -10,6 +10,7 @@ import { CSVExportButton, type CSVColumn } from "@/components/data/CSVExportButt
 import { EMPTY_MOVEMENT_FILTERS } from "@/components/movements/movement-filter-types";
 import type { MovementFilters } from "@/components/movements/movement-filter-types";
 import { useMovements, useItems, useLocations } from "@/hooks/useInventoryData";
+import { useSector } from "@/hooks/useSector";
 import { PermissionGate } from "@/hooks/usePermissions";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
