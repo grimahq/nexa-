@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useDemo } from "@/hooks/useDemo";
 import { useRole } from "@/hooks/useRole";
+import { useSales } from "@/hooks/useInventoryData";
 import type { SaleTransaction } from "@/types/inventory";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -29,12 +30,9 @@ function fmtNgn(amount: number): string {
 }
 
 export function SalesHistoryPage() {
-  const { demoStore, version, onboarding } = useDemo();
+  const { onboarding } = useDemo();
   const { role } = useRole();
-  const sales: SaleTransaction[] = useMemo(
-    () => demoStore?.getSales() ?? [],
-    [demoStore, version],
-  );
+  const { data: sales = [], isLoading } = useSales();
 
   const [from, setFrom] = useState<Date | undefined>(subDays(new Date(), 30));
   const [to, setTo] = useState<Date | undefined>(new Date());
@@ -125,7 +123,14 @@ export function SalesHistoryPage() {
       </div>
 
       {/* Table */}
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <div className="rounded-xl border border-border bg-card p-12 text-center text-sm text-muted-foreground">
+          <div className="flex flex-col items-center justify-center gap-2">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <span>Loading sales history...</span>
+          </div>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="rounded-xl border border-border bg-card p-12 text-center text-sm text-muted-foreground">
           No sales found. Complete a sale from the Sales page to see it here.
         </div>

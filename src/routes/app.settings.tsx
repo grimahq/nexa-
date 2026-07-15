@@ -26,15 +26,21 @@ import { ProfileSettings } from "@/components/settings/ProfileSettings";
 export const Route = createFileRoute("/app/settings")({
   component: SettingsPage,
   head: () => ({ meta: [{ title: "Settings — Stackwise" }] }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    tab: typeof search.tab === "string" ? search.tab : undefined,
+  }),
 });
 
 function SettingsPage() {
+  const { tab } = Route.useSearch();
   const { role, isAdmin } = useRole();
   const navigate = useNavigate();
   const sector = useSector();
 
   const isRequestor = role === "requestor";
   const isManager = role === "manager";
+
+  const defaultTab = tab || (isAdmin ? "store" : "profile");
 
   return (
     <div className="mx-auto max-w-[1000px] space-y-6">
@@ -43,7 +49,7 @@ function SettingsPage() {
         <p className="text-sm text-muted-foreground">{isAdmin ? "System configuration and management" : "Manage your account and preferences"}</p>
       </div>
 
-      <Tabs defaultValue={isAdmin ? "store" : "profile"} className="w-full">
+      <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           {isAdmin && (

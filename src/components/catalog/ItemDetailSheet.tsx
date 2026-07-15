@@ -192,6 +192,37 @@ export function ItemDetailSheet({
                   </div>
                 </div>
               )}
+
+              {item.electronics && (
+                <div className="col-span-2 py-3 border-b border-border">
+                  <p className="text-xs font-bold uppercase tracking-wider text-teal-700 mb-2">🔌 Phone Accessories Profile</p>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-lg bg-teal-50/25 border border-teal-100/50 p-3">
+                    <DetailRow label="Accessory Type" value={
+                      item.electronics.accessoryType === "case" ? "Case / Cover" :
+                      item.electronics.accessoryType === "charger" ? "Charger / Adapter" :
+                      item.electronics.accessoryType === "cable" ? "Charging Cable" :
+                      item.electronics.accessoryType === "audio" ? "Earphones / Audio" :
+                      item.electronics.accessoryType === "protector" ? "Screen Protector" :
+                      item.electronics.accessoryType === "powerbank" ? "Power Bank" :
+                      item.electronics.accessoryType === "mount" ? "Mount / Holder" :
+                      item.electronics.accessoryType || "—"
+                    } />
+                    <DetailRow label="Compatible Devices" value={item.electronics.compatibility} />
+                    <DetailRow label="Brand Focus" value={item.electronics.brandFocus} />
+                    <DetailRow label="Material / Style" value={item.electronics.material} />
+                    <div className="col-span-2">
+                      <DetailRow label="Warranty Period" value={
+                        item.electronics.warrantyPeriod === "none" ? "No warranty" :
+                        item.electronics.warrantyPeriod === "1_month" ? "1 Month Warranty" :
+                        item.electronics.warrantyPeriod === "3_months" ? "3 Months Warranty" :
+                        item.electronics.warrantyPeriod === "6_months" ? "6 Months Warranty" :
+                        item.electronics.warrantyPeriod === "1_year" ? "1 Year Warranty" :
+                        item.electronics.warrantyPeriod || "—"
+                      } />
+                    </div>
+                  </div>
+                </div>
+              )}
               {item.unitConversions && item.unitConversions.length > 0 && (
                 <div className="col-span-2 py-3 border-b border-border">
                   <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Configured Selling Units (Wholesale / Bulk)</p>

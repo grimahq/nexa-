@@ -124,6 +124,12 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
     }
+
+    // ─── CREDITS ────────────────────────────────────────
+    match /credits/{creditId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
     
     // ─── NOTIFICATIONS ──────────────────────────────────
     match /notifications/{notifId} {
@@ -183,6 +189,63 @@ service cloud.firestore {
     match /qrLeadEvents/{eventId} {
       allow read: if isSignedIn();
       allow create: if true;
+    }
+
+    // ─── SYSTEM LOGS ────────────────────────────────────
+    match /system_logs/{logId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // ─── SUPPORT CHATS ──────────────────────────────────
+    match /support_chats/{chatId} {
+      allow create: if true;
+      allow get: if true;
+      allow update: if true;
+      allow list: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    // ─── AGENTS ─────────────────────────────────────────
+    match /agents/{agentId} {
+      allow read: if isSignedIn() && (request.auth.uid == agentId || isAdmin());
+      allow create: if isSignedIn() && incoming().agentId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (request.auth.uid == agentId && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'phone', 'bankDetails']))
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ─── REFERRALS ──────────────────────────────────────
+    match /referrals/{referralId} {
+      allow read: if isSignedIn() && (resource.data.agentId == request.auth.uid || isAdmin());
+      allow create: if true; // Allowed for public/merchant signup attribution creation
+      allow update, delete: if isAdmin();
+    }
+
+    // ─── AGENT EARNINGS ─────────────────────────────────
+    match /agentEarnings/{earningId} {
+      allow read: if isSignedIn() && (resource.data.agentId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // ─── COMMISSION RULES ───────────────────────────────
+    match /commissionRules/{ruleId} {
+      allow read: if true; // Publicly readable for agent landing page and signup flows
+      allow write: if isAdmin();
+    }
+
+    // ─── RETENTION TRIGGERS ─────────────────────────────
+    match /retentionTriggers/{triggerId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── RETENTION EVENTS ───────────────────────────────
+    match /retentionEvents/{eventId} {
+      allow read: if isSignedIn() && (resource.data.agentId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
     }
   }
 }

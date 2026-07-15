@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { RotateCcw, Package, AlertCircle, Calendar, Filter } from "lucide-react";
+import { RotateCcw, Package, AlertCircle, Calendar, Filter, Image as ImageIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +26,7 @@ function ReturnsPage() {
   const { isDemo, demoStore, bumpVersion } = useDemo();
   const [formOpen, setFormOpen] = useState(false);
   const [filterReason, setFilterReason] = useState<string>("all");
+  const [selectedProof, setSelectedProof] = useState<string | null>(null);
 
   const { data: refunds, isLoading: refundsLoading } = useRefunds();
   const { data: sales, isLoading: salesLoading } = useSales();
@@ -100,9 +101,18 @@ function ReturnsPage() {
         <div className="space-y-2">
           {filtered.map((r) => (
             <div key={r.id} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-                <RotateCcw className="h-4 w-4" />
-              </div>
+              {r.proofImageUrl ? (
+                <div className="relative group h-10 w-10 shrink-0 overflow-hidden rounded-lg border bg-muted cursor-zoom-in" onClick={() => setSelectedProof(r.proofImageUrl)}>
+                  <img src={r.proofImageUrl} alt="Proof" className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <span className="text-[8px] text-white font-bold uppercase tracking-wider">View</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                  <RotateCcw className="h-4 w-4" />
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{r.itemName}</p>
                 <p className="text-xs text-muted-foreground">Qty: {r.quantity} · {new Date(r.createdAt).toLocaleDateString()}</p>
@@ -116,6 +126,23 @@ function ReturnsPage() {
         </div>
       )}
 
+      {selectedProof && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" onClick={() => setSelectedProof(null)}>
+          <div className="relative max-w-lg w-full bg-card rounded-xl border p-2 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setSelectedProof(null)}
+              className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors z-10"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <img src={selectedProof} alt="Refund Proof Image" className="w-full h-auto max-h-[80vh] object-contain rounded-lg" />
+            <div className="p-3 text-center text-xs text-muted-foreground font-semibold">
+              Item Refund Verification Proof Photo
+            </div>
+          </div>
+        </div>
+      )}
+
       <RefundFormSheet open={formOpen} onOpenChange={setFormOpen} sales={sales} />
     </div>
   );
@@ -126,12 +153,26 @@ function RefundFormSheet({ open, onOpenChange, sales }: {
   onOpenChange: (v: boolean) => void;
   sales: { id: string; items: { itemId: string; itemName: string; quantity: number; unitPriceNgn: number }[]; createdAt: string }[];
 }) {
+  const { isDemo, demoStore, bumpVersion } = useDemo();
   const { mutate: createRefund, isLoading } = useCreateRefund();
   const [saleId, setSaleId] = useState("");
   const [itemId, setItemId] = useState("");
   const [qty, setQty] = useState(1);
   const [reason, setReason] = useState<RefundReason>("customer_return");
   const [notes, setNotes] = useState("");
+  const [proofImage, setProofImage] = useState("");
+  const proofFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleProofImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProofImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const selectedSale = sales.find((s) => s.id === saleId);
   const selectedItem = selectedSale?.items.find((i) => i.itemId === itemId);
@@ -147,16 +188,32 @@ function RefundFormSheet({ open, onOpenChange, sales }: {
       amountNgn: selectedItem.unitPriceNgn * qty,
       reason,
       notes,
+      proofImageUrl: proofImage || undefined,
       createdAt: new Date().toISOString(),
     };
     createRefund(refund, {
       onSuccess: () => {
+        // Advanced notification dispatch
+        if (isDemo && demoStore && bumpVersion) {
+          demoStore.addNotification({
+            id: `notif-${Date.now()}`,
+            type: "request_update",
+            title: `🔄 Refund Processed: ${selectedItem.itemName}`,
+            message: `A refund of ${NAIRA}${(selectedItem.unitPriceNgn * qty).toLocaleString("en-NG")} for ${qty}x ${selectedItem.itemName} was successfully recorded.`,
+            isRead: false,
+            read: false,
+            createdAt: new Date().toISOString()
+          });
+          bumpVersion();
+        }
+
         toast.success(`Refund processed: ${NAIRA}${refund.amountNgn.toLocaleString("en-NG")}`);
         onOpenChange(false);
         setSaleId("");
         setItemId("");
         setQty(1);
         setNotes("");
+        setProofImage("");
       },
       onError: () => toast.error("Failed to process refund")
     });
@@ -215,6 +272,51 @@ function RefundFormSheet({ open, onOpenChange, sales }: {
           <div className="space-y-1.5">
             <Label className="text-xs">Notes</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional details..." rows={3} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Item Image Proof (Optional)</Label>
+            <div className="flex items-center gap-3 bg-muted/20 p-2.5 rounded-xl border">
+              {proofImage ? (
+                <div className="relative h-14 w-14 rounded-lg overflow-hidden border bg-muted shrink-0">
+                  <img src={proofImage} alt="Proof preview" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setProofImage("")}
+                    className="absolute top-0.5 right-0.5 bg-rose-500 text-white rounded-full p-0.5 hover:bg-rose-600 transition-colors"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => proofFileInputRef.current?.click()}
+                  className="h-14 w-14 border-2 border-dashed border-muted-foreground/30 rounded-lg flex flex-col items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors bg-muted/10 group shrink-0"
+                >
+                  <ImageIcon className="w-4 h-4 group-hover:scale-105 transition-transform" />
+                  <span className="text-[8px] font-bold mt-0.5 uppercase">Upload</span>
+                </button>
+              )}
+              <div className="flex-1 text-[10px] text-muted-foreground leading-normal">
+                <p className="font-semibold text-foreground/80">Attach return condition proof</p>
+                <p className="text-[9px]">Optional photo evidence of damage or defect.</p>
+                <button
+                  type="button"
+                  onClick={() => proofFileInputRef.current?.click()}
+                  className="text-primary font-bold underline mt-0.5 inline-block text-[9px]"
+                >
+                  Select image
+                </button>
+              </div>
+            </div>
+            <input
+              type="file"
+              ref={proofFileInputRef}
+              onChange={handleProofImageUpload}
+              accept="image/*"
+              className="hidden"
+            />
           </div>
 
           {selectedItem && (

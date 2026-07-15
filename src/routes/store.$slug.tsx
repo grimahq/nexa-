@@ -656,8 +656,10 @@ function PublicStorefront() {
                     const batchNum = selectedProduct.pharmacy?.batchNumber;
                     const serialNum = selectedProduct.customFields?.serialNumber;
                     const agri = selectedProduct.agriculture;
+                    const elecFields = selectedProduct.customFields;
+                    const hasElec = elecFields && (elecFields.elecType || elecFields.condition || elecFields.warranty || elecFields.compatibility);
 
-                    if (!hasExpiry && !requiresRx && !batchNum && !serialNum && !agri) return null;
+                    if (!hasExpiry && !requiresRx && !batchNum && !serialNum && !agri && !hasElec) return null;
 
                     return (
                       <div className="space-y-2 mb-6 border-t border-dashed pt-4">
@@ -685,6 +687,30 @@ function PublicStorefront() {
                             <div className="flex flex-col p-2.5 rounded-xl bg-neutral-100 dark:bg-zinc-900 border border-border col-span-2">
                               <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Serial Number / IMEI</span>
                               <span className="font-mono font-bold text-foreground mt-0.5">{String(serialNum)}</span>
+                            </div>
+                          )}
+                          {elecFields?.elecType && (
+                            <div className="flex flex-col p-2.5 rounded-xl bg-neutral-100 dark:bg-zinc-900 border border-border">
+                              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Type</span>
+                              <span className="font-bold text-foreground mt-0.5 capitalize">{String(elecFields.elecType)}</span>
+                            </div>
+                          )}
+                          {elecFields?.condition && (
+                            <div className="flex flex-col p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/10">
+                              <span className="text-[9px] uppercase tracking-wider text-amber-600 font-bold">Condition</span>
+                              <span className="font-bold text-amber-600 dark:text-amber-400 mt-0.5">{String(elecFields.condition)}</span>
+                            </div>
+                          )}
+                          {elecFields?.warranty && (
+                            <div className="flex flex-col p-2.5 rounded-xl bg-blue-500/5 border border-blue-500/10 col-span-2">
+                              <span className="text-[9px] uppercase tracking-wider text-blue-500 font-bold">Warranty Period</span>
+                              <span className="font-bold text-blue-600 dark:text-blue-400 mt-0.5">🛡️ {String(elecFields.warranty)}</span>
+                            </div>
+                          )}
+                          {elecFields?.compatibility && (
+                            <div className="flex flex-col p-2.5 rounded-xl bg-indigo-500/5 border border-indigo-500/10 col-span-2">
+                              <span className="text-[9px] uppercase tracking-wider text-indigo-500 font-bold">Compatibility</span>
+                              <span className="font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">🔌 {String(elecFields.compatibility)}</span>
                             </div>
                           )}
                           {agri?.cropVariety && (

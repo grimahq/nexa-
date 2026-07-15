@@ -14,6 +14,9 @@ export interface AppUser {
   status: "active" | "inactive" | "pending";
   joinedAt: string;
   storeId?: string;
+  tempPassword?: string;
+  branchId?: string | null;
+  description?: string;
 }
 
 export function useUsers() {

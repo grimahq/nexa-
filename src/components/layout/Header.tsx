@@ -86,8 +86,8 @@ export function Header() {
   }, []);
 
   return (
-    <header className="flex h-16 items-center gap-3 border-b border-border bg-card px-4 shadow-sm md:px-8">
-      <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open menu">
+    <header className="flex h-16 items-center gap-3 border-b border-border bg-card px-4 shadow-sm lg:px-8">
+      <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open menu">
         <Menu className="h-5 w-5" />
       </Button>
 
@@ -162,8 +162,8 @@ export function Header() {
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted">
               <User className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
-            <span className="hidden text-sm font-medium md:inline-block">{displayName}</span>
-            <ChevronDown className="hidden h-3.5 w-3.5 text-muted-foreground md:inline-block" />
+            <span className="hidden text-sm font-medium lg:inline-block">{displayName}</span>
+            <ChevronDown className="hidden h-3.5 w-3.5 text-muted-foreground lg:inline-block" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">

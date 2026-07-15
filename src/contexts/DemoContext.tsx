@@ -102,7 +102,26 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   }, [user, store, exitDemoMode]);
 
   const updateOnboarding = useCallback((updates: Partial<OnboardingSelection>) => {
-    setOnboarding((prev) => ({ ...prev, ...updates }));
+    setOnboarding((prev) => {
+      const next = { ...prev, ...updates };
+      if (updates.businessType && updates.businessType !== prev.businessType) {
+        let cats: string[] = [];
+        if (updates.businessType === "pharmacy") cats = ["office", "tools", "it", "medical", "cleaning", "misc"];
+        else if (updates.businessType === "restaurant") cats = ["proteins", "grains", "vegetables", "drinks", "spices", "bakery"];
+        else if (updates.businessType === "electronics") cats = ["office", "tools", "it", "medical", "cleaning", "misc"];
+        else if (updates.businessType === "agriculture") cats = ["grains_bulk", "tubers", "livestock", "seeds", "fertilizers", "tools_agri"];
+        else if (updates.businessType === "retail") cats = ["electronics", "fashion", "groceries", "beauty", "home", "sports"];
+        else if (updates.businessType === "textile") cats = ["cotton", "laces", "silk", "sewing", "traditional", "prints"];
+        else if (updates.businessType === "wholesale") cats = ["fmcg", "building", "agro", "industrial", "textiles", "chemicals"];
+        else cats = ["office", "tools", "it", "medical", "cleaning", "misc"];
+        
+        const newStore = new DemoStore(updates.businessType, cats);
+        setStore(newStore);
+        setVersion((v) => v + 1);
+        next.categories = cats;
+      }
+      return next;
+    });
   }, []);
 
   const value = useMemo<DemoContextValue>(

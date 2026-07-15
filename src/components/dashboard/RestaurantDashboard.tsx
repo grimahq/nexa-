@@ -5,9 +5,16 @@ import { Button } from "@/components/ui/button";
 import { useItems } from "@/hooks/useInventoryData";
 import { ChefHat, Clock, Flame, Leaf, Utensils } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDemo } from "@/hooks/useDemo";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 
 export function RestaurantDashboard() {
   const { data: items } = useItems();
+  const { isDemo, onboarding: demoOnboarding } = useDemo();
+  const { settings: liveSettings } = useSystemSettings();
+  const onboarding = isDemo ? demoOnboarding : liveSettings;
+  const isRestaurant = onboarding?.businessType === "restaurant";
+
   const [tableStatuses, setTableStatuses] = useState<Record<number, { status: "available" | "cooking" | "served"; orderTime?: string; itemsCount?: number; totalPrice?: number }>>({});
 
   const reloadTableStatuses = () => {
@@ -46,7 +53,7 @@ export function RestaurantDashboard() {
     reloadTableStatuses();
   };
   
-  const menuItems = items.filter(i => i.restaurant);
+  const menuItems = items.filter(i => i.restaurant || (isRestaurant && i.status !== "archived"));
   
   const longPrepItems = [...menuItems]
     .sort((a, b) => (b.restaurant?.preparationTime || 0) - (a.restaurant?.preparationTime || 0))

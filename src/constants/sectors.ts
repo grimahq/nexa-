@@ -133,6 +133,25 @@ export const SECTOR_CONFIGS: Record<string, SectorConfig> = {
     features: { hasExpiry: false, hasBatches: false, hasTableBooking: false, hasProduction: false, hasWarranty: false, isFreshGood: false },
     primaryAction: "Create Listing",
   },
+  electronics: {
+    id: BusinessType.Electronics,
+    labels: {
+      dashboard: "Device Hub",
+      catalog: "Devices & Tech",
+      inventory: "Stockroom",
+      sales: "Counter Sales",
+      customers: "Buyers",
+      suppliers: "Distributors",
+      movements: "Stock Movement",
+      reports: "Sales Analytics",
+      store: "Gadget Store",
+      item: "Device/Accessory",
+      unit: "Pcs",
+    },
+    icons: { catalog: Smartphone, item: Smartphone },
+    features: { hasExpiry: false, hasBatches: false, hasTableBooking: false, hasProduction: false, hasWarranty: true, isFreshGood: false },
+    primaryAction: "Add Product",
+  },
   general: {
     id: BusinessType.General,
     labels: {

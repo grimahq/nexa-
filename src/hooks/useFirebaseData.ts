@@ -16,6 +16,38 @@ export interface FirebaseOptions {
   enabled?: boolean;
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function serializeConstraints(constraints: any[]): string {
+  return constraints.map((c: any) => {
+    if (!c || typeof c !== 'object') return String(c);
+    
+    // Attempt standard firestore constraint extraction
+    const field = c._field?.toString?.() || c._field?._path?.segments?.join('.') || '';
+    const op = c._op || '';
+    let valStr = '';
+    if (c._value !== undefined) {
+      valStr = typeof c._value === 'object' ? JSON.stringify(c._value) : String(c._value);
+    }
+    const dir = c._direction || '';
+    const lim = c._limit !== undefined ? String(c._limit) : '';
+    const type = c.type || '';
+    
+    // In case Firestore changes internal implementation details, also grab all primitive key-value pairs
+    const primitiveKeys: string[] = [];
+    for (const key in c) {
+      if (Object.prototype.hasOwnProperty.call(c, key)) {
+        const val = c[key];
+        if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+          primitiveKeys.push(`${key}:${val}`);
+        }
+      }
+    }
+    
+    return `${type}:${field}:${op}:${valStr}:${dir}:${lim}:{${primitiveKeys.sort().join(',')}}`;
+  }).join('|');
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 export function useFirebaseCollection<T>(
   collectionName: string, 
   queryConstraints: QueryConstraint[] = [],
@@ -25,7 +57,7 @@ export function useFirebaseCollection<T>(
   const [loading, setLoading] = useState(options.enabled ?? true);
   const [error, setError] = useState<Error | null>(null);
 
-  const constraintsKey = JSON.stringify(queryConstraints);
+  const constraintsKey = serializeConstraints(queryConstraints);
 
   useEffect(() => {
     if (options.enabled === false) {

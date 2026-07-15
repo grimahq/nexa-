@@ -37,6 +37,7 @@ export interface Refund {
   amountNgn: number;
   reason: RefundReason;
   notes: string;
+  proofImageUrl?: string;
   createdAt: string;
 }
 
@@ -54,6 +55,7 @@ export interface CreditCustomer {
   id: string;
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
   balanceNgn: number; // positive = they owe
   transactions: CreditTransaction[];
 }

@@ -1,5 +1,15 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { LayoutDashboard, ShoppingCart, Package, ArrowLeftRight, MoreHorizontal } from "lucide-react";
+import { 
+  LayoutDashboard, 
+  ShoppingCart, 
+  Package, 
+  ArrowLeftRight, 
+  MoreHorizontal,
+  ShieldAlert,
+  Building2,
+  Users,
+  Bot
+} from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -21,6 +31,13 @@ const NAV_ITEMS: BottomNavItem[] = [
   { label: "Movements", href: "/app/movements", icon: ArrowLeftRight, permKey: "canLogMovements" },
 ];
 
+const SUPER_ADMIN_NAV_ITEMS: BottomNavItem[] = [
+  { label: "Dashboard", href: "/app/super-admin", icon: ShieldAlert },
+  { label: "Stores", href: "/app/super-admin/stores", icon: Building2 },
+  { label: "Users", href: "/app/super-admin/users", icon: Users },
+  { label: "AI Agents", href: "/app/super-admin/agents", icon: Bot },
+];
+
 export function BottomNav() {
   const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -28,15 +45,13 @@ export function BottomNav() {
 
   const isActive = (href: string) => location.pathname === href;
 
-  const visibleItems = NAV_ITEMS.filter((item) => !item.permKey || permissions[item.permKey]);
-
-  if (isSuperAdmin) {
-    return null;
-  }
+  const visibleItems = isSuperAdmin
+    ? SUPER_ADMIN_NAV_ITEMS
+    : NAV_ITEMS.filter((item) => !item.permKey || permissions[item.permKey]);
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-14 items-stretch border-t border-border bg-card shadow-[0_-4px_12px_rgba(0,0,0,0.05)] md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-14 items-stretch border-t border-border bg-card shadow-[0_-4px_12px_rgba(0,0,0,0.05)] lg:hidden">
         {visibleItems.map((item) => (
           <Link
             key={item.href}

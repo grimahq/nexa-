@@ -11,15 +11,23 @@ export interface ReorderDefaultsType {
   orderQuantity: number;
 }
 
+export interface ReportPreferences {
+  frequency: "daily" | "weekly" | "monthly" | "off";
+  lastSentAt?: string;
+  recipientEmail: string;
+}
+
 export interface StoreSettings {
   storeName: string;
   storePhone: string;
   storeAddress: string;
+  storeDescription?: string;
   receiptFooter: string;
   taxRate: number;
   brandColor?: string;
   logoUrl?: string;
   businessType?: string;
+  electronicsMainType?: "devices" | "accessories" | "both";
   categories: string[];
   isOnboarded: boolean;
   moniepointKey?: string;
@@ -29,19 +37,27 @@ export interface StoreSettings {
   customFieldDefs?: CustomFieldDefinition[];
   reorderDefaults?: ReorderDefaultsType;
   pricingMode?: "single" | "tiered";
+  reportPreferences?: ReportPreferences;
+  subscriptionTier?: string;
+  subscriptionStatus?: string;
 }
 
 const DEFAULT_SETTINGS: StoreSettings = {
   storeName: "Nexa Store",
   storePhone: "",
   storeAddress: "",
+  storeDescription: "",
   receiptFooter: "Thank you for your patronage!",
   taxRate: 0,
   brandColor: "#0d9488",
   businessType: "retail",
   categories: [],
   isOnboarded: false,
-  pricingMode: "single"
+  pricingMode: "single",
+  reportPreferences: {
+    frequency: "off",
+    recipientEmail: ""
+  }
 };
 
 interface SystemSettingsContextValue {

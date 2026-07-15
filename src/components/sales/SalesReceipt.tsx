@@ -26,6 +26,7 @@ function getStoreName(businessType: string | null): string {
 }
 
 function buildReceiptText(sale: SaleTransaction, storeName: string): string {
+  const isRepayment = sale.isDebtSettlement || sale.id.startsWith("repay-");
   const lines: string[] = [];
   lines.push(`🧾 *${storeName}*`);
   lines.push(`Receipt #${sale.id.slice(-8).toUpperCase()}`);
@@ -37,10 +38,15 @@ function buildReceiptText(sale: SaleTransaction, storeName: string): string {
     lines.push(`${li.itemName}`);
     lines.push(`  ${li.quantity}${li.unit && li.unit !== "pcs" ? li.unit : ""} × ${fmtNgn(li.unitPriceNgn)} = ${fmtNgn(li.unitPriceNgn * li.quantity)}`);
   });
+  if (sale.previousDebtPaidNgn && sale.previousDebtPaidNgn > 0) {
+    lines.push("─────────────────");
+    lines.push(`Items Total: ${fmtNgn(sale.totalNgn - sale.previousDebtPaidNgn)}`);
+    lines.push(`Consolidated Debt Payment: ${fmtNgn(sale.previousDebtPaidNgn)}`);
+  }
   lines.push("─────────────────");
   lines.push(`*TOTAL: ${fmtNgn(sale.totalNgn)}*`);
   lines.push("");
-  lines.push("Thank you for your purchase! 🙏");
+  lines.push(isRepayment ? "Thank you for your payment! 🙏" : "Thank you for your purchase! 🙏");
   return lines.join("\n");
 }
 
@@ -52,6 +58,7 @@ async function generateReceiptPDF(sale: SaleTransaction, storeName: string): Pro
   let y = 10;
   const lm = 6; // left margin
   const rm = w - 6; // right margin
+  const isRepayment = sale.isDebtSettlement || sale.id.startsWith("repay-");
 
   // Store name
   doc.setFontSize(14);
@@ -60,7 +67,7 @@ async function generateReceiptPDF(sale: SaleTransaction, storeName: string): Pro
   y += 5;
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  doc.text("Receipt of Purchase", w / 2, y, { align: "center" });
+  doc.text(isRepayment ? "Debt Settlement Receipt" : "Receipt of Purchase", w / 2, y, { align: "center" });
   y += 6;
 
   // Line
@@ -108,6 +115,19 @@ async function generateReceiptPDF(sale: SaleTransaction, storeName: string): Pro
     y += 5;
   });
 
+  if (sale.previousDebtPaidNgn && sale.previousDebtPaidNgn > 0) {
+    doc.line(lm, y, rm, y);
+    y += 4;
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text("Items Total", lm, y);
+    doc.text(fmtNgn(sale.totalNgn - sale.previousDebtPaidNgn), rm, y, { align: "right" });
+    y += 4;
+    doc.text("Consolidated Debt Paid", lm, y);
+    doc.text(fmtNgn(sale.previousDebtPaidNgn), rm, y, { align: "right" });
+    y += 4;
+  }
+
   // Total
   doc.line(lm, y, rm, y);
   y += 5;
@@ -120,7 +140,7 @@ async function generateReceiptPDF(sale: SaleTransaction, storeName: string): Pro
   // Footer
   doc.setFontSize(7);
   doc.setFont("helvetica", "normal");
-  doc.text("Thank you for your purchase!", w / 2, y, { align: "center" });
+  doc.text(isRepayment ? "Thank you for your payment!" : "Thank you for your purchase!", w / 2, y, { align: "center" });
   y += 3;
   doc.text(`Powered by ${storeName}`, w / 2, y, { align: "center" });
 
@@ -139,6 +159,7 @@ export function SalesReceipt({ sale, onClose }: SalesReceiptProps) {
   const onboarding = isDemo ? demoOnboarding : liveSettings;
   const storeName = onboarding.storeName || getStoreName(onboarding.businessType);
   const [downloading, setDownloading] = useState(false);
+  const isRepayment = sale.isDebtSettlement || sale.id.startsWith("repay-");
 
   const handlePrint = () => {
     // Add temporary print class to body to help CSS if needed
@@ -238,7 +259,9 @@ export function SalesReceipt({ sale, onClose }: SalesReceiptProps) {
           {/* Store header */}
           <div className="text-center pt-2">
             <h2 className="text-xl font-bold text-foreground print:text-lg">{storeName}</h2>
-            <p className="text-xs text-muted-foreground print:text-black">Receipt of Purchase</p>
+            <p className="text-xs text-muted-foreground print:text-black">
+              {isRepayment ? "Debt Settlement Receipt" : "Receipt of Purchase"}
+            </p>
           </div>
 
           <Separator className="my-3 print:border-black" />
@@ -285,6 +308,20 @@ export function SalesReceipt({ sale, onClose }: SalesReceiptProps) {
             ))}
           </div>
 
+          {sale.previousDebtPaidNgn && sale.previousDebtPaidNgn > 0 && (
+            <>
+              <Separator className="my-2" />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Items Total</span>
+                <span className="font-mono text-foreground">{fmtNgn(sale.totalNgn - sale.previousDebtPaidNgn)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Consolidated Debt Paid</span>
+                <span className="font-mono text-emerald-600 font-semibold">{fmtNgn(sale.previousDebtPaidNgn)}</span>
+              </div>
+            </>
+          )}
+
           <Separator className="my-3" />
 
           {/* Total */}
@@ -295,7 +332,9 @@ export function SalesReceipt({ sale, onClose }: SalesReceiptProps) {
 
           {/* Footer */}
           <div className="mt-4 text-center pb-4">
-            <p className="text-[10px] text-muted-foreground print:text-black">Thank you for your purchase!</p>
+            <p className="text-[10px] text-muted-foreground print:text-black">
+              {isRepayment ? "Thank you for your payment!" : "Thank you for your purchase!"}
+            </p>
             <p className="text-[10px] text-muted-foreground/60 print:hidden mt-1 italic">Generated via Nexa OS</p>
           </div>
         </div>

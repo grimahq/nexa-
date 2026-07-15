@@ -38,6 +38,10 @@ export function VariantCustomizerDialog({
   const { isDemo, onboarding: demoOnboarding } = useDemo();
   const activeSettings = isDemo ? demoOnboarding : liveSettings;
   const isTieredMode = activeSettings?.pricingMode === "tiered";
+  const isPhoneAccessoriesSeller = activeSettings?.businessType === "electronics" && (
+    activeSettings?.electronicsMainType === "accessories" ||
+    !activeSettings?.categories?.includes("devices")
+  );
 
   const updateItem = useUpdateItem();
 
@@ -178,9 +182,9 @@ export function VariantCustomizerDialog({
           {/* Sizes Selection */}
           {sizes.length > 0 && (
             <div className="space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Select Size
-              </span>
+               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                {isPhoneAccessoriesSeller ? "Select Compatible Model" : "Select Size"}
+               </span>
               <div className="flex flex-wrap gap-2">
                 {sizes.map((sz) => {
                   const isSelected = selectedSize === sz;

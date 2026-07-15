@@ -224,7 +224,7 @@ export function SalesQuickScanCheckout() {
     if (matchedItem) {
       // Check stock limit
       const currentQty = scannedItems.get(matchedItem.id) ?? 0;
-      if (matchedItem.currentStock !== undefined && currentQty >= matchedItem.currentStock) {
+      if (!matchedItem.restaurant && matchedItem.currentStock !== undefined && currentQty >= matchedItem.currentStock) {
         playScanBeep("error");
         toast.error(`Out of stock! Cannot add more of "${matchedItem.name}". Only ${matchedItem.currentStock} in inventory.`, {
           icon: "⚠️",
@@ -255,7 +255,7 @@ export function SalesQuickScanCheckout() {
   const handleSimulateScan = (item: Item) => {
     // Check stock limit
     const currentQty = scannedItems.get(item.id) ?? 0;
-    if (item.currentStock !== undefined && currentQty >= item.currentStock) {
+    if (!item.restaurant && item.currentStock !== undefined && currentQty >= item.currentStock) {
       playScanBeep("error");
       toast.error(`Out of stock! Cannot add more of "${item.name}". Only ${item.currentStock} in inventory.`, {
         icon: "⚠️",
@@ -286,7 +286,7 @@ export function SalesQuickScanCheckout() {
       
       if (diff > 0) {
         const item = items.find(i => i.id === itemId);
-        if (item && item.currentStock !== undefined && curr >= item.currentStock) {
+        if (item && !item.restaurant && item.currentStock !== undefined && curr >= item.currentStock) {
           playScanBeep("error");
           toast.error(`Cannot exceed current stock for "${item.name}" (${item.currentStock} available).`);
           return prev;

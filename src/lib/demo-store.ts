@@ -35,6 +35,9 @@ export interface DemoUser {
   role: "admin" | "manager";
   status: "active" | "inactive" | "pending";
   joinedAt: string;
+  tempPassword?: string;
+  branchId?: string | null;
+  description?: string;
 }
 
 const SEED_USERS: DemoUser[] = [
@@ -90,14 +93,28 @@ export class DemoStore {
   addSale(sale: SaleTransaction): void {
     this.sales.push(sale);
     
-    // Deduct inventory based on quantity and unit multiplier
-    for (const item of sale.items) {
+    // Deduct inventory based on quantity and unit multiplier, and record a stock movement
+    sale.items.forEach((item, index) => {
       const targetItem = this.getItemById(item.itemId);
       if (targetItem) {
         const deduction = item.quantity * (item.multiplier || 1);
         targetItem.currentStock = Math.max(0, targetItem.currentStock - deduction);
+
+        const movement: StockMovement = {
+          id: `mvt-${sale.id}-${item.itemId}-${index}`,
+          itemId: item.itemId,
+          type: MovementType.Shipped,
+          quantity: deduction,
+          fromLocationId: targetItem.locationId || null,
+          toLocationId: null,
+          reference: sale.id,
+          notes: `Sold via ${sale.source === "social" ? "Storefront" : "POS"}`,
+          performedBy: "System",
+          createdAt: new Date().toISOString()
+        };
+        this.data.movements.push(movement);
       }
-    }
+    });
     
     this.version++;
   }

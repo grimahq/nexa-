@@ -226,9 +226,171 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "qrSourceId", "storeId", "eventType", "timestamp"]
+    },
+    "SupportChat": {
+      "title": "Support Chat",
+      "description": "Customer support chat session with AI agents or live agents.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "closed"] },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sender": { "type": "string", "enum": ["customer", "agent", "staff"] },
+              "text": { "type": "string" },
+              "timestamp": { "type": "string" }
+            }
+          }
+        },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "customerName", "status", "messages"]
+    },
+    "Agent": {
+      "title": "Agent",
+      "description": "NEXAOS Agent profile",
+      "type": "object",
+      "properties": {
+        "agentId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "referralCode": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "dateJoined": { "type": "string" },
+        "bankDetails": {
+          "type": "object",
+          "properties": {
+            "bankName": { "type": "string" },
+            "accountNumber": { "type": "string" },
+            "accountName": { "type": "string" }
+          }
+        }
+      },
+      "required": ["agentId", "fullName", "email", "status", "dateJoined", "referralCode"]
+    },
+    "Referral": {
+      "title": "Referral",
+      "description": "Referral record linking agent to merchant",
+      "type": "object",
+      "properties": {
+        "referralId": { "type": "string" },
+        "agentId": { "type": "string" },
+        "storeId": { "type": "string" },
+        "referralSource": { "type": "string", "enum": ["code", "link"] },
+        "signupDate": { "type": "string" },
+        "subscriptionActivatedDate": { "type": "string" },
+        "currentPlanId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "converted", "churned"] }
+      },
+      "required": ["referralId", "agentId", "storeId", "referralSource", "signupDate", "status"]
+    },
+    "AgentEarning": {
+      "title": "Agent Earning",
+      "description": "Earning entry for agent from referred subscription payment",
+      "type": "object",
+      "properties": {
+        "earningId": { "type": "string" },
+        "agentId": { "type": "string" },
+        "referralId": { "type": "string" },
+        "type": { "type": "string", "enum": ["onboarding_bonus", "recurring_residual", "clawback"] },
+        "amount": { "type": "number" },
+        "relatedSubscriptionEventId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "paid", "reversed"] },
+        "createdAt": { "type": "string" },
+        "paidAt": { "type": "string" }
+      },
+      "required": ["earningId", "agentId", "referralId", "type", "amount", "status", "createdAt"]
+    },
+    "CommissionRule": {
+      "title": "Commission Rule",
+      "description": "Dynamic rules for calculating commission payments",
+      "type": "object",
+      "properties": {
+        "ruleId": { "type": "string" },
+        "onboardingBonusAmount": { "type": "number" },
+        "onboardingBonusType": { "type": "string", "enum": ["fixed", "percentage_of_first_payment"] },
+        "recurringResidualPercentage": { "type": "number" },
+        "recurringResidualDurationMonths": { "type": "number" },
+        "clawbackWindowDays": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["ruleId", "onboardingBonusAmount", "onboardingBonusType", "recurringResidualPercentage", "clawbackWindowDays", "isActive"]
+    },
+    "RetentionTrigger": {
+      "title": "Retention Trigger",
+      "description": "Automated retention trigger configurations",
+      "type": "object",
+      "properties": {
+        "triggerId": { "type": "string" },
+        "name": { "type": "string" },
+        "condition": { "type": "string", "enum": ["no_sales_logged_in_N_days", "trial_ending_in_N_days", "subscription_past_due", "onboarding_incomplete_after_N_days", "low_stock_no_reorder"] },
+        "thresholdValue": { "type": "number" },
+        "channel": { "type": "string", "enum": ["whatsapp", "sms", "in_app"] },
+        "messageTemplate": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "cooldownDays": { "type": "number" }
+      },
+      "required": ["triggerId", "name", "condition", "thresholdValue", "channel", "messageTemplate", "isActive", "cooldownDays"]
+    },
+    "RetentionEvent": {
+      "title": "Retention Event",
+      "description": "Log of fired retention triggers and messages",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "storeId": { "type": "string" },
+        "triggerId": { "type": "string" },
+        "channel": { "type": "string", "enum": ["whatsapp", "sms", "in_app"] },
+        "sentAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["sent", "failed", "responded"] },
+        "responseAt": { "type": "string" },
+        "agentId": { "type": "string" },
+        "meta": { "type": "object" }
+      },
+      "required": ["eventId", "storeId", "triggerId", "channel", "sentAt", "status"]
+    },
+    "CreditCustomer": {
+      "title": "Credit Customer",
+      "description": "Customer credit accounts and debt transactions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "balanceNgn": { "type": "number" },
+        "transactions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "type": { "type": "string", "enum": ["credit", "payment"] },
+              "amountNgn": { "type": "number" },
+              "saleId": { "type": "string" },
+              "notes": { "type": "string" },
+              "createdAt": { "type": "string" }
+            }
+          }
+        },
+        "storeId": { "type": "string" }
+      },
+      "required": ["id", "customerName", "customerPhone", "balanceNgn", "transactions", "storeId"]
     }
   },
   "firestore": {
+    "credits": {
+        "schema": "CreditCustomer",
+        "description": "Credit and debt accounts for customers."
+    },
     "stores": {
         "schema": "object",
         "description": "Multi-tenant store configurations and subscription details."
@@ -276,6 +438,34 @@
     "customers": {
         "schema": "Customer",
         "description": "Customer records."
+    },
+    "support_chats": {
+        "schema": "SupportChat",
+        "description": "Customer support chat logs and AI conversation state."
+    },
+    "agents": {
+        "schema": "Agent",
+        "description": "Agent records and profile data."
+    },
+    "referrals": {
+        "schema": "Referral",
+        "description": "Attribution mapping of merchants to agents."
+    },
+    "agentEarnings": {
+        "schema": "AgentEarning",
+        "description": "Income ledgers for agents."
+    },
+    "commissionRules": {
+        "schema": "CommissionRule",
+        "description": "Configurable parameters for payouts."
+    },
+    "retentionTriggers": {
+        "schema": "RetentionTrigger",
+        "description": "Automated system conditions that check merchant activity and trigger alerts."
+    },
+    "retentionEvents": {
+        "schema": "RetentionEvent",
+        "description": "Events and alert delivery records representing fired retention actions."
     }
   }
 }

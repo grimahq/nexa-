@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { db } from "@/lib/firebase";
 import { doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { useDemo } from "@/hooks/useDemo";
 
 export const Route = createFileRoute("/app/super-admin/users")({
   component: SuperAdminUsers,
@@ -19,6 +20,7 @@ export const Route = createFileRoute("/app/super-admin/users")({
 function SuperAdminUsers() {
   const { superUsers, setSuperUsers, superStores, setLogs } = useSuperAdminContext();
   const [search, setSearch] = useState("");
+  const { isDemo } = useDemo();
 
   // Dialogs
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -58,6 +60,39 @@ function SuperAdminUsers() {
     }
 
     const newUserId = `user-${Date.now()}`;
+
+    if (isDemo) {
+      const newUser: SuperUser = {
+        id: newUserId,
+        name,
+        email,
+        role,
+        storeId,
+        storeName: linkedStore.name,
+        joinedDate: new Date().toISOString().slice(0, 10),
+        status: "active",
+      };
+      setSuperUsers(prev => [...prev, newUser]);
+
+      const newLog = {
+        id: `log-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        user: "nexatechnologies.dev@gmail.com",
+        action: `Registered staff profile (Demo mode) "${name}" for branch: "${linkedStore.name}"`,
+        store: linkedStore.name,
+        status: "success" as const,
+      };
+      setLogs(prev => [newLog, ...prev]);
+
+      toast.success(`Registered user profile "${name}" successfully (Demo)!`);
+      setIsAddOpen(false);
+      setName("");
+      setEmail("");
+      setRole("manager");
+      setStoreId("");
+      return;
+    }
+
     try {
       await setDoc(doc(db, "users", newUserId), {
         id: newUserId,
@@ -98,7 +133,7 @@ function SuperAdminUsers() {
     setEditingUser(user);
     setName(user.name);
     setEmail(user.email);
-    setRole(user.role);
+    setRole(user.role as "admin" | "manager");
     setStoreId(user.storeId);
     setIsEditOpen(true);
   };
@@ -109,6 +144,32 @@ function SuperAdminUsers() {
 
     const linkedStore = superStores.find(s => s.id === storeId);
     const storeName = linkedStore ? linkedStore.name : editingUser.storeName;
+
+    if (isDemo) {
+      setSuperUsers(prev => prev.map(u => u.id === editingUser.id ? {
+        ...u,
+        name,
+        email,
+        role,
+        storeId,
+        storeName
+      } : u));
+
+      const newLog = {
+        id: `log-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        user: "nexatechnologies.dev@gmail.com",
+        action: `Updated staff profile (Demo mode) permissions for: "${name}"`,
+        store: storeName,
+        status: "info" as const,
+      };
+      setLogs(prev => [newLog, ...prev]);
+
+      toast.success(`User profile "${name}" updated successfully (Demo).`);
+      setIsEditOpen(false);
+      setEditingUser(null);
+      return;
+    }
 
     try {
       await updateDoc(doc(db, "users", editingUser.id), {
@@ -141,6 +202,12 @@ function SuperAdminUsers() {
   const toggleUserStatus = async (user: SuperUser) => {
     const nextStatus = user.status === "active" ? "inactive" : "active";
 
+    if (isDemo) {
+      setSuperUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: nextStatus } : u));
+      toast.info(`"${user.name}" status set to ${nextStatus.toUpperCase()} (Demo)`);
+      return;
+    }
+
     try {
       await updateDoc(doc(db, "users", user.id), {
         status: nextStatus,
@@ -164,6 +231,14 @@ function SuperAdminUsers() {
   };
 
   const handleDeleteUser = async (user: SuperUser) => {
+    if (isDemo) {
+      setSuperUsers(prev => prev.filter(u => u.id !== user.id));
+      toast.success(`User "${user.name}" deleted (Demo).`);
+      setIsDeleteOpen(false);
+      setDeletingUser(null);
+      return;
+    }
+
     try {
       await deleteDoc(doc(db, "users", user.id));
 
@@ -186,6 +261,30 @@ function SuperAdminUsers() {
     }
   };
 
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return; // Only left click drag
+    const container = e.currentTarget;
+    container.style.cursor = "grabbing";
+    
+    const startX = e.pageX - container.offsetLeft;
+    const scrollLeft = container.scrollLeft;
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const x = moveEvent.pageX - container.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      container.scrollLeft = scrollLeft - walk;
+    };
+    
+    const handleMouseUp = () => {
+      container.style.cursor = "grab";
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+    
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -204,8 +303,11 @@ function SuperAdminUsers() {
         </Button>
       </div>
 
-      <div className="overflow-hidden border border-muted-foreground/10 rounded-lg">
-        <table className="w-full text-left text-xs border-collapse">
+      <div 
+        className="overflow-x-auto cursor-grab active:cursor-grabbing border border-muted-foreground/10 rounded-lg scrollbar-thin touch-pan-x"
+        onMouseDown={handleMouseDown}
+      >
+        <table className="w-full text-left text-xs border-collapse min-w-[900px]">
           <thead>
             <tr className="border-b bg-muted/50 text-muted-foreground font-semibold">
               <th className="p-3">Staff Name</th>

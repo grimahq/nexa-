@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useDemo } from "@/hooks/useDemo";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { collection, query, limit, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { BusinessOnboarding } from "@/components/onboarding/BusinessOnboarding";
@@ -8,6 +8,7 @@ import { AuthModal } from "@/components/auth/AuthModal";
 import { LegalModal } from "@/components/legal/LegalModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
+import { motion, AnimatePresence } from "motion/react";
 import "@/styles/landing.css";
 
 export const Route = createFileRoute("/")({
@@ -23,6 +24,180 @@ export const Route = createFileRoute("/")({
     ],
   }),
 });
+
+const PRICING_PLANS = [
+  {
+    id: "basic",
+    name: "Basic Plan",
+    badge: "Starter Pack",
+    description: "Essential inventory and sales tracking for single-retailer shops.",
+    monthlyPrice: 6500,
+    annualPrice: 65000, // 2 months free!
+    strikePrice: 15000,
+    colorClass: "from-blue-500/10 to-teal-500/5 border-slate-200",
+    badgeColor: "bg-slate-100 text-slate-800 border-slate-200/50 hover:bg-slate-200",
+    glowClass: "",
+    features: [
+      "Single branch management",
+      "Up to 500 product SKUs",
+      "8 AM WhatsApp Daily Summary",
+      "Real-time WhatsApp sales alerts",
+      "Core inventory logging",
+      "On-ground setup & basic support"
+    ],
+    detailedFeatures: [
+      {
+        category: "Performance & Scale",
+        list: [
+          "Single store location context",
+          "Up to 500 active products / SKUs",
+          "Single admin account with full dashboard access",
+          "Automated digital receipts with zero lag"
+        ]
+      },
+      {
+        category: "Intelligence & Alerts",
+        list: [
+          "8 AM WhatsApp Daily Summary (yesterday's revenue, sales count, top item)",
+          "Real-time WhatsApp sales alerts (instantly notifies you when a transaction occurs)",
+          "Standard low-stock warnings (notifies you when catalog items hit low quantities)"
+        ]
+      },
+      {
+        category: "Inventory & Audit",
+        list: [
+          "Core stock level adjustment tools",
+          "Basic profit margin calculator & costing calculations",
+          "Standard transaction history search & ledger filters"
+        ]
+      },
+      {
+        category: "On-Ground Trust",
+        list: [
+          "Bulk spreadsheet/notebook import from day one",
+          "On-ground setup assistance based in Taraba State",
+          "Zero-risk 30-day full money-back guarantee"
+        ]
+      }
+    ]
+  },
+  {
+    id: "pro",
+    name: "Pro Plan",
+    badge: "⭐ Recommended",
+    description: "Advanced intelligence, multi-branch syncing, and custom debt ledger.",
+    monthlyPrice: 12000,
+    annualPrice: 120000, // 2 months free!
+    strikePrice: 25000,
+    colorClass: "from-blue-500/20 to-indigo-500/10 border-blue-400 shadow-blue-500/5",
+    badgeColor: "bg-amber-100 text-amber-800 border-amber-200/50 hover:bg-amber-200",
+    glowClass: "premium-glow",
+    features: [
+      "Multi-branch sync (Up to 3 stores)",
+      "Unlimited product SKUs & items",
+      "8 AM & 8 PM WhatsApp reports",
+      "Advanced COGS & net asset math",
+      "Ledger debt tracker & auto-reminders"
+    ],
+    detailedFeatures: [
+      {
+        category: "Advanced Multi-Branch Context",
+        list: [
+          "Multi-branch management (sync up to 3 distinct physical stores)",
+          "Multi-branch valuation & real-time corporate net assets breakdown",
+          "Seamless supervisor contexts (allows branch switching in 1 click)",
+          "Up to 5 manager/supervisor permissions and roles"
+        ]
+      },
+      {
+        category: "Unlimited Capacity",
+        list: [
+          "Unlimited products, categories, and inventory SKUs",
+          "Unlimited monthly sales transactions and movement logs",
+          "Custom brand logo and personalized receipt footer"
+        ]
+      },
+      {
+        category: "Advanced Reports & Intelligence",
+        list: [
+          "Dual WhatsApp Summaries (8 AM morning summary + 8 PM evening closing report)",
+          "Advanced profit margins, operational expenditure (OpEx), and net profit analysis",
+          "Custom low-stock threshold set individually per-item"
+        ]
+      },
+      {
+        category: "Debt Tracking & Reminders",
+        list: [
+          "Customer ledger with active debt/credit account tracking",
+          "One-click automated WhatsApp debt recovery link generator",
+          "Unpaid invoice aging reports and dispute clearance logs"
+        ]
+      },
+      {
+        category: "Premium On-Boarding",
+        list: [
+          "Priority Excel / physical ledger history migration team",
+          "Offline mode with browser local storage and automated cloud-sync on reconnect",
+          "Dedicated personal technical account partner with priority responses"
+        ]
+      }
+    ]
+  },
+  {
+    id: "enterprise",
+    name: "Enterprise Plan",
+    badge: "Enterprise Scale",
+    description: "Tailored solutions, custom API integrations, and SLA-backed support.",
+    monthlyPrice: 45000,
+    annualPrice: 450000, // 2 months free!
+    strikePrice: 90000,
+    colorClass: "from-purple-500/10 to-pink-500/5 border-purple-300",
+    badgeColor: "bg-purple-600 text-white border-purple-500 hover:bg-purple-700",
+    glowClass: "enterprise-glow",
+    features: [
+      "Unlimited store locations & warehouses",
+      "Granular role access controls & audit logs",
+      "AI-Powered demand forecasting",
+      "SLA-backed 99.9% system uptime",
+      "Dedicated Success Manager (24/7)"
+    ],
+    detailedFeatures: [
+      {
+        category: "Corporate Scale & Control",
+        list: [
+          "Unlimited store branches, retail outlets, and regional warehouses",
+          "Unlimited supervisor, cashier, and accountant credentials",
+          "Granular role-based access control with comprehensive system audit logs"
+        ]
+      },
+      {
+        category: "Custom Integrations & APIs",
+        list: [
+          "Custom API integrations for ERP synchronization or third-party accounting",
+          "Custom hardware integrations (barcode scanners, automatic cash drawers, scale integration)",
+          "Custom webhooks and real-time developer notification hooks"
+        ]
+      },
+      {
+        category: "AI & Smart Analytics",
+        list: [
+          "AI-Powered Demand Forecasting (predicts inventory velocity and busy cycles)",
+          "Automated smart reordering logic based on seasonal sales velocity",
+          "Custom analytic reports with tailored enterprise visualizations"
+        ]
+      },
+      {
+        category: "White-Glove Priority SLA",
+        list: [
+          "SLA-backed 99.9% uptime and zero-latency transaction guarantees",
+          "Dedicated local Client Success Manager with 24/7 phone & on-ground visits",
+          "Custom feature development & tailored training workshops for all staff",
+          "Direct hotline to NexaStoreOS engineering team with under 30-minute responses"
+        ]
+      }
+    ]
+  }
+];
 
 function LandingPage() {
   const { enterDemoMode } = useDemo();
@@ -40,6 +215,15 @@ function LandingPage() {
 
   // Active page state: 'home' | 'product' | 'hiw' | 'about' | 'contact'
   const [activePage, setActivePage] = useState<string>("home");
+
+  const [heroTilt, setHeroTilt] = useState({ x: 0, y: 0 });
+  const [pricingTilt, setPricingTilt] = useState({ x: 0, y: 0 });
+
+  // Extended pricing states
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
+  const [activePlanIndex, setActivePlanIndex] = useState<number>(1); // Default to "Pro"
+  const [expandedPlans, setExpandedPlans] = useState<Record<number, boolean>>({});
+  const [showComparisonModal, setShowComparisonModal] = useState<boolean>(false);
 
   // Dynamic browser mockup chart heights state
   const [chartHeights, setChartHeights] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
@@ -76,8 +260,16 @@ function LandingPage() {
         sessionStorage.setItem("nexa_invite_role", role);
         sessionStorage.setItem("nexa_invite_storeName", decodedName);
       }
+
+      // Capture referral code if provided (?ref=AGENTCODE)
+      const refCode = params.get("ref");
+      if (refCode) {
+        localStorage.setItem("nexaos_referral_code", refCode);
+        sessionStorage.setItem("nexaos_referral_code", refCode);
+        console.log("Captured referral code:", refCode);
+      }
     } catch (e) {
-      console.error("Failed to parse invite parameters:", e);
+      console.error("Failed to parse invite or referral parameters:", e);
     }
   }, []);
 
@@ -103,12 +295,14 @@ function LandingPage() {
   const handleGetStarted = (type?: string) => {
     if (!invitedStore) {
       sessionStorage.setItem("nexa_intended_business", type || "new_store");
+      setAuthModalTab("signup");
+    } else {
+      setAuthModalTab("login");
     }
     if (user) {
       navigate({ to: "/app/dashboard" });
       return;
     }
-    setAuthModalTab("signup");
     setAuthModalOpen(true);
   };
 
@@ -127,6 +321,7 @@ function LandingPage() {
     categories: string[];
     storeName: string;
     brandColor: string;
+    electronicsMainType?: "devices" | "accessories" | "both";
     initialItems?: Array<{ name: string; price: string; stock: string; unit: string; categoryId?: string }>;
   }) => {
     if (isOnboardingDemo) {
@@ -139,6 +334,7 @@ function LandingPage() {
         storeAddress: "", 
         receiptFooter: "Thank you for your patronage!", 
         taxRate: 0,
+        electronicsMainType: data.electronicsMainType,
         initialItems: data.initialItems?.map(item => ({
           name: item.name,
           price: item.price,
@@ -243,6 +439,48 @@ function LandingPage() {
     card.style.transition = 'transform .5s ease';
   };
 
+  const handleHeroMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width - 0.5) * 12;
+    const y = ((e.clientY - rect.top) / rect.height - 0.5) * -12;
+    setHeroTilt({ x, y });
+  };
+
+  const handleHeroMouseLeave = () => {
+    setHeroTilt({ x: 0, y: 0 });
+  };
+
+  const handlePricingMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width - 0.5) * 10;
+    const y = ((e.clientY - rect.top) / rect.height - 0.5) * -10;
+    setPricingTilt({ x, y });
+  };
+
+  const handlePricingMouseLeave = () => {
+    setPricingTilt({ x: 0, y: 0 });
+  };
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.15,
+        delayChildren: 0.1
+      }
+    }
+  };
+
+  const fadeUpVariants = {
+    hidden: { opacity: 0, y: 30 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { type: "spring", stiffness: 100, damping: 15 }
+    }
+  };
+
   const sendForm = () => {
     if (!formData.name.trim() || !formData.phone.trim()) {
       alert('Please enter your name and phone number.');
@@ -337,22 +575,88 @@ function LandingPage() {
         {/* ═══════════════════════════════
              HOME PAGE
         ═══════════════════════════════ */}
-        <div className={`page ${activePage === 'home' ? 'show' : ''}`} id="p-home">
+        <AnimatePresence mode="wait">
+          {activePage === 'home' && (
+            <motion.div
+              key="home"
+              className="page show"
+              id="p-home"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.35, ease: "easeInOut" }}
+            >
           {/* HERO */}
           <section className="hero">
-            <div className="hero-kicker">
+            <motion.div 
+              className="hero-kicker"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
               <span className="hk-badge">New</span>
               Now live in Taraba State &nbsp;·&nbsp; First 30 founding clients only
-            </div>
-            <h1 className="display-xl">
+            </motion.div>
+            <motion.h1 
+              className="display-xl"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.1 }}
+            >
               Run your store like<br/><span className="grad-blue">a tech company.</span>
-            </h1>
-            <p className="body-lg">NexaStoreOS replaces spreadsheets and guesswork with one intelligent system — built for Nigerian retail, supported on the ground.</p>
-            <div className="hero-btns">
-              <button className="btn btn-primary" onClick={() => goto('contact')}>Start Free — ₦0 Setup</button>
-              <button className="btn btn-secondary" onClick={() => goto('hiw')}>See how it works →</button>
-            </div>
-            <div className="hero-mockup tilt3d" id="heroCard" onMouseMove={handleMouseMove3d} onMouseLeave={handleMouseLeave3d}>
+            </motion.h1>
+            <motion.p 
+              className="body-lg"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.25 }}
+            >
+              NexaStoreOS replaces spreadsheets and guesswork with one intelligent system — built for Nigerian retail, supported on the ground.
+            </motion.p>
+            <motion.div 
+              className="hero-btns"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+            >
+              <motion.button 
+                className="btn btn-primary" 
+                onClick={() => goto('contact')}
+                whileHover={{ scale: 1.05, translateY: -2, boxShadow: "0 15px 35px rgba(43,91,255,0.45)" }}
+                whileTap={{ scale: 0.98 }}
+              >
+                Start Free — ₦0 Setup
+              </motion.button>
+              <motion.button 
+                className="btn btn-secondary" 
+                onClick={() => goto('hiw')}
+                whileHover={{ scale: 1.05, translateY: -2, bg: "#fff" }}
+                whileTap={{ scale: 0.98 }}
+              >
+                See how it works →
+              </motion.button>
+            </motion.div>
+            <motion.div 
+              className="hero-mockup" 
+              id="heroCard" 
+              onMouseMove={handleHeroMouseMove} 
+              onMouseLeave={handleHeroMouseLeave}
+              initial={{ opacity: 0, y: 40, scale: 0.95 }}
+              animate={{ 
+                opacity: 1, 
+                y: 0, 
+                scale: 1,
+                rotateX: heroTilt.y,
+                rotateY: heroTilt.x
+              }}
+              transition={{
+                type: "spring",
+                stiffness: 100,
+                damping: 20,
+                mass: 0.6
+              }}
+              style={{ transformStyle: "preserve-3d" }}
+            >
               <div className="mockup-browser glass-card">
                 <div className="browser-bar">
                   <div className="browser-dots"><div className="bd bd-r"></div><div className="bd bd-y"></div><div className="bd bd-g"></div></div>
@@ -394,8 +698,8 @@ function LandingPage() {
                             key={i} 
                             className="cbar" 
                             style={{ 
-                              background: chartColors[i], 
-                              height: `${h}px`
+								background: chartColors[i], 
+								height: `${h}px`
                             }} 
                           />
                         ))}
@@ -409,10 +713,43 @@ function LandingPage() {
                   </div>
                 </div>
               </div>
-              <div className="notif notif-tl"><span className="notif-icon">💳</span><div><div className="notif-text">Payment received</div><div className="notif-val">₦12,500 — confirmed</div></div></div>
-              <div className="notif notif-bl"><span className="notif-icon">📊</span><div><div className="notif-text">8 AM Daily Summary</div><div className="notif-val">Yesterday: ₦184,200</div></div></div>
-              <div className="notif notif-br"><span className="notif-icon">⚠️</span><div><div className="notif-text">Low stock alert</div><div className="notif-val">Rice: 4 bags left</div></div></div>
-            </div>
+              <motion.div 
+                className="notif notif-tl shadow-lg"
+                animate={{ y: [0, -12, 0], x: [0, 5, 0] }}
+                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                style={{ transformStyle: "preserve-3d", translateZ: "40px" }}
+              >
+                <span className="notif-icon">💳</span>
+                <div>
+                  <div className="notif-text">Payment received</div>
+                  <div className="notif-val">₦12,500 — confirmed</div>
+                </div>
+              </motion.div>
+              <motion.div 
+                className="notif notif-bl shadow-lg"
+                animate={{ y: [0, -16, 0], x: [0, -4, 0] }}
+                transition={{ duration: 7, delay: 0.8, repeat: Infinity, ease: "easeInOut" }}
+                style={{ transformStyle: "preserve-3d", translateZ: "50px" }}
+              >
+                <span className="notif-icon">📊</span>
+                <div>
+                  <div className="notif-text">8 AM Daily Summary</div>
+                  <div className="notif-val">Yesterday: ₦184,200</div>
+                </div>
+              </motion.div>
+              <motion.div 
+                className="notif notif-br shadow-lg"
+                animate={{ y: [0, -10, 0], x: [0, 6, 0] }}
+                transition={{ duration: 5, delay: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                style={{ transformStyle: "preserve-3d", translateZ: "35px" }}
+              >
+                <span className="notif-icon">⚠️</span>
+                <div>
+                  <div className="notif-text">Low stock alert</div>
+                  <div className="notif-val">Rice: 4 bags left</div>
+                </div>
+              </motion.div>
+            </motion.div>
           </section>
 
           {/* PROOF BAND */}
@@ -433,13 +770,30 @@ function LandingPage() {
           {/* WHY NEXAOS (COMPARISON) */}
           <section className="section">
             <div className="wrap">
-              <div className="rv" style={{ textAlign: 'center', maxWidth: '600px', margin: '0 auto' }}>
+              <motion.div 
+                className="text-center" 
+                style={{ maxWidth: '600px', margin: '0 auto' }}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.6 }}
+              >
                 <div className="eyebrow ey-blue"><span className="ey-dot"></span>Why NexaOS</div>
                 <h2 className="display-lg">Your current tools<br/>are costing you sales.</h2>
                 <p className="body-md" style={{ marginTop: '12px' }}>Every spreadsheet crash and missed receipt is revenue you'll never recover.</p>
-              </div>
-              <div className="cmp-grid">
-                <div className="cmp-item rv d1">
+              </motion.div>
+              <motion.div 
+                className="cmp-grid"
+                variants={containerVariants}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-100px" }}
+              >
+                <motion.div 
+                  className="cmp-item"
+                  variants={fadeUpVariants}
+                  whileHover={{ scale: 1.02, translateY: -6, boxShadow: "0 20px 40px rgba(43,91,255,0.12)" }}
+                >
                   <div className="cmp-head">
                     <div className="cmp-versus"><span className="cmp-vs-old">WhatsApp Records</span><span className="cmp-arrow">→</span><span className="cmp-vs-new">NexaOS</span></div>
                     <div className="cmp-icon">💬</div>
@@ -449,8 +803,12 @@ function LandingPage() {
                     <div className="cmp-row"><div className="cmp-row-icon bad-icon">✕</div><div className="cmp-row-text">Sales buried in chat threads. Staff dispute transactions. No audit trail, no proof.</div></div>
                     <div className="cmp-row"><div className="cmp-row-icon good-icon">✓</div><div className="cmp-row-text">Every sale gets a timestamped digital receipt. Full history searchable in seconds.</div></div>
                   </div>
-                </div>
-                <div className="cmp-item rv d2">
+                </motion.div>
+                <motion.div 
+                  className="cmp-item"
+                  variants={fadeUpVariants}
+                  whileHover={{ scale: 1.02, translateY: -6, boxShadow: "0 20px 40px rgba(43,91,255,0.12)" }}
+                >
                   <div className="cmp-head">
                     <div className="cmp-versus"><span className="cmp-vs-old">Excel / Sheets</span><span className="cmp-arrow">→</span><span className="cmp-vs-new">NexaOS</span></div>
                     <div className="cmp-icon">📊</div>
@@ -461,8 +819,12 @@ function LandingPage() {
                     <div className="cmp-row"><div className="cmp-row-icon good-icon">✓</div><div className="cmp-row-text">Multiple staff, zero conflicts, live sync. Automated receipts every transaction.</div></div>
                   </div>
                   <div className="cmp-bonus">🎁 We import your Excel data free on day one.</div>
-                </div>
-                <div className="cmp-item rv d3">
+                </motion.div>
+                <motion.div 
+                  className="cmp-item"
+                  variants={fadeUpVariants}
+                  whileHover={{ scale: 1.02, translateY: -6, boxShadow: "0 20px 40px rgba(43,91,255,0.12)" }}
+                >
                   <div className="cmp-head">
                     <div className="cmp-versus"><span className="cmp-vs-old">Basic POS</span><span className="cmp-arrow">→</span><span className="cmp-vs-new">NexaOS</span></div>
                     <div className="cmp-icon">🖥️</div>
@@ -472,21 +834,34 @@ function LandingPage() {
                     <div className="cmp-row"><div className="cmp-row-icon bad-icon">✕</div><div className="cmp-row-text">You know you got paid — but what sold? At what margin? What's running out?</div></div>
                     <div className="cmp-row"><div className="cmp-row-icon good-icon">✓</div><div className="cmp-row-text">Full inventory tracking on every payment. Know what sold, when, at what margin — automatically.</div></div>
                   </div>
-                </div>
-              </div>
+                </motion.div>
+              </motion.div>
             </div>
           </section>
 
           {/* FEATURES */}
           <section className="section feat-section">
             <div className="wrap">
-              <div className="rv" style={{ textAlign: 'center', maxWidth: '560px', margin: '0 auto' }}>
+              <motion.div 
+                className="text-center animate-fade-in" 
+                style={{ maxWidth: '560px', margin: '0 auto' }}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.6 }}
+              >
                 <div className="eyebrow ey-violet"><span className="ey-dot"></span>The Addiction Engine</div>
                 <h2 className="display-lg">Business intelligence,<br/>delivered instantly.</h2>
                 <p className="body-md" style={{ marginTop: '12px' }}>Three features that make store owners check NexaOS before WhatsApp.</p>
-              </div>
+              </motion.div>
               <div className="feat-main">
-                <div className="feat-phone rv d1">
+                <motion.div 
+                  className="feat-phone"
+                  initial={{ opacity: 0, scale: 0.93, y: 30 }}
+                  whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-100px" }}
+                  transition={{ type: "spring", stiffness: 80, damping: 15 }}
+                >
                   <div className="phone-glow"></div>
                   <div className="phone-outer">
                     <div className="phone-inner">
@@ -512,28 +887,55 @@ function LandingPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="fchip fchip-1"><div className="fchip-label">📱 8 AM Summary</div><div className="fchip-val">Revenue: ₦184,200</div></div>
-                  <div className="fchip fchip-2"><div className="fchip-label">⚡ Low stock alert</div><div className="fchip-val">Indomie: 5 bags left</div></div>
-                  <div className="fchip fchip-3"><div className="fchip-label">💰 Payment confirmed</div><div className="fchip-val">₦12,500 received</div></div>
-                </div>
-                <div className="feat-list rv d2">
-                  <div className="feat-item">
+                  <motion.div 
+                    className="fchip fchip-1"
+                    animate={{ y: [0, -10, 0], x: [0, 4, 0] }}
+                    transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <div className="fchip-label">📱 8 AM Summary</div>
+                    <div className="fchip-val">Revenue: ₦184,200</div>
+                  </motion.div>
+                  <motion.div 
+                    className="fchip fchip-2"
+                    animate={{ y: [0, -12, 0], x: [0, -3, 0] }}
+                    transition={{ duration: 6, delay: 0.6, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <div className="fchip-label">⚡ Low stock alert</div>
+                    <div className="fchip-val">Indomie: 5 bags left</div>
+                  </motion.div>
+                  <motion.div 
+                    className="fchip fchip-3"
+                    animate={{ y: [0, -8, 0], x: [0, 3, 0] }}
+                    transition={{ duration: 4, delay: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <div className="fchip-label">💰 Payment confirmed</div>
+                    <div className="fchip-val">₦12,500 received</div>
+                  </motion.div>
+                </motion.div>
+                <motion.div 
+                  className="feat-list"
+                  variants={containerVariants}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true, margin: "-100px" }}
+                >
+                  <motion.div className="feat-item" variants={fadeUpVariants} whileHover={{ x: 8, transition: { type: "spring", stiffness: 200 } }}>
                     <div className="fi-icon fi-i1">🌅</div>
                     <div><div className="fi-title font-sans">8 AM Daily Summaries</div><p className="fi-body">Wake up knowing yesterday's exact revenue, top-selling items, and what to restock — delivered to your WhatsApp before your day begins.</p></div>
-                  </div>
-                  <div className="feat-item">
+                  </motion.div>
+                  <motion.div className="feat-item" variants={fadeUpVariants} whileHover={{ x: 8, transition: { type: "spring", stiffness: 200 } }}>
                     <div className="fi-icon fi-i2">⚡</div>
                     <div><div className="fi-title">Instant Payment Alerts</div><p className="fi-body">Every payment triggers a WhatsApp ping in real time. Know the moment money hits — with full receipt details and item breakdown.</p></div>
-                  </div>
-                  <div className="feat-item">
+                  </motion.div>
+                  <motion.div className="feat-item" variants={fadeUpVariants} whileHover={{ x: 8, transition: { type: "spring", stiffness: 200 } }}>
                     <div className="fi-icon fi-i3">📦</div>
                     <div><div className="fi-title">Low-Stock Smart Alerts</div><p className="fi-body">NexaOS monitors every product and pings you before you run out. Set thresholds and get instant reorder reminders automatically.</p></div>
-                  </div>
-                  <div className="feat-item">
+                  </motion.div>
+                  <motion.div className="feat-item" variants={fadeUpVariants} whileHover={{ x: 8, transition: { type: "spring", stiffness: 200 } }}>
                     <div className="fi-icon fi-i4">📊</div>
                     <div><div className="fi-title font-sans">Live Margin Intelligence</div><p className="fi-body">See profit per product in real time. Identify which items make the most money — without any manual calculations.</p></div>
-                  </div>
-                </div>
+                  </motion.div>
+                </motion.div>
               </div>
             </div>
           </section>
@@ -541,33 +943,301 @@ function LandingPage() {
           {/* PRICING */}
           <section className="section" id="pricing-anchor">
             <div className="wrap">
-              <div className="rv" style={{ textAlign: 'center', maxWidth: '540px', margin: '0 auto' }}>
+              <motion.div 
+                className="text-center" 
+                style={{ maxWidth: '540px', margin: '0 auto' }}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.6 }}
+              >
                 <div className="eyebrow ey-amber"><span className="ey-dot"></span>Pricing Plan</div>
                 <h2 className="display-lg">Start With <span className="grad-blue">Affordable Price</span></h2>
-                <p className="body-md" style={{ marginTop: '12px' }}>No setup fees. No contracts. Cancel anytime.</p>
+                <p className="body-md" style={{ marginTop: '12px' }}>Choose the perfect scale for your retail business. No setup fees.</p>
+              </motion.div>
+
+              {/* Billing Cycle Toggle */}
+              <div className="billing-toggle-container">
+                <div className="billing-toggle">
+                  <div 
+                    className="billing-toggle-indicator"
+                    style={{
+                      left: billingCycle === "monthly" ? "4px" : "calc(50% + 2px)",
+                      width: "calc(50% - 6px)"
+                    }}
+                  />
+                  <button 
+                    type="button"
+                    className={`billing-toggle-btn ${billingCycle === "monthly" ? "active" : ""}`}
+                    onClick={() => setBillingCycle("monthly")}
+                  >
+                    Monthly
+                  </button>
+                  <button 
+                    type="button"
+                    className={`billing-toggle-btn ${billingCycle === "annual" ? "active" : ""}`}
+                    style={{ position: "relative" }}
+                    onClick={() => setBillingCycle("annual")}
+                  >
+                    Annual
+                    <span className="billing-save-badge">
+                      Save ~17%
+                    </span>
+                  </button>
+                </div>
               </div>
-              <div className="pricing-card rv tilt3d" id="pricingCard" onMouseMove={handleMouseMove3d} onMouseLeave={handleMouseLeave3d}>
-                <div className="pc-badge">⭐ Recommended</div>
-                <div className="pc-plan">Premium Plan</div>
-                <h2 className="display-md">Everything You Need to Dominate Your Market</h2>
-                <div className="pc-price"><span className="pc-cur">₦</span><span className="pc-num">6,500</span><span className="pc-per">/month</span></div>
-                <div className="pc-strike">Was ₦15,000/month — Launch offer ends soon</div>
-                <ul className="pc-list">
-                  <li><span className="pc-check">✓</span> <div><strong className="font-bold text-slate-900 block sm:inline">Unlimited Scale:</strong> Unlimited products, active store transactions &amp; staff accounts</div></li>
-                  <li><span className="pc-check">✓</span> <div><strong className="font-bold text-slate-900 block sm:inline">8 AM WhatsApp Summaries:</strong> Direct daily reporting sent to your phone every morning</div></li>
-                  <li><span className="pc-check">✓</span> <div><strong className="font-bold text-slate-900 block sm:inline">Real-Time Alerts:</strong> Instant automated WhatsApp pings for payments &amp; low-stock thresholds</div></li>
-                  <li><span className="pc-check">✓</span> <div><strong className="font-bold text-slate-900 block sm:inline">Profit Optimization:</strong> Comprehensive live operating margins &amp; item intelligence</div></li>
-                  <li><span className="pc-check">✓</span> <div><strong className="font-bold text-slate-900 block sm:inline">Active Debt Management:</strong> Track customer statements with smart recovery reminders</div></li>
-                  <li><span className="pc-check">✓</span> <div><strong className="font-bold text-slate-900 block sm:inline">Zero-Cost Onboarding:</strong> Full history migration from local notebooks &amp; Excel sheets</div></li>
-                  <li><span className="pc-check">✓</span> <div><strong className="font-bold text-slate-900 block sm:inline">On-Ground Partnership:</strong> Committed personal technical assistance based right here in Taraba State</div></li>
-                  <li><span className="pc-check">✓</span> <div><strong className="font-bold text-slate-900 block sm:inline">Zero-Risk Guarantee:</strong> Protected by our industry-leading 30-day money-back protection</div></li>
-                </ul>
-                <button className="btn btn-primary" style={{ width: '100%', padding: '17px', fontSize: '16px' }} onClick={() => goto('contact')}>Start Free — ₦0 Setup Today</button>
+
+              {/* Mobile/Tablet Tab Selector */}
+              <div className="pricing-selector">
+                {PRICING_PLANS.map((plan, index) => (
+                  <button
+                    key={plan.id}
+                    className={`pricing-selector-tab ${activePlanIndex === index ? "active" : ""}`}
+                    onClick={() => setActivePlanIndex(index)}
+                  >
+                    {plan.name}
+                  </button>
+                ))}
               </div>
-              <div className="guarantee-box rv">
+
+              {/* Pricing Cards Swiper / Grid */}
+              <div className="pricing-carousel-container">
+                <div className="pricing-carousel-viewport">
+                  <div 
+                    className="pricing-carousel-track"
+                    style={{
+                      transform: `translateX(-${activePlanIndex * 100}%)`
+                    }}
+                  >
+                    {PRICING_PLANS.map((plan, index) => {
+                      const isAnnual = billingCycle === "annual";
+                      const currentPrice = isAnnual ? plan.annualPrice : plan.monthlyPrice;
+                      const displayPeriod = isAnnual ? "/year" : "/month";
+                      const strikeOutPrice = isAnnual ? plan.strikePrice * 10 : plan.strikePrice;
+                      const isExpanded = expandedPlans[index] || false;
+
+                      return (
+                        <div className="pricing-carousel-slide" key={plan.id}>
+                          <div className={`pricing-card ${plan.glowClass}`}>
+                            {plan.badge && <div className="pc-badge">{plan.badge}</div>}
+                            <div className="pc-plan">{plan.name}</div>
+                            <p className="pc-desc" style={{ minHeight: '44px' }}>{plan.description}</p>
+                            
+                            <div className="pc-price">
+                              <span className="pc-cur">₦</span>
+                              <span className="pc-num">{currentPrice.toLocaleString()}</span>
+                              <span className="pc-per">{displayPeriod}</span>
+                            </div>
+                            
+                            <div className="pc-strike">
+                              Was ₦{strikeOutPrice.toLocaleString()}{displayPeriod} — Save ₦{(strikeOutPrice - currentPrice).toLocaleString()}
+                            </div>
+
+                            <ul className="pc-list">
+                              {plan.features.map((feat, fIdx) => (
+                                <li key={fIdx}>
+                                  <span className="pc-check">✓</span>
+                                  <div>{feat}</div>
+                                </li>
+                              ))}
+                            </ul>
+
+                            {/* View details toggle in-place */}
+                            <button 
+                              className="pricing-card-details-btn"
+                              onClick={() => setExpandedPlans(prev => ({ ...prev, [index]: !prev[index] }))}
+                            >
+                              <span>{isExpanded ? "Hide Detailed Features" : "View Detailed Features"}</span>
+                              <span style={{ transform: isExpanded ? "rotate(180deg)" : "none", display: "inline-block", transition: "transform 0.2s" }}>▼</span>
+                            </button>
+
+                            {/* In-place Accordion Content */}
+                            {isExpanded && (
+                              <div className="pc-accordion-container" style={{ marginBottom: '20px' }}>
+                                {plan.detailedFeatures.map((cat, catIdx) => (
+                                  <div className="pc-accordion-section" key={catIdx}>
+                                    <span className="pc-accordion-cat">{cat.category}</span>
+                                    <ul className="pc-accordion-list">
+                                      {cat.list.map((item, itemIdx) => (
+                                        <li key={itemIdx}>
+                                          <span className="pc-accordion-bullet">•</span>
+                                          <span>{item}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <motion.button 
+                              className="btn btn-primary" 
+                              style={{ width: '100%', padding: '15px', fontSize: '15px', marginTop: 'auto' }} 
+                              onClick={() => goto('contact')}
+                              whileHover={{ scale: 1.02, translateY: -2 }}
+                              whileTap={{ scale: 0.98 }}
+                            >
+                              Get Started with {plan.name}
+                            </motion.button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile/Tablet Swiper Controls */}
+              <div className="pricing-navigation lg:hidden">
+                <button className="pricing-nav-btn" onClick={() => setActivePlanIndex(prev => prev > 0 ? prev - 1 : PRICING_PLANS.length - 1)}>
+                  ←
+                </button>
+                <div className="pricing-dots">
+                  {PRICING_PLANS.map((_, index) => (
+                    <button 
+                      key={index} 
+                      className={`pricing-dot ${activePlanIndex === index ? "active" : ""}`}
+                      onClick={() => setActivePlanIndex(index)}
+                    />
+                  ))}
+                </div>
+                <button className="pricing-nav-btn" onClick={() => setActivePlanIndex(prev => prev < PRICING_PLANS.length - 1 ? prev + 1 : 0)}>
+                  →
+                </button>
+              </div>
+
+              {/* Compare Matrix Button */}
+              <div className="compare-matrix-btn-container">
+                <button className="compare-matrix-btn" onClick={() => setShowComparisonModal(true)}>
+                  📋 Compare All Plan Features
+                </button>
+              </div>
+
+              {/* Guarantee Box */}
+              <motion.div 
+                className="guarantee-box"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.6 }}
+                style={{ marginTop: '36px' }}
+              >
                 <div className="gb-title">🛡️ 30-Day Zero-Risk Guarantee</div>
                 <p className="gb-body">If NexaStoreOS doesn't save you more than it costs in the first 30 days, we refund every kobo — no questions asked.</p>
-              </div>
+              </motion.div>
+
+              {/* Detailed Comparison Modal */}
+              <AnimatePresence>
+                {showComparisonModal && (
+                  <motion.div 
+                    className="comparison-modal-backdrop" 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowComparisonModal(false)}
+                  >
+                    <motion.div 
+                      className="comparison-modal" 
+                      initial={{ scale: 0.95, y: 20 }}
+                      animate={{ scale: 1, y: 0 }}
+                      exit={{ scale: 0.95, y: 20 }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <div className="comparison-modal-header">
+                        <div>
+                          <h3 className="font-sans font-bold text-xl text-slate-900" style={{ fontSize: '20px', fontWeight: 800 }}>Plan Comparison Matrix</h3>
+                          <p className="text-xs text-slate-500 mt-1">Detailed feature-by-feature comparison across all tiers</p>
+                        </div>
+                        <button className="comparison-modal-close" onClick={() => setShowComparisonModal(false)}>
+                          ✕
+                        </button>
+                      </div>
+                      <div className="comparison-modal-body">
+                        <div style={{ overflowX: "auto" }}>
+                          <table className="comparison-table">
+                            <thead>
+                              <tr>
+                                <th>Feature Capability</th>
+                                <th>Basic (₦6,500)</th>
+                                <th>Pro (₦12,000)</th>
+                                <th>Enterprise (₦45,000)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr>
+                                <td className="font-medium text-slate-900" style={{ fontWeight: 600 }}>Physical Store Locations</td>
+                                <td>1 Location</td>
+                                <td className="font-semibold text-blue-600" style={{ color: 'var(--blue)', fontWeight: 600 }}>Up to 3 Locations</td>
+                                <td className="font-semibold text-purple-600" style={{ color: 'var(--violet)', fontWeight: 600 }}>Unlimited Locations</td>
+                              </tr>
+                              <tr>
+                                <td className="font-medium text-slate-900" style={{ fontWeight: 600 }}>Product SKU Capacity</td>
+                                <td>Up to 500 SKUs</td>
+                                <td className="font-semibold text-blue-600" style={{ color: 'var(--blue)', fontWeight: 600 }}>Unlimited SKUs</td>
+                                <td className="font-semibold text-purple-600" style={{ color: 'var(--violet)', fontWeight: 600 }}>Unlimited SKUs</td>
+                              </tr>
+                              <tr>
+                                <td className="font-medium text-slate-900" style={{ fontWeight: 600 }}>WhatsApp Shift summaries</td>
+                                <td>8 AM Summary</td>
+                                <td className="font-semibold text-blue-600" style={{ color: 'var(--blue)', fontWeight: 600 }}>8 AM &amp; 8 PM Summaries</td>
+                                <td className="font-semibold text-purple-600" style={{ color: 'var(--violet)', fontWeight: 600 }}>Custom Scheduled summaries</td>
+                              </tr>
+                              <tr>
+                                <td className="font-medium text-slate-900" style={{ fontWeight: 600 }}>Real-Time Sale Alerts</td>
+                                <td><span className="comparison-checkmark">✓</span></td>
+                                <td><span className="comparison-checkmark">✓</span></td>
+                                <td><span className="comparison-checkmark">✓</span></td>
+                              </tr>
+                              <tr>
+                                <td className="font-medium text-slate-900" style={{ fontWeight: 600 }}>Multi-Branch Sync &amp; Net Valuation</td>
+                                <td><span className="comparison-dash">—</span></td>
+                                <td><span className="comparison-checkmark">✓</span></td>
+                                <td><span className="comparison-checkmark">✓</span></td>
+                              </tr>
+                              <tr>
+                                <td className="font-medium text-slate-900" style={{ fontWeight: 600 }}>Customer Debt Tracker &amp; Reminders</td>
+                                <td><span className="comparison-dash">—</span></td>
+                                <td><span className="comparison-checkmark">✓</span></td>
+                                <td><span className="comparison-checkmark">✓</span></td>
+                              </tr>
+                              <tr>
+                                <td className="font-medium text-slate-900" style={{ fontWeight: 600 }}>Dedicated Priority Partner</td>
+                                <td><span className="comparison-dash">—</span></td>
+                                <td><span className="comparison-checkmark">✓</span></td>
+                                <td><span className="comparison-checkmark">✓</span></td>
+                              </tr>
+                              <tr>
+                                <td className="font-medium text-slate-900" style={{ fontWeight: 600 }}>AI Demand Forecasting</td>
+                                <td><span className="comparison-dash">—</span></td>
+                                <td><span className="comparison-dash">—</span></td>
+                                <td><span className="comparison-checkmark">✓</span></td>
+                              </tr>
+                              <tr>
+                                <td className="font-medium text-slate-900" style={{ fontWeight: 600 }}>SLA-Backed 99.9% Uptime</td>
+                                <td><span className="comparison-dash">—</span></td>
+                                <td><span className="comparison-dash">—</span></td>
+                                <td><span className="comparison-checkmark">✓</span></td>
+                              </tr>
+                              <tr>
+                                <td className="font-medium text-slate-900" style={{ fontWeight: 600 }}>Custom POS Hardware API Integration</td>
+                                <td><span className="comparison-dash">—</span></td>
+                                <td><span className="comparison-dash">—</span></td>
+                                <td><span className="comparison-checkmark">✓</span></td>
+                              </tr>
+                              <tr>
+                                <td className="font-medium text-slate-900" style={{ fontWeight: 600 }}>On-Ground Implementation Setup</td>
+                                <td>Standard Self-serve</td>
+                                <td>Priority migration assistance</td>
+                                <td>White-glove deployment &amp; staff training</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </section>
 
@@ -649,13 +1319,23 @@ function LandingPage() {
               <button className="btn btn-ghost" onClick={() => handleTryDemo()}>Try Local Demo →</button>
             </div>
           </section>
-        </div>
+        </motion.div>
+      )}
 
 
         {/* ═══════════════════════════════
              PRODUCT PAGE
         ═══════════════════════════════ */}
-        <div className={`page ${activePage === 'product' ? 'show' : ''}`} id="p-product">
+          {activePage === 'product' && (
+            <motion.div
+              key="product"
+              className="page show"
+              id="p-product"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.35, ease: "easeInOut" }}
+            >
           <section className="page-hero section">
             <div className="rv">
               <div className="eyebrow ey-teal" style={{ justifyContent: 'center' }}><span className="ey-dot"></span>Product</div>
@@ -702,13 +1382,23 @@ function LandingPage() {
               <button className="btn btn-ghost" onClick={() => handleTryDemo()}>Try Local Demo →</button>
             </div>
           </section>
-        </div>
+        </motion.div>
+      )}
 
 
         {/* ═══════════════════════════════
              HOW IT WORKS PAGE
         ═══════════════════════════════ */}
-        <div className={`page ${activePage === 'hiw' ? 'show' : ''}`} id="p-hiw">
+          {activePage === 'hiw' && (
+            <motion.div
+              key="hiw"
+              className="page show"
+              id="p-hiw"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.35, ease: "easeInOut" }}
+            >
           <section className="page-hero section">
             <div className="rv">
               <div className="eyebrow ey-green" style={{ justifyContent: 'center' }}><span className="ey-dot"></span>How It Works</div>
@@ -748,13 +1438,23 @@ function LandingPage() {
               <button className="btn btn-ghost" onClick={() => goto('product')}>See All Features →</button>
             </div>
           </section>
-        </div>
+        </motion.div>
+      )}
 
 
         {/* ═══════════════════════════════
              ABOUT PAGE
         ═══════════════════════════════ */}
-        <div className={`page ${activePage === 'about' ? 'show' : ''}`} id="p-about">
+          {activePage === 'about' && (
+            <motion.div
+              key="about"
+              className="page show"
+              id="p-about"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.35, ease: "easeInOut" }}
+            >
           <section className="page-hero section">
             <div className="rv">
               <div className="eyebrow ey-blue" style={{ justifyContent: 'center' }}><span className="ey-dot"></span>About Us</div>
@@ -824,13 +1524,23 @@ function LandingPage() {
               <button className="btn btn-ghost" onClick={() => window.location.href = "tel:09038026109"}>📞 Call Now →</button>
             </div>
           </section>
-        </div>
+        </motion.div>
+      )}
 
 
         {/* ═══════════════════════════════
              CONTACT PAGE
         ═══════════════════════════════ */}
-        <div className={`page ${activePage === 'contact' ? 'show' : ''}`} id="p-contact">
+          {activePage === 'contact' && (
+            <motion.div
+              key="contact"
+              className="page show"
+              id="p-contact"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.35, ease: "easeInOut" }}
+            >
           <section className="page-hero section">
             <div className="rv wrap-xs">
               <div className="eyebrow ey-blue" style={{ justifyContent: 'center' }}><span className="ey-dot"></span>Contact Us</div>
@@ -940,7 +1650,9 @@ function LandingPage() {
               <button className="btn btn-ghost" onClick={() => handleTryDemo()}>Try Local Demo →</button>
             </div>
           </section>
-        </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
 
 
         {/* ═══ ANIMATED FOOTER ═══ */}

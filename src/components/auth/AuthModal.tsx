@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,15 @@ export function AuthModal({ isOpen, onClose, defaultTab = "login" }: AuthModalPr
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
+
+  const inviteStoreName = sessionStorage.getItem("nexa_invite_storeName");
+  const inviteRole = sessionStorage.getItem("nexa_invite_role");
+
+  useEffect(() => {
+    if (isOpen) {
+      setTab(defaultTab);
+    }
+  }, [isOpen, defaultTab]);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -198,6 +207,12 @@ export function AuthModal({ isOpen, onClose, defaultTab = "login" }: AuthModalPr
                 : "Get started with Nexa OS and scale your business"}
           </DialogDescription>
         </DialogHeader>
+
+        {inviteStoreName && (
+          <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-600 dark:text-emerald-400 text-center -mt-2 mb-2">
+            You have been added to <strong>{inviteStoreName}</strong> as {inviteRole === "admin" ? "an Admin" : "an Inventory Manager"}. Please <strong>Login</strong> with the email and temporary password provided by your store administrator.
+          </div>
+        )}
 
         {isForgotPassword ? (
           <form onSubmit={handleResetPassword} className="space-y-4 mt-6">

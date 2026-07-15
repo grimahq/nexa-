@@ -9,10 +9,13 @@ import { User, Mail, Shield, Calendar, Lock, KeyRound, Save } from "lucide-react
 import { toast } from "sonner";
 
 export function ProfileSettings() {
-  const { profile, updateProfileName, sendPasswordReset, updateUserPassword } = useAuth();
+  const { profile, updateProfileName, updateProfileDescription, sendPasswordReset, updateUserPassword } = useAuth();
   
   const [name, setName] = useState("");
   const [isSavingName, setIsSavingName] = useState(false);
+  
+  const [description, setDescription] = useState("");
+  const [isSavingDescription, setIsSavingDescription] = useState(false);
   
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -22,10 +25,23 @@ export function ProfileSettings() {
   useEffect(() => {
     if (profile) {
       setName(profile.name || "");
+      setDescription(profile.description || "");
     }
   }, [profile]);
 
   if (!profile) return null;
+
+  const handleSaveDescription = async () => {
+    setIsSavingDescription(true);
+    try {
+      await updateProfileDescription(description);
+    } catch (error) {
+      const err = error as Error;
+      toast.error(err.message || "Failed to update biography");
+    } finally {
+      setIsSavingDescription(false);
+    }
+  };
 
   const handleSaveName = async () => {
     if (!name.trim()) {
@@ -153,6 +169,30 @@ export function ProfileSettings() {
                 disabled 
                 className="bg-muted/30"
               />
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-4 border-t border-border">
+            <Label htmlFor="bio" className="flex items-center gap-2 text-sm font-semibold">
+              Personal Biography & Shift Description
+            </Label>
+            <p className="text-xs text-muted-foreground">Describe your role, typical shifts, qualifications, or personal notes to share with other admins.</p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <textarea
+                id="bio"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Write a short description about yourself, your qualifications, typical work shifts..."
+                className="flex-1 min-h-[100px] rounded-lg border bg-background p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <Button 
+                onClick={handleSaveDescription} 
+                disabled={isSavingDescription || description === (profile.description || "")}
+                className="sm:self-end flex items-center gap-1.5 h-10 px-4"
+              >
+                <Save className="h-4 w-4" />
+                {isSavingDescription ? "Saving..." : "Save Bio"}
+              </Button>
             </div>
           </div>
         </CardContent>

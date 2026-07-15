@@ -143,7 +143,7 @@ export function SalesCart({ open, onOpenChange, items, onAdd, onRemove, onClear 
                       <button
                         type="button"
                         onClick={() => onAdd(ci.item.id)}
-                        disabled={ci.quantity >= ci.item.currentStock}
+                        disabled={!ci.item.restaurant && ci.quantity >= ci.item.currentStock}
                         className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-primary/10 hover:text-primary disabled:opacity-30 transition-colors"
                       >
                         <Plus className="h-3.5 w-3.5" />

@@ -21,6 +21,9 @@ import {
 } from "@/components/ui/dialog";
 import { QRCodeSVG } from "qrcode.react";
 import { resolvePrice } from "@/utils/pricing";
+import { useFirebaseOffline } from "@/lib/firebase";
+import { toast } from "sonner";
+import { Wifi, WifiOff } from "lucide-react";
 
 const NAIRA = "₦";
 const USD_TO_NGN = 1;
@@ -36,6 +39,28 @@ type StepId = (typeof STEPS)[number]["id"];
 export function SalesGrid() {
   const { data: items } = useItems();
   const { isDemo, onboarding: demoOnboarding } = useDemo();
+  
+  const offline = useFirebaseOffline();
+  const [isForcedOffline, setIsForcedOffline] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("nexa_force_offline") === "true";
+    }
+    return false;
+  });
+
+  const toggleForceOffline = () => {
+    const nextVal = !isForcedOffline;
+    setIsForcedOffline(nextVal);
+    if (nextVal) {
+      localStorage.setItem("nexa_force_offline", "true");
+      toast.warning("Forced offline mode activated. Sales will save locally and sync when you toggle online.");
+    } else {
+      localStorage.removeItem("nexa_force_offline");
+      toast.success("Online mode restored. Syncing with cloud database...");
+    }
+    // Trigger custom event so other listeners can update instantly
+    window.dispatchEvent(new Event("nexa-offline-toggle"));
+  };
   const { settings: liveSettings } = useSystemSettings();
   const onboarding = isDemo ? demoOnboarding : liveSettings;
   const isRestaurant = onboarding?.businessType === "restaurant";
@@ -248,31 +273,65 @@ export function SalesGrid() {
             <p className="text-[10px] text-muted-foreground mt-0.5">Nexa Retail & Restaurant Hub</p>
           </div>
           
-          <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setPosMode("standard")}
-              className={cn(
-                "px-3 py-1 text-xs font-bold rounded-lg transition-all",
-                posMode === "standard" 
-                  ? "bg-background text-foreground shadow-sm" 
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Catalogue
-            </button>
-            <button
-              type="button"
-              onClick={() => setPosMode("quickscan")}
-              className={cn(
-                "px-3 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1",
-                posMode === "quickscan" 
-                  ? "bg-background text-foreground shadow-sm" 
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <span>Quick Scan ⚡</span>
-            </button>
+          <div className="flex items-center gap-2">
+            {!isDemo ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={toggleForceOffline}
+                className={cn(
+                  "h-8 gap-1.5 rounded-xl text-xs font-semibold border-2 cursor-pointer transition-all duration-200",
+                  offline 
+                    ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50" 
+                    : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50"
+                )}
+                title={isForcedOffline ? "Click to Go Online" : "Click to Force Offline Mode"}
+              >
+                {offline ? (
+                  <>
+                    <WifiOff className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
+                    <span>Offline {isForcedOffline && "(Forced)"}</span>
+                  </>
+                ) : (
+                  <>
+                    <Wifi className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Online</span>
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Badge variant="outline" className="h-8 border-amber-200 text-amber-700 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400 font-bold rounded-xl px-2.5">
+                Demo Playfield
+              </Badge>
+            )}
+
+            <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setPosMode("standard")}
+                className={cn(
+                  "px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer",
+                  posMode === "standard" 
+                    ? "bg-background text-foreground shadow-sm" 
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Catalogue
+              </button>
+              <button
+                type="button"
+                onClick={() => setPosMode("quickscan")}
+                className={cn(
+                  "px-3 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer",
+                  posMode === "quickscan" 
+                    ? "bg-background text-foreground shadow-sm" 
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <span>Quick Scan ⚡</span>
+              </button>
+            </div>
           </div>
 
           {totalItems > 0 && step === "browse" && posMode === "standard" && (
@@ -460,7 +519,7 @@ export function SalesGrid() {
 
         {/* Step tabs */}
         {posMode === "standard" && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 lg:hidden">
             {STEPS.map((s, i) => (
               <button
                 key={s.id}
@@ -496,50 +555,99 @@ export function SalesGrid() {
           <SalesQuickScanCheckout />
         ) : (
           <>
-            {step === "browse" && (
-              <SalesStepBrowse cart={cart} onAdd={addToCart} onRemove={removeFromCart} />
-            )}
-            {step === "cart" && (
-              <SalesStepCart
-                items={cartItems}
-                onAdd={addToCart}
-                onRemove={removeFromCart}
-                onClear={() => {
-                  setCart(new Map());
-                  setPriceOverrides(new Map());
-                }}
-                onNext={() => setStep("checkout")}
-                packagingFee={packagingFee}
-                estimatedReadyTime={estimatedReadyTime}
-                pricingMode={onboarding?.pricingMode || "single"}
-                activeTier={activeTier}
-                onChangeTier={setActiveTier}
-                onOverridePrice={(key, price) => {
-                  setPriceOverrides((prev) => {
-                    const next = new Map(prev);
-                    next.set(key, price);
-                    return next;
-                  });
-                }}
-              />
-            )}
-            {step === "checkout" && (
-              <SalesStepCheckout 
-                items={cartItems} 
-                onComplete={handleComplete} 
-                diningMode={diningMode}
-                tableNumber={tableNumber}
-                packagingFee={packagingFee}
-                estimatedReadyTime={estimatedReadyTime}
-              />
-            )}
+            {/* Desktop Side-by-Side View */}
+            <div className="hidden lg:grid lg:grid-cols-5 lg:h-full lg:divide-x lg:divide-border overflow-hidden">
+              {/* Left Column: Product Catalog */}
+              <div className="lg:col-span-3 flex flex-col overflow-hidden h-full">
+                <SalesStepBrowse cart={cart} onAdd={addToCart} onRemove={removeFromCart} />
+              </div>
+              
+              {/* Right Column: Interactive Cart Review / Billing Checkout */}
+              <div className="lg:col-span-2 flex flex-col overflow-hidden h-full bg-card">
+                {step === "checkout" ? (
+                  <SalesStepCheckout 
+                    items={cartItems} 
+                    onComplete={handleComplete} 
+                    diningMode={diningMode}
+                    tableNumber={tableNumber}
+                    packagingFee={packagingFee}
+                    estimatedReadyTime={estimatedReadyTime}
+                    onBack={() => setStep("cart")}
+                  />
+                ) : (
+                  <SalesStepCart
+                    items={cartItems}
+                    onAdd={addToCart}
+                    onRemove={removeFromCart}
+                    onClear={() => {
+                      setCart(new Map());
+                      setPriceOverrides(new Map());
+                    }}
+                    onNext={() => setStep("checkout")}
+                    packagingFee={packagingFee}
+                    estimatedReadyTime={estimatedReadyTime}
+                    pricingMode={onboarding?.pricingMode || "single"}
+                    activeTier={activeTier}
+                    onChangeTier={setActiveTier}
+                    onOverridePrice={(key, price) => {
+                      setPriceOverrides((prev) => {
+                        const next = new Map(prev);
+                        next.set(key, price);
+                        return next;
+                      });
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Mobile / Tablet Wizard View */}
+            <div className="flex-1 overflow-hidden flex flex-col lg:hidden">
+              {step === "browse" && (
+                <SalesStepBrowse cart={cart} onAdd={addToCart} onRemove={removeFromCart} />
+              )}
+              {step === "cart" && (
+                <SalesStepCart
+                  items={cartItems}
+                  onAdd={addToCart}
+                  onRemove={removeFromCart}
+                  onClear={() => {
+                    setCart(new Map());
+                    setPriceOverrides(new Map());
+                  }}
+                  onNext={() => setStep("checkout")}
+                  packagingFee={packagingFee}
+                  estimatedReadyTime={estimatedReadyTime}
+                  pricingMode={onboarding?.pricingMode || "single"}
+                  activeTier={activeTier}
+                  onChangeTier={setActiveTier}
+                  onOverridePrice={(key, price) => {
+                    setPriceOverrides((prev) => {
+                      const next = new Map(prev);
+                      next.set(key, price);
+                      return next;
+                    });
+                  }}
+                />
+              )}
+              {step === "checkout" && (
+                <SalesStepCheckout 
+                  items={cartItems} 
+                  onComplete={handleComplete} 
+                  diningMode={diningMode}
+                  tableNumber={tableNumber}
+                  packagingFee={packagingFee}
+                  estimatedReadyTime={estimatedReadyTime}
+                />
+              )}
+            </div>
           </>
         )}
       </div>
 
       {/* Bottom navigation between steps */}
       {posMode === "standard" && step !== "browse" && (
-        <div className="border-t border-border bg-card px-4 py-3 flex items-center gap-3">
+        <div className="border-t border-border bg-card px-4 py-3 flex items-center gap-3 lg:hidden">
           <Button
             variant="outline"
             size="sm"

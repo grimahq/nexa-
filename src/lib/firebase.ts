@@ -1,26 +1,54 @@
 import { useState, useEffect } from 'react';
 
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { 
   doc, 
   getDocFromServer, 
   initializeFirestore,
   setLogLevel,
+  enableMultiTabIndexedDbPersistence,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase as a singleton
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 // Mute verbose Firestore logs and warnings because we handle offline mode gracefully
 setLogLevel('error');
 
-// Initialize Firestore with forceLongPolling to avoid connection issues (unavailable error) and ignore undefined values
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  ignoreUndefinedProperties: true,
-}, firebaseConfig.firestoreDatabaseId);
+// Initialize Firestore as a singleton and store it on the global window object in browser environments to prevent duplicate initialization during HMR/reloads
+let dbInstance;
+let isPersistenceInitialized = false;
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+if (typeof window !== 'undefined') {
+  if ((window as any).__firebase_db) {
+    dbInstance = (window as any).__firebase_db;
+    isPersistenceInitialized = true;
+  } else {
+    dbInstance = initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+      ignoreUndefinedProperties: true,
+    }, firebaseConfig.firestoreDatabaseId);
+    (window as any).__firebase_db = dbInstance;
+  }
+} else {
+  dbInstance = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+    ignoreUndefinedProperties: true,
+  }, firebaseConfig.firestoreDatabaseId);
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+export const db = dbInstance;
+
+// Enable offline IndexedDB persistence with multi-tab sync for high speed local caching and offline capabilities (only run once)
+if (typeof window !== 'undefined' && !isPersistenceInitialized) {
+  enableMultiTabIndexedDbPersistence(db).catch((err) => {
+    console.warn("Nexa OS Info: Multi-tab persistence initialization skipped/restricted:", err.message);
+  });
+}
 
 export const auth = getAuth();
 
@@ -157,9 +185,33 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 }
 
 export function useFirebaseOffline() {
-  const [offline, setOffline] = useState(isFirebaseOffline);
+  const [offline, setOffline] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("nexa_force_offline") === "true" || isFirebaseOffline;
+    }
+    return isFirebaseOffline;
+  });
+
   useEffect(() => {
-    return onConnectivityChange(setOffline);
+    const checkState = () => {
+      const forced = typeof window !== "undefined" && localStorage.getItem("nexa_force_offline") === "true";
+      setOffline(forced || isFirebaseOffline);
+    };
+
+    window.addEventListener("storage", checkState);
+    window.addEventListener("nexa-offline-toggle", checkState);
+
+    const unsub = onConnectivityChange((offlineVal) => {
+      const forced = typeof window !== "undefined" && localStorage.getItem("nexa_force_offline") === "true";
+      setOffline(forced || offlineVal);
+    });
+
+    return () => {
+      window.removeEventListener("storage", checkState);
+      window.removeEventListener("nexa-offline-toggle", checkState);
+      unsub();
+    };
   }, []);
+
   return offline;
 }

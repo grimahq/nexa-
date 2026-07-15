@@ -52,6 +52,7 @@ export function SalesStepCart({
 
   // Core stock guard utility for cart review phase
   const getAvailableTargetQty = useCallback((item: Item, targetUnitId: string) => {
+    if (item.restaurant) return 999999;
     let consumedBaseUnits = 0;
     items.forEach((ci) => {
       if (ci.item.id === item.id) {

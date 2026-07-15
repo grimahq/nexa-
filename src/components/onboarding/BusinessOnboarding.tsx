@@ -28,6 +28,7 @@ import { BulkProductEntry, type PendingProduct } from "./BulkProductEntry";
 
 const BUSINESS_TYPES = [
   { id: "retail", label: "Retail / POS", icon: Store, description: "Physical store selling to customers" },
+  { id: "electronics", label: "Phones & Accessories", icon: Smartphone, description: "Mobile devices, tablets & accessories" },
   { id: "restaurant", label: "Restaurant / Food", icon: UtensilsCrossed, description: "Food service with menu items" },
   { id: "agriculture", label: "Agriculture", icon: Sprout, description: "Farm products, grains, and livestock" },
   { id: "social_commerce", label: "Online Vendor", icon: Smartphone, description: "Sell on WhatsApp and Facebook" },
@@ -46,6 +47,16 @@ const CATEGORY_MAP: Record<string, { id: string; label: string; emoji: string; s
     { id: "beauty", label: "Beauty & Health", emoji: "💄", supportedUnits: ["pcs", "pack", "bottle"] },
     { id: "home", label: "Home & Living", emoji: "🏠", supportedUnits: ["pcs", "pack"] },
     { id: "sports", label: "Sports & Fitness", emoji: "⚽", supportedUnits: ["pcs", "pack"] },
+  ],
+  electronics: [
+    { id: "devices", label: "Devices (Phones/Tablets)", emoji: "📱", supportedUnits: ["pcs"] },
+    { id: "accessories", label: "Accessories", emoji: "🔌", supportedUnits: ["pcs", "pack"] },
+    { id: "cases", label: "Cases & Covers", emoji: "🛡️", supportedUnits: ["pcs"] },
+    { id: "chargers", label: "Chargers & Cables", emoji: "⚡", supportedUnits: ["pcs", "pack"] },
+    { id: "audio", label: "Earphones & Audio", emoji: "🎧", supportedUnits: ["pcs"] },
+    { id: "protection", label: "Screen Protectors", emoji: "💎", supportedUnits: ["pcs"] },
+    { id: "powerbanks", label: "Power Banks", emoji: "🔋", supportedUnits: ["pcs"] },
+    { id: "repairs", label: "Repair Parts", emoji: "🛠️", supportedUnits: ["pcs", "pack"] },
   ],
   restaurant: [
     { id: "proteins", label: "Proteins & Meat", emoji: "🥩", supportedUnits: ["kg", "g", "portion", "plate", "bowl"] },
@@ -165,6 +176,7 @@ interface BusinessOnboardingProps {
     brandColor: string;
     moniepointKey?: string;
     storeSlug?: string;
+    electronicsMainType?: "devices" | "accessories" | "both";
     initialItems?: PendingProduct[];
   }) => void;
   onSkip: () => void;
@@ -186,6 +198,7 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
     }
   }, []);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  const [electronicsMainType, setElectronicsMainType] = useState<"devices" | "accessories" | "both" | null>(null);
   const [entryMethod, setEntryMethod] = useState<"camera" | "manual" | "skip" | "excel">("manual");
   const [pendingProducts, setPendingProducts] = useState<PendingProduct[]>([
     { id: "1", name: "", price: "", stock: "", unit: "pcs" },
@@ -209,6 +222,8 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
       if (selectedBusiness === "social_commerce") {
         setStoreSlug(storeName.toLowerCase().replace(/[^a-z0-9]/g, "-"));
         setStep(25); // Step 2.5: Online Store Config
+      } else if (selectedBusiness === "electronics") {
+        setStep(28); // Electronics Clarifying Question
       } else {
         setStep(3);
         setSelectedCategories(new Set());
@@ -245,6 +260,7 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
         brandColor,
         moniepointKey,
         storeSlug,
+        electronicsMainType: selectedBusiness === "electronics" ? electronicsMainType : undefined,
         initialItems: pendingProducts
           .filter(p => p.name.trim() !== "")
           .map(p => ({
@@ -269,10 +285,13 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
       >
         {/* Progress */}
         <div className="mb-6 flex items-center gap-2">
-          {[0, 1, 2, 25, 3, 3.5, 4].map((i) => {
+          {[0, 1, 2, 25, 28, 3, 3.5, 4].map((i) => {
             if (i === 25 && selectedBusiness !== "social_commerce") return null;
+            if (i === 28 && selectedBusiness !== "electronics") return null;
             let active = false;
             if (i === 25) {
+              active = step > 2;
+            } else if (i === 28) {
               active = step > 2;
             } else if (i === 3.5) {
               active = step >= 3.5;
@@ -470,6 +489,116 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
             </motion.div>
           )}
 
+          {/* Step 28: Electronics Clarifying Question */}
+          {step === 28 && (
+            <motion.div
+              key="step-28"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-5"
+            >
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Do you sell mainly devices, accessories, or both?</h2>
+                <p className="mt-1 text-sm text-muted-foreground">This helps us pre-populate your product categories and bulk entry templates.</p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                {[
+                  { id: "devices", label: "Mainly Devices", description: "Phones, Tablets, Wearables, etc." },
+                  { id: "accessories", label: "Mainly Accessories", description: "Cases, Chargers, Earphones, Screen Protectors, etc." },
+                  { id: "both", label: "Both Devices & Accessories", description: "A balanced mix of both electronics and accessories." }
+                ].map((item) => {
+                  const isSelected = electronicsMainType === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setElectronicsMainType(item.id as "devices" | "accessories" | "both")}
+                      className={cn(
+                        "w-full text-left flex flex-col gap-1 rounded-xl border p-4 transition-all duration-200 cursor-pointer select-none",
+                        isSelected
+                          ? "shadow-sm border-primary bg-primary/5"
+                          : "border-border hover:border-primary/40 hover:bg-accent/10"
+                      )}
+                      style={
+                        isSelected ? { 
+                          borderColor: brandColor, 
+                          backgroundColor: `${brandColor}0a` 
+                        } : {}
+                      }
+                    >
+                      <span className="font-semibold text-sm text-foreground">{item.label}</span>
+                      <span className="text-xs text-muted-foreground">{item.description}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <Button variant="ghost" onClick={() => setStep(2)} className="gap-1.5">
+                  <ArrowLeft className="h-4 w-4" /> Back
+                </Button>
+                <Button 
+                  onClick={() => {
+                    const cats = new Set<string>();
+                    if (electronicsMainType === "devices") {
+                      cats.add("devices");
+                      cats.add("audio");
+                    } else if (electronicsMainType === "accessories") {
+                      cats.add("accessories");
+                      cats.add("cases");
+                      cats.add("chargers");
+                      cats.add("audio");
+                      cats.add("protection");
+                      cats.add("powerbanks");
+                    } else {
+                      cats.add("devices");
+                      cats.add("accessories");
+                      cats.add("cases");
+                      cats.add("chargers");
+                      cats.add("audio");
+                      cats.add("protection");
+                      cats.add("powerbanks");
+                      cats.add("repairs");
+                    }
+                    setSelectedCategories(cats);
+
+                    let templates: PendingProduct[] = [];
+                    if (electronicsMainType === "devices") {
+                      templates = [
+                        { id: "1", name: "iPhone 15 Pro (128GB)", price: "1200000", stock: "5", unit: "pcs", categoryId: "devices" },
+                        { id: "2", name: "Samsung Galaxy S24 Ultra", price: "1450000", stock: "4", unit: "pcs", categoryId: "devices" },
+                        { id: "3", name: "iPad Air M2 (Wifi)", price: "750000", stock: "3", unit: "pcs", categoryId: "devices" },
+                      ];
+                    } else if (electronicsMainType === "accessories") {
+                      templates = [
+                        { id: "1", name: "iPhone 15 Silicon Case", price: "15000", stock: "50", unit: "pcs", categoryId: "cases" },
+                        { id: "2", name: "USB-C 20W Fast Charger", price: "12000", stock: "100", unit: "pcs", categoryId: "chargers" },
+                        { id: "3", name: "AirPods Pro 2", price: "250000", stock: "10", unit: "pcs", categoryId: "audio" },
+                        { id: "4", name: "Tempered Glass Screen Protector", price: "5000", stock: "120", unit: "pcs", categoryId: "protection" },
+                      ];
+                    } else {
+                      templates = [
+                        { id: "1", name: "iPhone 15 Pro (128GB)", price: "1200000", stock: "5", unit: "pcs", categoryId: "devices" },
+                        { id: "2", name: "iPhone 15 Silicon Case", price: "15000", stock: "50", unit: "pcs", categoryId: "cases" },
+                        { id: "3", name: "USB-C 20W Fast Charger", price: "12000", stock: "100", unit: "pcs", categoryId: "chargers" },
+                        { id: "4", name: "AirPods Pro 2", price: "250000", stock: "10", unit: "pcs", categoryId: "audio" },
+                      ];
+                    }
+                    setPendingProducts(templates);
+                    setStep(3);
+                  }} 
+                  disabled={!electronicsMainType} 
+                  className="gap-1.5" 
+                  style={{ backgroundColor: brandColor, color: "#fff" }}
+                >
+                  Next <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
           {/* Step 3: Categories */}
           {step === 3 && (
             <motion.div
@@ -505,7 +634,7 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
               </div>
 
               <div className="flex items-center justify-between pt-2">
-                <Button variant="ghost" onClick={() => setStep(2)} className="gap-1.5">
+                <Button variant="ghost" onClick={() => setStep(selectedBusiness === "electronics" ? 28 : 2)} className="gap-1.5">
                   <ArrowLeft className="h-4 w-4" /> Back
                 </Button>
                 <Button onClick={handleNext} disabled={selectedCategories.size === 0} className="gap-1.5" style={{ backgroundColor: brandColor, color: "#fff" }}>

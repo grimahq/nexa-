@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Package, CheckCircle2, AlertTriangle, XCircle, ChevronDown, DollarSign, Users, TrendingUp, ShoppingCart, TrendingDown, Receipt, Clock, Store, Plus, Send, ClipboardList, Settings as SettingsIcon, LayoutGrid, Search as SearchIcon, History, User, Sprout, Scissors } from "lucide-react";
 import { toast } from "sonner";
@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-import { useStockSummary, useSales, useExpenses, useRefunds, useItems, useMovements, useSuppliers } from "@/hooks/useInventoryData";
+import { useStockSummary, useSales, useExpenses, useRefunds, useItems, useMovements, useSuppliers, useAllCompanyItems } from "@/hooks/useInventoryData";
 import { useUsers } from "@/hooks/useUsers";
 import { useAlertGenerator } from "@/hooks/useStockAlertGenerator";
 import { useDemo } from "@/hooks/useDemo";
@@ -54,16 +54,16 @@ interface AccordionSectionProps {
 function AccordionSection({ id, title, openSection, onToggle, children, dataTour }: AccordionSectionProps) {
   const isOpen = openSection === id;
   return (
-    <div data-tour={dataTour} className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
+    <div data-tour={dataTour} className="rounded-xl border border-border bg-card shadow-xs overflow-hidden md:shadow-sm">
       <button
         type="button"
         onClick={() => onToggle(id)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-muted/50"
+        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-muted/50 md:cursor-default md:hover:bg-transparent"
       >
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", isOpen && "rotate-180")} />
+        <h2 className="text-sm font-semibold text-foreground md:text-base md:font-bold">{title}</h2>
+        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200 md:hidden", isOpen && "rotate-180")} />
       </button>
-      <div className={cn("transition-all duration-200 ease-in-out", isOpen ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0 overflow-hidden")}>
+      <div className={cn("transition-all duration-200 ease-in-out md:max-h-none md:opacity-100 md:block", isOpen ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0 overflow-hidden md:max-h-none md:opacity-100")}>
         <div className="px-4 pb-4">
           {children}
         </div>
@@ -82,7 +82,7 @@ export function DashboardPage() {
   const { data: summary } = useStockSummary();
   const { isDemo, onboarding: demoOnboarding } = useDemo();
   const { settings: liveSettings } = useSystemSettings();
-  const { isAdmin, isManager, role, stores, currentStoreId, members } = useRole();
+  const { isAdmin, isManager, role, stores, currentStoreId, members, setCurrentStoreId } = useRole();
   useAlertGenerator();
 
   const onboarding = isDemo ? demoOnboarding : liveSettings;
@@ -94,10 +94,86 @@ export function DashboardPage() {
   const { data: expenses, isLoading: expensesLoading } = useExpenses();
   const { data: refunds, isLoading: refundsLoading } = useRefunds();
   const { data: users, isLoading: usersLoading } = useUsers();
+  const { data: allCompanyItems, isLoading: allCompanyItemsLoading } = useAllCompanyItems();
 
-  const isLoading = itemsLoading || movementsLoading || suppliersLoading || salesLoading || expensesLoading || refundsLoading || usersLoading;
+  const isLoading = itemsLoading || movementsLoading || suppliersLoading || salesLoading || expensesLoading || refundsLoading || usersLoading || allCompanyItemsLoading;
 
   const currentStore = stores.find(s => s.id === currentStoreId);
+
+  // Multi-branch valuation math
+  const getStoreIdForItem = (item: { id: string }, storesList: { id: string }[]) => {
+    if (storesList.length === 0) return "";
+    let hash = 0;
+    for (let i = 0; i < item.id.length; i++) {
+      hash = item.id.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % storesList.length;
+    return storesList[index].id;
+  };
+
+  const valuationByStore = useMemo(() => {
+    const storeMap: Record<string, {
+      costValue: number;
+      retailValue: number;
+      uniqueSkus: number;
+      totalStock: number;
+    }> = {};
+
+    // Initialize all stores
+    stores.forEach(store => {
+      storeMap[store.id] = {
+        costValue: 0,
+        retailValue: 0,
+        uniqueSkus: 0,
+        totalStock: 0
+      };
+    });
+
+    // Populate data
+    allCompanyItems.forEach(item => {
+      const sId = isDemo ? getStoreIdForItem(item, stores) : item.storeId || currentStoreId;
+      
+      if (storeMap[sId]) {
+        const qty = item.currentStock || 0;
+        storeMap[sId].costValue += qty * (item.costPrice || 0);
+        storeMap[sId].retailValue += qty * (item.sellingPrice || 0);
+        storeMap[sId].uniqueSkus += 1;
+        storeMap[sId].totalStock += qty;
+      }
+    });
+
+    return storeMap;
+  }, [allCompanyItems, stores, isDemo, currentStoreId]);
+
+  // Aggregate stats
+  const brandValuation = useMemo(() => {
+    let totalCost = 0;
+    let totalRetail = 0;
+    let totalSkus = 0;
+    let totalStock = 0;
+
+    Object.values(valuationByStore).forEach(v => {
+      totalCost += v.costValue;
+      totalRetail += v.retailValue;
+      totalSkus += v.uniqueSkus;
+      totalStock += v.totalStock;
+    });
+
+    return {
+      totalCost,
+      totalRetail,
+      totalSkus,
+      totalStock,
+      potentialMargin: totalRetail - totalCost
+    };
+  }, [valuationByStore]);
+
+  const activeStoreValuation = valuationByStore[currentStoreId] || {
+    costValue: 0,
+    retailValue: 0,
+    uniqueSkus: 0,
+    totalStock: 0
+  };
 
   const tour = useOnboarding("dashboard");
   const { startTour } = tour;
@@ -354,6 +430,130 @@ export function DashboardPage() {
       <div className="space-y-3">
       {isAdmin && (
         <>
+          <AccordionSection id="valuation" title="Net Assets & Multi-Branch Valuation" openSection={openSection} onToggle={toggleSection}>
+            <div className="space-y-6">
+              {/* Brand Summary Cards */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="relative overflow-hidden rounded-xl border border-border bg-card p-5 pl-4 shadow-sm">
+                  <div className="absolute left-2 top-2 bottom-2 w-[3px] rounded-full bg-primary" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Brand Net Assets (Cost)</p>
+                  <div className="mt-1.5 flex items-baseline gap-1.5">
+                    <span className="font-sans text-xl font-extrabold text-foreground">
+                      {NAIRA}{brandValuation.totalCost.toLocaleString("en-NG")}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">Total cost across all branches</p>
+                </div>
+
+                <div className="relative overflow-hidden rounded-xl border border-border bg-card p-5 pl-4 shadow-sm">
+                  <div className="absolute left-2 top-2 bottom-2 w-[3px] rounded-full bg-green-500" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Brand Market Value (Retail)</p>
+                  <div className="mt-1.5 flex items-baseline gap-1.5">
+                    <span className="font-sans text-xl font-extrabold text-foreground">
+                      {NAIRA}{brandValuation.totalRetail.toLocaleString("en-NG")}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">Total selling price across all branches</p>
+                </div>
+
+                <div className="relative overflow-hidden rounded-xl border border-border bg-card p-5 pl-4 shadow-sm">
+                  <div className="absolute left-2 top-2 bottom-2 w-[3px] rounded-full bg-blue-500" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Active Store Valuation</p>
+                  <div className="mt-1.5 flex items-baseline gap-1.5">
+                    <span className="font-sans text-xl font-extrabold text-foreground">
+                      {NAIRA}{activeStoreValuation.costValue.toLocaleString("en-NG")}
+                    </span>
+                    <span className="text-[10px] font-semibold text-muted-foreground">Cost</span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">Current store/branch selection assets</p>
+                </div>
+
+                <div className="relative overflow-hidden rounded-xl border border-border bg-card p-5 pl-4 shadow-sm">
+                  <div className="absolute left-2 top-2 bottom-2 w-[3px] rounded-full bg-purple-500" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Est. Portfolio Profit Margin</p>
+                  <div className="mt-1.5 flex items-baseline gap-1.5">
+                    <span className="font-sans text-xl font-extrabold text-green-600 dark:text-green-400">
+                      {NAIRA}{brandValuation.potentialMargin.toLocaleString("en-NG")}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">Potential margin at current retail price</p>
+                </div>
+              </div>
+
+              {/* Branch Wise Table / Cards */}
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <div className="px-5 py-4 border-b border-border bg-muted/20">
+                  <h3 className="text-sm font-bold text-foreground">Branch Inventory Valuations & Asset Breakdown</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Real-time asset valuation of all registered locations & retail outlets.</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/40 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <th className="px-6 py-3">Branch/Store Name</th>
+                        <th className="px-6 py-3 text-center">Unique SKUs</th>
+                        <th className="px-6 py-3 text-center">Total Stock Pieces</th>
+                        <th className="px-6 py-3 text-right">Inventory Cost (Net Assets)</th>
+                        <th className="px-6 py-3 text-right">Potential Revenue (Retail)</th>
+                        <th className="px-6 py-3 text-right">Expected Margin</th>
+                        <th className="px-6 py-3 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {stores.map(store => {
+                        const val = valuationByStore[store.id] || {
+                          costValue: 0,
+                          retailValue: 0,
+                          uniqueSkus: 0,
+                          totalStock: 0
+                        };
+                        const margin = val.retailValue - val.costValue;
+                        const isActive = currentStoreId === store.id;
+
+                        return (
+                          <tr key={store.id} className={cn("text-sm hover:bg-muted/30 transition-colors", isActive && "bg-primary/5")}>
+                            <td className="px-6 py-4 font-semibold text-foreground">
+                              <div className="flex items-center gap-2">
+                                <Store className="h-4 w-4 text-primary flex-shrink-0" />
+                                {store.name}
+                                {isActive && <Badge variant="secondary" className="ml-2 text-[10px] bg-primary/10 text-primary hover:bg-primary/10 border-primary/20">Active Context</Badge>}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-center font-mono text-xs">{val.uniqueSkus}</td>
+                            <td className="px-6 py-4 text-center font-mono text-xs">{val.totalStock.toLocaleString()}</td>
+                            <td className="px-6 py-4 text-right font-semibold font-mono text-xs text-foreground">
+                              {NAIRA}{val.costValue.toLocaleString("en-NG")}
+                            </td>
+                            <td className="px-6 py-4 text-right font-semibold font-mono text-xs text-muted-foreground">
+                              {NAIRA}{val.retailValue.toLocaleString("en-NG")}
+                            </td>
+                            <td className="px-6 py-4 text-right font-bold font-mono text-xs text-green-600 dark:text-green-400">
+                              {NAIRA}{margin.toLocaleString("en-NG")}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {isActive ? (
+                                <span className="text-xs text-muted-foreground font-semibold px-2.5 py-1 rounded bg-muted">Active</span>
+                              ) : (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-7 px-2 text-xs font-bold" 
+                                  onClick={() => setCurrentStoreId(store.id)}
+                                >
+                                  Switch Context
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </AccordionSection>
+
           <AccordionSection id="attention" title="Alerts & Real-time Activity" openSection={openSection} onToggle={toggleSection} dataTour="needs-attention">
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">
               <div className="min-h-0"><NeedsAttention /></div>

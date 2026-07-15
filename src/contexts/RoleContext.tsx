@@ -105,7 +105,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
   const isSuperAdmin = useMemo(() => {
     if (isDemo) {
-      return demoRole === "admin" && demoSuperAdmin;
+      return false;
     }
     const email = user?.email;
     if (!email) return false;
@@ -155,10 +155,10 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
     try {
       const realStoreId = profile?.storeId || "global-store";
-      const activeStoreId = isSuperAdmin ? (currentStoreId || (dbStores.length > 0 ? dbStores[0].id : realStoreId)) : realStoreId;
+      const activeStoreId = isSuperAdmin ? (currentStoreId || realStoreId) : realStoreId;
 
       const q = query(collection(db, "users"), where("storeId", "==", activeStoreId));
-      const unsub = onSnapshot(q, (snap) => {
+      const unsubscribe = onSnapshot(q, (snap) => {
         const list: { id: string; name: string; role: UserRoleType }[] = [];
         snap.forEach((doc) => {
           const data = doc.data();
@@ -172,11 +172,11 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       }, (err) => {
         console.warn("Failed to fetch store members:", err);
       });
-      return () => unsub();
+      return () => unsubscribe();
     } catch (e) {
       console.error("Failed to setup members listener:", e);
     }
-  }, [isDemo, user?.uid, isSuperAdmin, currentStoreId, profile?.storeId, dbStores]);
+  }, [isDemo, user?.uid, isSuperAdmin, currentStoreId, profile?.storeId]);
 
   const value = useMemo<RoleContextValue>(() => {
     const permissions = getPermissionsForRole(role);
@@ -188,7 +188,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     if (isDemo) {
       activeStoreId = currentStoreId || DEMO_STORES[0].id;
     } else if (isSuperAdmin) {
-      activeStoreId = currentStoreId || (dbStores.length > 0 ? dbStores[0].id : realStoreId);
+      activeStoreId = currentStoreId || realStoreId;
     }
 
     const baseStores = isDemo ? DEMO_STORES : [{ id: realStoreId, name: settings.storeName || "Main Store" }];

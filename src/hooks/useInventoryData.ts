@@ -29,7 +29,7 @@ import { useFirebaseCollection, useFirebaseDoc } from "./useFirebaseData";
 import { where, orderBy, limit as firestoreLimit } from "firebase/firestore";
 import { auth } from "@/lib/firebase";
 import type { SaleTransaction } from "@/types/inventory";
-import type { Expense, Refund } from "@/types/finance";
+import type { Expense, Refund, CreditCustomer } from "@/types/finance";
 import type { Customer } from "@/types/crm";
 
 export function useItems(filters?: ItemFilters): QueryResult<Item[]> {
@@ -41,11 +41,8 @@ export function useItems(filters?: ItemFilters): QueryResult<Item[]> {
   const constraints = useMemo(() => {
     const c = [];
     if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
-    if (filters?.categoryId) c.push(where("categoryId", "==", filters.categoryId));
-    if (filters?.supplierId) c.push(where("supplierId", "==", filters.supplierId));
-    if (filters?.status) c.push(where("status", "==", filters.status));
     return c;
-  }, [filters?.categoryId, filters?.supplierId, filters?.status, activeStoreId]);
+  }, [activeStoreId]);
 
   const { data: firebaseData, loading } = useFirebaseCollection<Item>("items", constraints, { enabled });
 
@@ -53,6 +50,15 @@ export function useItems(filters?: ItemFilters): QueryResult<Item[]> {
     if (isDemo && demoStore) return { data: demoStore.getItems(filters), isLoading: false, error: null };
     
     let list = firebaseData;
+    if (filters?.categoryId) {
+      list = list.filter(i => i.categoryId === filters.categoryId);
+    }
+    if (filters?.supplierId) {
+      list = list.filter(i => i.supplierId === filters.supplierId);
+    }
+    if (filters?.status) {
+      list = list.filter(i => i.status === filters.status);
+    }
     if (filters?.search) {
       const q = filters.search.toLowerCase();
       list = list.filter(i => i.name.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q));
@@ -130,11 +136,10 @@ export function useMovements(limitVal?: number): QueryResult<StockMovement[]> {
   const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
 
   const constraints = useMemo(() => {
-    const c = [orderBy("createdAt", "desc")];
+    const c = [];
     if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
-    if (limitVal) c.push(firestoreLimit(limitVal));
     return c;
-  }, [limitVal, activeStoreId]);
+  }, [activeStoreId]);
 
   const { data: firebaseData, loading } = useFirebaseCollection<StockMovement>("movements", constraints, { enabled });
 
@@ -143,7 +148,13 @@ export function useMovements(limitVal?: number): QueryResult<StockMovement[]> {
       const data = limitVal ? demoStore.getRecentMovements(limitVal) : demoStore.getMovements();
       return { data, isLoading: false, error: null };
     }
-    return { data: firebaseData, isLoading: loading, error: null };
+    const sorted = [...firebaseData].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+    const finalData = limitVal ? sorted.slice(0, limitVal) : sorted;
+    return { data: finalData, isLoading: loading, error: null };
   }, [isDemo, demoStore, version, limitVal, firebaseData, loading]);
 }
 
@@ -197,7 +208,7 @@ export function useRequests(): QueryResult<InventoryRequest[]> {
   const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
 
   const constraints = useMemo(() => {
-    const c = [orderBy("createdAt", "desc")];
+    const c = [];
     if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
     return c;
   }, [activeStoreId]);
@@ -206,7 +217,12 @@ export function useRequests(): QueryResult<InventoryRequest[]> {
 
   return useMemo(() => {
     if (isDemo && demoStore) return { data: [...demoStore.getRequests()], isLoading: false, error: null };
-    return { data: firebaseData, isLoading: loading, error: null };
+    const sorted = [...firebaseData].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+    return { data: sorted, isLoading: loading, error: null };
   }, [isDemo, demoStore, version, firebaseData, loading]);
 }
 
@@ -216,7 +232,7 @@ export function useSales(): QueryResult<SaleTransaction[]> {
   const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
 
   const constraints = useMemo(() => {
-    const c = [orderBy("createdAt", "desc")];
+    const c = [];
     if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
     return c;
   }, [activeStoreId]);
@@ -225,7 +241,12 @@ export function useSales(): QueryResult<SaleTransaction[]> {
 
   return useMemo(() => {
     if (isDemo && demoStore) return { data: [...demoStore.getSales()], isLoading: false, error: null };
-    return { data: firebaseData, isLoading: loading, error: null };
+    const sorted = [...firebaseData].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+    return { data: sorted, isLoading: loading, error: null };
   }, [isDemo, demoStore, version, firebaseData, loading]);
 }
 
@@ -235,7 +256,7 @@ export function useExpenses(): QueryResult<Expense[]> {
   const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
 
   const constraints = useMemo(() => {
-    const c = [orderBy("date", "desc")];
+    const c = [];
     if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
     return c;
   }, [activeStoreId]);
@@ -244,7 +265,12 @@ export function useExpenses(): QueryResult<Expense[]> {
 
   return useMemo(() => {
     if (isDemo && demoStore) return { data: [...demoStore.getExpenses()], isLoading: false, error: null };
-    return { data: firebaseData, isLoading: loading, error: null };
+    const sorted = [...firebaseData].sort((a, b) => {
+      const dateA = a.date ? new Date(a.date).getTime() : 0;
+      const dateB = b.date ? new Date(b.date).getTime() : 0;
+      return dateB - dateA;
+    });
+    return { data: sorted, isLoading: loading, error: null };
   }, [isDemo, demoStore, version, firebaseData, loading]);
 }
 
@@ -254,7 +280,7 @@ export function useCustomers(): QueryResult<Customer[]> {
   const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
 
   const constraints = useMemo(() => {
-    const c = [orderBy("name", "asc")];
+    const c = [];
     if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
     return c;
   }, [activeStoreId]);
@@ -263,7 +289,12 @@ export function useCustomers(): QueryResult<Customer[]> {
 
   return useMemo(() => {
     if (isDemo && demoStore) return { data: [...demoStore.getCustomers()], isLoading: false, error: null };
-    return { data: firebaseData, isLoading: loading, error: null };
+    const sorted = [...firebaseData].sort((a, b) => {
+      const nameA = a.name || "";
+      const nameB = b.name || "";
+      return nameA.localeCompare(nameB);
+    });
+    return { data: sorted, isLoading: loading, error: null };
   }, [isDemo, demoStore, version, firebaseData, loading]);
 }
 
@@ -273,7 +304,7 @@ export function useRefunds(): QueryResult<Refund[]> {
   const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
 
   const constraints = useMemo(() => {
-    const c = [orderBy("createdAt", "desc")];
+    const c = [];
     if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
     return c;
   }, [activeStoreId]);
@@ -282,6 +313,49 @@ export function useRefunds(): QueryResult<Refund[]> {
 
   return useMemo(() => {
     if (isDemo && demoStore) return { data: [...demoStore.getRefunds()], isLoading: false, error: null };
+    const sorted = [...firebaseData].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+    return { data: sorted, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, firebaseData, loading]);
+}
+
+export function useCredits(): QueryResult<CreditCustomer[]> {
+  const { isDemo, demoStore, version } = useDemo();
+  const activeStoreId = useActiveStoreId();
+  const enabled = !isDemo && !!auth.currentUser && !!activeStoreId;
+
+  const constraints = useMemo(() => {
+    const c = [];
+    if (activeStoreId) c.push(where("storeId", "==", activeStoreId));
+    return c;
+  }, [activeStoreId]);
+
+  const { data: firebaseData, loading } = useFirebaseCollection<CreditCustomer>("credits", constraints, { enabled });
+
+  return useMemo(() => {
+    if (isDemo && demoStore) return { data: demoStore.getCreditCustomers(), isLoading: false, error: null };
+    return { data: firebaseData, isLoading: loading, error: null };
+  }, [isDemo, demoStore, version, firebaseData, loading]);
+}
+
+export function useAllCompanyItems(): QueryResult<Item[]> {
+  const { isDemo, demoStore, version } = useDemo();
+  const { stores } = useRole();
+  const enabled = !isDemo && !!auth.currentUser && stores.length > 0;
+
+  const constraints = useMemo(() => {
+    if (stores.length === 0) return [];
+    const storeIds = stores.map((s) => s.id);
+    return [where("storeId", "in", storeIds)];
+  }, [stores]);
+
+  const { data: firebaseData, loading } = useFirebaseCollection<Item>("items", constraints, { enabled });
+
+  return useMemo(() => {
+    if (isDemo && demoStore) return { data: demoStore.getItems(), isLoading: false, error: null };
     return { data: firebaseData, isLoading: loading, error: null };
   }, [isDemo, demoStore, version, firebaseData, loading]);
 }

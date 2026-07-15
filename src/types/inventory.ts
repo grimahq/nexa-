@@ -152,6 +152,7 @@ export interface Item {
   reviewReason?: string;
   color?: string;
   sizes?: string;
+  storeId?: string;
   pricingTiers?: {
     retail?: number;
     wholesale?: number;
@@ -189,6 +190,13 @@ export interface Item {
     gsm?: number;
     weaveType?: string;
     fabricContent?: string;
+  };
+  electronics?: {
+    compatibility?: string;
+    brandFocus?: string;
+    material?: string;
+    warrantyPeriod?: string;
+    accessoryType?: string;
   };
 }
 
@@ -290,10 +298,13 @@ export interface SaleTransaction {
   id: string;
   customerName?: string;
   customerPhone?: string;
+  customerEmail?: string;
   items: SaleItem[];
   totalNgn: number;
   source?: "pos" | "social" | "demo";
   createdBy?: string;
   storeId?: string;
   createdAt: string;
+  previousDebtPaidNgn?: number;
+  isDebtSettlement?: boolean;
 }

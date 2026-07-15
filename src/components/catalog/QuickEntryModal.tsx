@@ -105,6 +105,14 @@ export function QuickEntryModal({ open, onOpenChange }: QuickEntryModalProps) {
   const [cropVarietyInput, setCropVarietyInput] = useState("");
   const [expectedHarvestDateInput, setExpectedHarvestDateInput] = useState("");
 
+  // Electronics dynamic fields (Phones & Accessories profile)
+  const [elecTypeInput, setElecTypeInput] = useState<"device" | "accessory">("device");
+  const [elecConditionInput, setElecConditionInput] = useState<"New" | "Used" | "Refurbished">("New");
+  const [elecStorageInput, setElecStorageInput] = useState("");
+  const [elecColorInput, setElecColorInput] = useState("");
+  const [elecWarrantyInput, setElecWarrantyInput] = useState("12 Months");
+  const [elecCompatibilityInput, setElecCompatibilityInput] = useState("");
+
   const getCategoryType = (name: string) => {
     const norm = name.toLowerCase();
     if (norm.includes("fashion") || norm.includes("clothing") || norm.includes("apparel") || norm.includes("textile") || norm.includes("cotton") || norm.includes("lace") || norm.includes("silk") || norm.includes("print")) {
@@ -116,7 +124,7 @@ export function QuickEntryModal({ open, onOpenChange }: QuickEntryModalProps) {
     if (norm.includes("grocery") || norm.includes("groceries") || norm.includes("beverage") || norm.includes("dairy") || norm.includes("food") || norm.includes("drink")) {
       return "groceries";
     }
-    if (norm.includes("electronic") || norm.includes("it & equipment") || norm.includes("hardware") || norm.includes("tools")) {
+    if (norm.includes("electronic") || norm.includes("it & equipment") || norm.includes("hardware") || norm.includes("tools") || norm.includes("device") || norm.includes("phone") || norm.includes("tablet") || norm.includes("accessories") || norm.includes("case") || norm.includes("charger") || norm.includes("cable") || norm.includes("earphone") || norm.includes("screen") || norm.includes("power") || norm.includes("repair") || norm.includes("gadget")) {
       return "electronics";
     }
     if (norm.includes("agri") || norm.includes("farm") || norm.includes("grain") || norm.includes("tuber") || norm.includes("livestock") || norm.includes("seed")) {
@@ -371,8 +379,8 @@ export function QuickEntryModal({ open, onOpenChange }: QuickEntryModalProps) {
         distributor: distributorPrice ? Number(distributorPrice) : undefined,
         tierEnabled: true,
       } : undefined,
-      color: catType === "clothing" ? colorInput.trim() || undefined : undefined,
-      sizes: catType === "clothing" ? sizesInput.trim() || undefined : undefined,
+      color: catType === "clothing" ? colorInput.trim() || undefined : (catType === "electronics" ? elecColorInput.trim() || undefined : undefined),
+      sizes: catType === "clothing" ? sizesInput.trim() || undefined : (catType === "electronics" && elecTypeInput === "device" ? elecStorageInput.trim() || undefined : undefined),
       pharmacy: (catType === "pharmacy" || catType === "groceries") ? {
         expiryDate: expiryDateInput || undefined,
         batchNumber: catType === "pharmacy" ? undefined : batchNumberInput.trim() || undefined,
@@ -383,12 +391,15 @@ export function QuickEntryModal({ open, onOpenChange }: QuickEntryModalProps) {
         expectedHarvestDate: expectedHarvestDateInput || undefined,
       } : undefined,
       customFields: catType === "electronics" ? {
-        serialNumber: serialNumberInput.trim() || undefined,
+        elecType: elecTypeInput,
+        condition: elecTypeInput === "device" ? elecConditionInput : undefined,
+        warranty: elecTypeInput === "device" ? elecWarrantyInput.trim() || undefined : undefined,
+        compatibility: elecTypeInput === "accessory" ? elecCompatibilityInput.trim() || undefined : undefined,
       } : {},
       locationId: null,
       supplierId: null,
       imageUrl: lookupResult?.imageUrl || null,
-      emoji: lookupResult?.emoji || (catType === "clothing" ? "👕" : catType === "pharmacy" ? "💊" : catType === "groceries" ? "🍏" : catType === "agriculture" ? "🌾" : catType === "electronics" ? "🔌" : "📦"),
+      emoji: lookupResult?.emoji || (catType === "clothing" ? "👕" : catType === "pharmacy" ? "💊" : catType === "groceries" ? "🍏" : catType === "agriculture" ? "🌾" : catType === "electronics" ? (elecTypeInput === "device" ? "📱" : "🔌") : "📦"),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -693,14 +704,122 @@ export function QuickEntryModal({ open, onOpenChange }: QuickEntryModalProps) {
 
                   if (catType === "electronics") {
                     return (
-                      <div className="p-3.5 bg-neutral-950/40 rounded-xl border border-neutral-850 animate-in fade-in duration-250">
-                        <label className="text-[10px] font-bold uppercase text-neutral-400 block mb-1">Serial Number / IMEI</label>
-                        <Input
-                          value={serialNumberInput}
-                          onChange={(e) => setSerialNumberInput(e.target.value)}
-                          placeholder="e.g. SN-9876543210"
-                          className="bg-neutral-950 border-neutral-800 text-white placeholder-neutral-700 h-10 rounded-xl focus:border-emerald-500 font-mono"
-                        />
+                      <div className="space-y-4 p-4 bg-neutral-950/40 rounded-xl border border-neutral-850 animate-in fade-in duration-250 text-left">
+                        <div className="flex items-center justify-between border-b border-neutral-800 pb-2 mb-2">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-500">Phones & Accessories Profile</span>
+                          <span className="text-[10px] text-neutral-500 font-mono">Simplified Catalog Mode</span>
+                        </div>
+                        
+                        {/* Type Selection */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-neutral-400 block mb-1">Product Type</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setElecTypeInput("device")}
+                              className={cn(
+                                "py-2 px-3 text-xs font-semibold rounded-lg border transition-all",
+                                elecTypeInput === "device"
+                                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-500"
+                                  : "border-neutral-800 bg-neutral-900/50 text-neutral-400 hover:text-white"
+                              )}
+                            >
+                              📱 Device (Phone/Tablet)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setElecTypeInput("accessory")}
+                              className={cn(
+                                "py-2 px-3 text-xs font-semibold rounded-lg border transition-all",
+                                elecTypeInput === "accessory"
+                                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-500"
+                                  : "border-neutral-800 bg-neutral-900/50 text-neutral-400 hover:text-white"
+                              )}
+                            >
+                              🔌 Accessory
+                            </button>
+                          </div>
+                        </div>
+
+                        {elecTypeInput === "device" ? (
+                          <div className="space-y-3.5 pt-1">
+                            {/* Device Fields */}
+                            <div>
+                              <label className="text-[10px] font-bold uppercase text-neutral-400 block mb-1">Condition</label>
+                              <div className="grid grid-cols-3 gap-2">
+                                {(["New", "Used", "Refurbished"] as const).map((cond) => (
+                                  <button
+                                    key={cond}
+                                    type="button"
+                                    onClick={() => setElecConditionInput(cond)}
+                                    className={cn(
+                                      "py-1.5 text-[11px] font-medium rounded-md border transition-all",
+                                      elecConditionInput === cond
+                                        ? "border-emerald-500 bg-emerald-500/5 text-emerald-500"
+                                        : "border-neutral-800 bg-neutral-900/20 text-neutral-400"
+                                    )}
+                                  >
+                                    {cond}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[10px] font-bold uppercase text-neutral-400 block mb-1">Storage Variant</label>
+                                <Input
+                                  value={elecStorageInput}
+                                  onChange={(e) => setElecStorageInput(e.target.value)}
+                                  placeholder="e.g. 128GB, 256GB"
+                                  className="bg-neutral-950 border-neutral-800 text-white placeholder-neutral-700 h-9 rounded-xl focus:border-emerald-500 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold uppercase text-neutral-400 block mb-1">Color Variant</label>
+                                <Input
+                                  value={elecColorInput}
+                                  onChange={(e) => setElecColorInput(e.target.value)}
+                                  placeholder="e.g. Space Gray, Silver"
+                                  className="bg-neutral-950 border-neutral-800 text-white placeholder-neutral-700 h-9 rounded-xl focus:border-emerald-500 text-xs"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-bold uppercase text-neutral-400 block mb-1">Warranty Period</label>
+                              <Input
+                                value={elecWarrantyInput}
+                                onChange={(e) => setElecWarrantyInput(e.target.value)}
+                                placeholder="e.g. 12 Months, 6 Months"
+                                className="bg-neutral-950 border-neutral-800 text-white placeholder-neutral-700 h-9 rounded-xl focus:border-emerald-500 text-xs"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-3.5 pt-1">
+                            {/* Accessory Fields */}
+                            <div>
+                              <label className="text-[10px] font-bold uppercase text-neutral-400 block mb-1">Compatibility (Model/Tags)</label>
+                              <Input
+                                value={elecCompatibilityInput}
+                                onChange={(e) => setElecCompatibilityInput(e.target.value)}
+                                placeholder="e.g. iPhone 13/14 compatible"
+                                className="bg-neutral-950 border-neutral-800 text-white placeholder-neutral-700 h-9 rounded-xl focus:border-emerald-500 text-xs"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-bold uppercase text-neutral-400 block mb-1">Colors (Comma separated for variants)</label>
+                              <Input
+                                value={elecColorInput}
+                                onChange={(e) => setElecColorInput(e.target.value)}
+                                placeholder="e.g. Black, White, Blue"
+                                className="bg-neutral-950 border-neutral-800 text-white placeholder-neutral-700 h-9 rounded-xl focus:border-emerald-500 text-xs"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   }

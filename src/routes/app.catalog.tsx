@@ -394,10 +394,10 @@ function CatalogPage() {
         <button
           type="button"
           onClick={openCreate}
-          className="fixed bottom-24 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-amber-accent shadow-lg transition-transform hover:scale-105 active:scale-95 sm:hidden"
+          className="fixed bottom-20 right-6 lg:bottom-8 lg:right-8 z-50 flex h-16 w-16 items-center justify-center rounded-full bg-amber-accent text-white border-2 border-white/20 shadow-2xl transition-all hover:scale-110 active:scale-95 duration-200 hover:bg-amber-accent/90 ring-4 ring-amber-accent/30"
           aria-label="New Item"
         >
-          <Plus className="h-6 w-6" />
+          <Plus className="h-8 w-8 stroke-[3]" />
         </button>
       </PermissionGate>
 

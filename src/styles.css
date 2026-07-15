@@ -72,45 +72,45 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  /* Core palette — teal/amber from design-guidelines.md, converted to standard Hex to resolve browser rendering bugs */
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  /* Core palette — teal/amber upgraded to an advanced luxurious emerald theme */
+  --background: #f1f5f9; /* Slate background to make cards POP */
+  --foreground: #090d16; /* Obsidian black for superior text contrast */
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #090d16;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #0d9488;
-  --primary-foreground: #f8fafc;
-  --secondary: #d97706;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  --popover-foreground: #090d16;
+  --primary: #059669; /* Rich Emerald */
+  --primary-foreground: #ffffff;
+  --secondary: #10b981; /* Accent Emerald */
+  --secondary-foreground: #ffffff;
+  --muted: #e2e8f0;
+  --muted-foreground: #475569; /* Richer slate text */
   --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
-  --destructive: #ef4444;
-  --destructive-foreground: #f8fafc;
-  --border: #e2e8f0;
+  --accent-foreground: #090d16;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #cbd5e1; /* Bolder, thicker border */
   --input: #cbd5e1;
-  --ring: #0d9488;
+  --ring: #059669;
 
   /* Charts */
-  --chart-1: #0d9488;
+  --chart-1: #059669;
   --chart-2: #f59e0b;
   --chart-3: #10b981;
   --chart-4: #ef4444;
   --chart-5: #64748b;
 
   /* Sidebar — dark desaturated teal-charcoal */
-  --sidebar: #1e293b;
+  --sidebar: #061a14;
   --sidebar-foreground: #f1f5f9;
-  --sidebar-primary: #0d9488;
+  --sidebar-primary: #10b981;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #334155;
-  --sidebar-accent-foreground: #f1f5f9;
-  --sidebar-border: #334155;
-  --sidebar-ring: #0d9488;
+  --sidebar-accent: #0f3025;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #133c2f;
+  --sidebar-ring: #10b981;
 
   /* Metric tints */
   --metric-healthy-bg: #ecfdf5;
@@ -126,28 +126,28 @@
 }
 
 .dark {
-  --background: #090d16;
-  --foreground: #f1f5f9;
+  --background: #030712; /* Pitch black */
+  --foreground: #f8fafc;
   --card: #0f172a;
-  --card-foreground: #f1f5f9;
+  --card-foreground: #f8fafc;
   --popover: #0f172a;
-  --popover-foreground: #f1f5f9;
-  --primary: #14b8a6;
-  --primary-foreground: #090d16;
-  --secondary: #f59e0b;
-  --secondary-foreground: #090d16;
+  --popover-foreground: #f8fafc;
+  --primary: #10b981; /* Vibrant Emerald */
+  --primary-foreground: #030712;
+  --secondary: #34d399;
+  --secondary-foreground: #030712;
   --muted: #1e293b;
-  --muted-foreground: #94a3b8;
+  --muted-foreground: #cbd5e1; /* More contrast for text */
   --accent: #1e293b;
-  --accent-foreground: #f1f5f9;
+  --accent-foreground: #f8fafc;
   --destructive: #ef4444;
   --destructive-foreground: #f1f5f9;
-  --border: #334155;
-  --input: #334155;
-  --ring: #14b8a6;
+  --border: #475569; /* Thicker, brighter borders in dark mode */
+  --input: #475569;
+  --ring: #10b981;
 
   /* Charts */
-  --chart-1: #14b8a6;
+  --chart-1: #10b981;
   --chart-2: #f59e0b;
   --chart-3: #10b981;
   --chart-4: #ef4444;
@@ -187,6 +187,30 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     overflow-x: hidden;
+    font-weight: 500; /* Bolder body text by default */
+  }
+
+  /* Bold display headers with crisp tracking */
+  h1, h2, h3, h4, h5, h6, .card-title, [class*="font-bold"], [class*="font-semibold"] {
+    font-weight: 800 !important;
+    letter-spacing: -0.025em;
+  }
+
+  /* Premium thick, defined inputs and select elements */
+  input, select, textarea, button {
+    font-weight: 600 !important;
+  }
+
+  input[type="text"], input[type="number"], input[type="search"], input[type="tel"], select, textarea {
+    border-width: 2px !important;
+    border-color: var(--border) !important;
+    transition: all 0.15s ease-in-out;
+  }
+
+  input[type="text"]:focus, input[type="number"]:focus, input[type="search"]:focus, input[type="tel"]:focus, select:focus, textarea:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2) !important;
+    outline: none !important;
   }
 }
 

@@ -94,7 +94,7 @@ function StoreIndexPage() {
             <p className="text-neutral-500">Check back later for new inventory updates.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" data-tour="store-grid">
             {ecommerceItems.map((item) => (
               <Card key={item.id} className="group overflow-hidden rounded-2xl border-neutral-200/60 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col">
                 <Link to="/store/product/$productId" params={{ productId: item.id }} className="relative aspect-square overflow-hidden bg-neutral-100">

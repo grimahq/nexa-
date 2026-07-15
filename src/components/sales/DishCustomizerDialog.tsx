@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Flame, Info, Check, Plus, Minus, ChefHat } from "lucide-react";
+import { Flame, Info, Check, Plus, Minus, ChefHat, ChevronDown } from "lucide-react";
 import type { Item } from "@/types/inventory";
 import { cn } from "@/lib/utils";
 
@@ -195,77 +195,77 @@ export function DishCustomizerDialog({
                     <Label className="text-xs font-semibold text-foreground/85 flex items-center gap-1.5">
                       <span className="h-1.5 w-1.5 rounded-full bg-primary" /> {slot.name}
                     </Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {isProtein ? (
-                        [
-                          { name: "Chicken", mod: 0 },
-                          { name: "Beef", mod: 0 },
-                          { name: "Fish", mod: 300 }
-                        ].map(opt => (
-                          <button
-                            key={opt.name}
-                            type="button"
-                            onClick={() => setComboSelections(prev => ({
-                              ...prev,
-                              [slot.name]: { itemName: opt.name, priceModifier: opt.mod }
-                            }))}
-                            className={cn(
-                              "px-3 py-1.5 text-xs font-bold rounded-xl border transition-all",
-                              currentSelection === opt.name
-                                ? "bg-primary border-primary text-primary-foreground"
-                                : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
-                            )}
-                          >
-                            {opt.name} {opt.mod > 0 ? `(+${NAIRA}${opt.mod})` : ""}
-                          </button>
-                        ))
-                      ) : isDrink ? (
-                        [
-                          { name: "Coke", mod: 0 },
-                          { name: "Fanta", mod: 0 },
-                          { name: "Sprite", mod: 0 },
-                          { name: "Fresh Juice", mod: 500 }
-                        ].map(opt => (
-                          <button
-                            key={opt.name}
-                            type="button"
-                            onClick={() => setComboSelections(prev => ({
-                              ...prev,
-                              [slot.name]: { itemName: opt.name, priceModifier: opt.mod }
-                            }))}
-                            className={cn(
-                              "px-3 py-1.5 text-xs font-bold rounded-xl border transition-all",
-                              currentSelection === opt.name
-                                ? "bg-primary border-primary text-primary-foreground"
-                                : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
-                            )}
-                          >
-                            {opt.name} {opt.mod > 0 ? `(+${NAIRA}${opt.mod})` : ""}
-                          </button>
-                        ))
-                      ) : (
-                        [
-                          { name: "Standard Choice", mod: 0 },
-                          { name: "Premium Choice", mod: 400 }
-                        ].map(opt => (
-                          <button
-                            key={opt.name}
-                            type="button"
-                            onClick={() => setComboSelections(prev => ({
-                              ...prev,
-                              [slot.name]: { itemName: opt.name, priceModifier: opt.mod }
-                            }))}
-                            className={cn(
-                              "px-3 py-1.5 text-xs font-bold rounded-xl border transition-all",
-                              currentSelection === opt.name
-                                ? "bg-primary border-primary text-primary-foreground"
-                                : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
-                            )}
-                          >
-                            {opt.name} {opt.mod > 0 ? `(+${NAIRA}${opt.mod})` : ""}
-                          </button>
-                        ))
-                      )}
+                    <div className="relative">
+                      <select
+                        value={currentSelection}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          let mod = 0;
+                          if (isProtein) {
+                            const found = [
+                              { name: "Chicken", mod: 0 },
+                              { name: "Beef", mod: 0 },
+                              { name: "Fish", mod: 300 }
+                            ].find(o => o.name === val);
+                            if (found) mod = found.mod;
+                          } else if (isDrink) {
+                            const found = [
+                              { name: "Coke", mod: 0 },
+                              { name: "Fanta", mod: 0 },
+                              { name: "Sprite", mod: 0 },
+                              { name: "Fresh Juice", mod: 500 }
+                            ].find(o => o.name === val);
+                            if (found) mod = found.mod;
+                          } else {
+                            const found = [
+                              { name: "Standard Choice", mod: 0 },
+                              { name: "Premium Choice", mod: 400 }
+                            ].find(o => o.name === val);
+                            if (found) mod = found.mod;
+                          }
+                          setComboSelections(prev => ({
+                            ...prev,
+                            [slot.name]: { itemName: val, priceModifier: mod }
+                          }));
+                        }}
+                        className="w-full text-xs font-semibold h-9 rounded-xl border border-input bg-card pl-3 pr-8 py-1.5 focus:ring-1 focus:ring-primary focus:outline-none appearance-none cursor-pointer text-foreground shadow-sm"
+                      >
+                        <option value="">-- Choose {slot.name} --</option>
+                        {isProtein ? (
+                          [
+                            { name: "Chicken", mod: 0 },
+                            { name: "Beef", mod: 0 },
+                            { name: "Fish", mod: 300 }
+                          ].map(opt => (
+                            <option key={opt.name} value={opt.name}>
+                              {opt.name} {opt.mod > 0 ? `(+${NAIRA}${opt.mod})` : " (Included)"}
+                            </option>
+                          ))
+                        ) : isDrink ? (
+                          [
+                            { name: "Coke", mod: 0 },
+                            { name: "Fanta", mod: 0 },
+                            { name: "Sprite", mod: 0 },
+                            { name: "Fresh Juice", mod: 500 }
+                          ].map(opt => (
+                            <option key={opt.name} value={opt.name}>
+                              {opt.name} {opt.mod > 0 ? `(+${NAIRA}${opt.mod})` : " (Included)"}
+                            </option>
+                          ))
+                        ) : (
+                          [
+                            { name: "Standard Choice", mod: 0 },
+                            { name: "Premium Choice", mod: 400 }
+                          ].map(opt => (
+                            <option key={opt.name} value={opt.name}>
+                              {opt.name} {opt.mod > 0 ? `(+${NAIRA}${opt.mod})` : " (Included)"}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground">
+                        <ChevronDown className="h-4 w-4" />
+                      </div>
                     </div>
                   </div>
                 );

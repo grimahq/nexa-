@@ -16,8 +16,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { toast } from "sonner";
-import { useSales } from "@/hooks/useInventoryData";
+import { useSales, useCredits } from "@/hooks/useInventoryData";
+import { useInventoryMutation } from "@/hooks/useInventoryMutation";
 import { getWhatsAppUrl } from "@/lib/whatsapp";
+import { SalesReceipt } from "@/components/sales/SalesReceipt";
+import type { SaleTransaction } from "@/types/inventory";
 
 const NAIRA = "₦";
 
@@ -45,7 +48,8 @@ const MESSAGE_TEMPLATES = [
 ];
 
 function CustomersPage() {
-  const { isDemo, demoStore } = useDemo();
+  const { isDemo, demoStore, bumpVersion } = useDemo();
+  const { addCreditTransaction } = useInventoryMutation();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<CustomerTab>("all");
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
@@ -53,16 +57,24 @@ function CustomersPage() {
   const [messageText, setMessageText] = useState("");
   const [messageTarget, setMessageTarget] = useState<CustomerRecord | null>(null);
 
-  const { data: sales, isLoading } = useSales();
+  // Debt Payment States
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentTarget, setPaymentTarget] = useState<CustomerRecord | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentNotes, setPaymentNotes] = useState("Recorded debt payment");
+
+  const { data: sales, isLoading: salesLoading } = useSales();
+  const { data: creditsList, isLoading: creditsLoading } = useCredits();
+  const isLoading = salesLoading || creditsLoading;
 
   const thirtyDaysAgo = useMemo(() => new Date(Date.now() - 30 * 86400000).toISOString(), []);
 
   const customers = useMemo(() => {
     const debtMap = new Map<string, number>();
-    if (isDemo && demoStore) {
-      const creditCustomers = demoStore.getCreditCustomers();
-      for (const cc of creditCustomers) {
-        if (cc.balanceNgn > 0) debtMap.set(cc.customerPhone, cc.balanceNgn);
+    const credits = isDemo && demoStore ? demoStore.getCreditCustomers() : (creditsList ?? []);
+    for (const cc of credits) {
+      if (cc.balanceNgn > 0) {
+        debtMap.set(cc.customerPhone, cc.balanceNgn);
       }
     }
 
@@ -89,12 +101,29 @@ function CustomersPage() {
         });
       }
     }
-    for (const [phone, debt] of debtMap) {
-      const c = map.get(phone);
-      if (c) c.debtBalance = debt;
+    
+    // Also include credit customers who might not have had recent sales but have debts
+    for (const cc of credits) {
+      if (cc.balanceNgn > 0) {
+        const phone = cc.customerPhone.trim();
+        const existing = map.get(phone);
+        if (existing) {
+          existing.debtBalance = cc.balanceNgn;
+        } else {
+          map.set(phone, {
+            name: cc.customerName,
+            phone,
+            totalSpent: 0,
+            transactionCount: 0,
+            lastPurchase: cc.updatedAt || new Date().toISOString(),
+            debtBalance: cc.balanceNgn
+          });
+        }
+      }
     }
+
     return Array.from(map.values()).sort((a, b) => b.totalSpent - a.totalSpent);
-  }, [sales, isDemo, demoStore]);
+  }, [sales, isDemo, demoStore, creditsList]);
 
   const filtered = useMemo(() => {
     let list = customers;
@@ -160,6 +189,73 @@ function CustomersPage() {
     }
     setMessageOpen(false);
     toast.success("WhatsApp opened — send manually");
+  };
+
+  const handlePayDebtClick = (customer: CustomerRecord) => {
+    setPaymentTarget(customer);
+    setPaymentAmount(customer.debtBalance.toString());
+    setPaymentNotes(`Settled outstanding debt balance of ${NAIRA}${customer.debtBalance.toLocaleString("en-NG")}`);
+    setPaymentOpen(true);
+  };
+
+  const handleRecordPaymentSubmit = async () => {
+    if (!paymentTarget) return;
+    const amount = parseFloat(paymentAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid positive payment amount");
+      return;
+    }
+
+    try {
+      await addCreditTransaction(paymentTarget.phone, paymentTarget.name, {
+        id: `ctxn-${Date.now()}`,
+        type: "payment",
+        amountNgn: amount,
+        notes: paymentNotes,
+        createdAt: new Date().toISOString()
+      });
+
+      if (isDemo && demoStore && bumpVersion) {
+        // Dispatch in-app advanced push notification for the payment
+        const notifId = `notif-${Date.now()}`;
+        demoStore.addNotification({
+          id: notifId,
+          type: "request_update",
+          title: `💳 Debt Payment Recorded: ${paymentTarget.name}`,
+          message: `Direct cash settlement of ${NAIRA}${amount.toLocaleString("en-NG")} was successfully processed for +${paymentTarget.phone}.`,
+          isRead: false,
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      // Generate settlement receipt
+      const debtReceiptSale: SaleTransaction = {
+        id: `repay-${Date.now()}`,
+        customerName: paymentTarget.name,
+        customerPhone: paymentTarget.phone,
+        items: [
+          {
+            itemId: "debt-repayment",
+            itemName: "Debt Settlement / Payment",
+            sku: "DEBT-PAY",
+            quantity: 1,
+            unit: "payment",
+            multiplier: 1,
+            unitPriceNgn: amount
+          }
+        ],
+        totalNgn: amount,
+        isDebtSettlement: true,
+        createdAt: new Date().toISOString()
+      };
+
+      setPaymentReceiptSale(debtReceiptSale);
+      setPaymentOpen(false);
+      toast.success(`Successfully processed debt payment of ${NAIRA}${amount.toLocaleString("en-NG")}!`);
+    } catch (err) {
+      toast.error("Failed to process payment");
+    }
   };
 
   const daysSince = (iso: string) => {
@@ -252,10 +348,23 @@ function CustomersPage() {
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0">
+                  <div className="text-right shrink-0 flex flex-col items-end justify-center">
                     <p className="text-sm font-semibold font-mono">{NAIRA}{c.totalSpent.toLocaleString("en-NG")}</p>
                     {c.debtBalance > 0 && (
-                      <p className="text-xs text-destructive font-mono">Owes {NAIRA}{c.debtBalance.toLocaleString("en-NG")}</p>
+                      <div className="flex flex-col items-end gap-1 mt-0.5">
+                        <p className="text-xs text-destructive font-bold font-mono">Owes {NAIRA}{c.debtBalance.toLocaleString("en-NG")}</p>
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePayDebtClick(c);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="h-6 text-[10px] px-2 font-bold bg-emerald-500/10 border-emerald-500/20 text-emerald-600 hover:bg-emerald-500/25 transition-all"
+                        >
+                          Settle Debt
+                        </Button>
+                      </div>
                     )}
                   </div>
 
@@ -324,6 +433,72 @@ function CustomersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Debt Settlement Dialog */}
+      <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-emerald-600 font-sans">
+              <CheckSquare className="h-5.5 w-5.5" />
+              Settle Outstanding Debt
+            </DialogTitle>
+            <DialogDescription>
+              {paymentTarget && `Record a payment received from ${paymentTarget.name} (${paymentTarget.phone})`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Outstanding Debt</label>
+              <div className="text-xl font-bold font-mono text-destructive">
+                {paymentTarget && `${NAIRA}${paymentTarget.debtBalance.toLocaleString("en-NG")}`}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="payment-amount" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Amount Paid ({NAIRA})</label>
+              <Input
+                id="payment-amount"
+                type="number"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="Enter amount paid"
+                className="font-mono text-sm"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="payment-notes" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Transaction Notes</label>
+              <Input
+                id="payment-notes"
+                value={paymentNotes}
+                onChange={(e) => setPaymentNotes(e.target.value)}
+                placeholder="Payment reference / details"
+                className="text-xs"
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2 border-t">
+              <DialogClose asChild>
+                <Button variant="outline" size="sm" className="text-xs font-semibold">Cancel</Button>
+              </DialogClose>
+              <Button
+                onClick={handleRecordPaymentSubmit}
+                className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-sm h-9 px-4"
+              >
+                Confirm Settlement
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {paymentReceiptSale && (
+        <SalesReceipt
+          sale={paymentReceiptSale}
+          onClose={() => setPaymentReceiptSale(null)}
+        />
+      )}
     </div>
   );
 }

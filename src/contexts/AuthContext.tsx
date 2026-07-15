@@ -22,6 +22,7 @@ interface UserProfile {
   createdAt: string;
   joinedAt?: string;
   onboardingCompleted?: boolean;
+  description?: string;
   onboarding?: {
     storeName: string;
     brandColor?: string;
@@ -38,6 +39,7 @@ interface AuthContextValue {
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfileName: (name: string) => Promise<void>;
+  updateProfileDescription: (description: string) => Promise<void>;
   sendPasswordReset: (email?: string) => Promise<void>;
   updateUserPassword: (password: string) => Promise<void>;
 }
@@ -242,6 +244,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 ownerId: u.uid,
                 createdAt: new Date().toISOString()
               });
+
+              // Check if a referral code exists in local/session storage
+              const refCode = localStorage.getItem("nexaos_referral_code") || sessionStorage.getItem("nexaos_referral_code");
+              if (refCode) {
+                // Perform agent lookup and write to "referrals" asynchronously to keep sign-up fast
+                setTimeout(async () => {
+                  try {
+                    const agentsSnap = await getDocs(
+                      query(collection(db, "agents"), where("referralCode", "==", refCode), where("status", "==", "approved"))
+                    );
+                    if (!agentsSnap.empty) {
+                      const agentDoc = agentsSnap.docs[0];
+                      const agentData = agentDoc.data();
+                      const referralId = `ref-${Date.now()}`;
+                      await setDoc(doc(db, "referrals", referralId), {
+                        id: referralId,
+                        agentId: agentData.agentId,
+                        storeId: newStoreId,
+                        status: "pending",
+                        createdAt: new Date().toISOString()
+                      });
+                      console.log(`[Referral] Linked store ${newStoreId} with agent ${agentData.agentId} under code ${refCode}`);
+                      // Clean up storage so we don't attribute multiple stores to the same single session click
+                      localStorage.removeItem("nexaos_referral_code");
+                      sessionStorage.removeItem("nexaos_referral_code");
+                    }
+                  } catch (e) {
+                    console.error("[Referral] Error associating referral code:", e);
+                  }
+                }, 500);
+              }
             }
             
             try {
@@ -334,7 +367,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email.trim(), password);
+    const cleanEmail = email.trim().toLowerCase();
+    try {
+      await signInWithEmailAndPassword(auth, cleanEmail, password);
+    } catch (authError: unknown) {
+      // If sign in fails, see if there is a matching user in our Firestore collection with a matching temporary password
+      try {
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("email", "==", cleanEmail), limit(1));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const userDoc = snap.docs[0];
+          const userData = userDoc.data();
+          if (userData.tempPassword && userData.tempPassword === password) {
+            // Yes! They are trying to log in with their temporary password, but their Auth account is not yet created.
+            // Let's create their Firebase Auth account on the fly with that temporary password!
+            sessionStorage.setItem("nexa_reg_name", userData.name || cleanEmail.split("@")[0]);
+            
+            if (userData.storeId) {
+              sessionStorage.setItem("nexa_invite_storeId", userData.storeId);
+              sessionStorage.setItem("nexa_invite_role", userData.role || "manager");
+            }
+            
+            const { user: newUser } = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+            if (newUser) {
+              await updateProfile(newUser, { displayName: userData.name || cleanEmail.split("@")[0] });
+              // Write the permanent user profile using their actual Firebase Auth UID
+              await setDoc(doc(db, "users", newUser.uid), {
+                id: newUser.uid,
+                name: userData.name || cleanEmail.split("@")[0],
+                email: cleanEmail,
+                role: userData.role || "manager",
+                storeId: userData.storeId || null,
+                status: "active",
+                joinedAt: new Date().toISOString(),
+                createdAt: userData.createdAt || new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              });
+            }
+            return;
+          }
+        }
+      } catch (dbErr) {
+        console.error("Failed to check tempPassword in Firestore:", dbErr);
+      }
+      throw authError;
+    }
   };
 
   const register = async (email: string, password: string, name: string) => {
@@ -370,6 +448,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     toast.success("Profile name updated successfully");
   };
 
+  const updateProfileDescription = async (description: string) => {
+    if (!user) throw new Error("No user is logged in");
+    
+    // Update Firestore user profile with biography/description
+    const profileRef = doc(db, "users", user.uid);
+    await setDoc(profileRef, { description: description.trim(), updatedAt: new Date().toISOString() }, { merge: true });
+    
+    toast.success("Profile biography updated successfully");
+  };
+
   const sendPasswordReset = async (email?: string) => {
     const targetEmail = email || user?.email;
     if (!targetEmail) throw new Error("No email address provided");
@@ -385,7 +473,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, register, logout, updateProfileName, sendPasswordReset, updateUserPassword }}>
+    <AuthContext.Provider value={{ user, profile, loading, login, register, logout, updateProfileName, updateProfileDescription, sendPasswordReset, updateUserPassword }}>
       {children}
     </AuthContext.Provider>
   );

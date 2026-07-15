@@ -10,7 +10,7 @@ import { z } from "zod";
 import { 
   Upload, X, ChevronDown, ChevronRight, Package, Image as ImageIcon, Trash2, 
   Sparkles, Check, Mic, Camera, Barcode, Plus, BookOpen, Layers, Info, RotateCcw,
-  Tag, Flame, Utensils
+  Tag, Flame, Utensils, Smartphone, Pill
 } from "lucide-react";
 import {
   Sheet,
@@ -28,6 +28,7 @@ import {
 import { generateProductDescription } from "@/lib/gemini";
 import type { Item, Category, Supplier, Location, UnitConversion } from "@/types/inventory";
 import { ItemStatus, SUPPORTED_UNITS } from "@/types/inventory";
+import { DRUG_LIBRARY } from "@/data/drugLibrary";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -86,7 +87,37 @@ export function ItemFormSheet({
   const onboarding = isDemo ? demoOnboarding : liveSettings;
   const isRestaurant = onboarding?.businessType === "restaurant";
 
+  const isPhoneAccessoriesSeller = onboarding?.businessType === "electronics" && (
+    onboarding?.electronicsMainType === "accessories" ||
+    !onboarding?.categories?.includes("devices")
+  );
+
+  // Electronics fields states (for phone accessories)
+  const [compatibility, setCompatibility] = useState("");
+  const [brandFocus, setBrandFocus] = useState("");
+  const [material, setMaterial] = useState("");
+  const [warrantyPeriod, setWarrantyPeriod] = useState("");
+  const [accessoryType, setAccessoryType] = useState("");
+
+  const filteredCategories = useMemo(() => {
+    if (isPhoneAccessoriesSeller) {
+      const accessoriesIds = ["accessories", "cases", "chargers", "audio", "protection", "powerbanks"];
+      const matched = categories.filter(c => accessoriesIds.includes(c.id));
+      return matched.length > 0 ? matched : categories;
+    }
+    return categories;
+  }, [categories, isPhoneAccessoriesSeller]);
+
   // Restaurant fields states
+  const isPharmacy = onboarding?.businessType === "pharmacy";
+
+  // Pharmacy field states
+  const [expiryDate, setExpiryDate] = useState("");
+  const [batchNumber, setBatchNumber] = useState("");
+  const [requiresPrescription, setRequiresPrescription] = useState(false);
+  const [dosageForm, setDosageForm] = useState("");
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
+
   const [prepTime, setPrepTime] = useState("15 mins");
   const [portionSizes, setPortionSizes] = useState<{ name: string; price: number }[]>([
     { name: "Regular", price: 3500 },
@@ -122,7 +153,9 @@ export function ItemFormSheet({
   const [voiceSimState, setVoiceSimState] = useState<"idle" | "listening" | "done">("idle");
   const [barcodeSimState, setBarcodeSimState] = useState<"idle" | "scanning" | "done">("idle");
   const [photoSimState, setPhotoSimState] = useState<"idle" | "snapping" | "done">("idle");
+  const [localUnitSimState, setLocalUnitSimState] = useState<"idle" | "translating" | "done">("idle");
   const [hasVoiceTriggered, setHasVoiceTriggered] = useState(false);
+  const [highlightedFields, setHighlightedFields] = useState<Record<string, boolean>>({});
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors }, setError } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -152,8 +185,19 @@ export function ItemFormSheet({
 
   const name = watch("name");
   const sku = watch("sku");
+
+  const matchedDrugs = useMemo(() => {
+    if (!isPharmacy || !name || name.trim().length < 2 || isEdit) return [];
+    const q = name.toLowerCase();
+    return DRUG_LIBRARY.filter(drug => 
+      drug.name.toLowerCase().includes(q) || 
+      drug.activeIngredient.toLowerCase().includes(q) ||
+      drug.category.toLowerCase().includes(q)
+    );
+  }, [name, isPharmacy, isEdit]);
   const price = watch("sellingPrice");
   const unit = watch("unit");
+  const imageUrl = watch("imageUrl");
 
   const selectedCategoryId = watch("categoryId");
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
@@ -210,6 +254,32 @@ export function ItemFormSheet({
         setSpiceLevels(["Mild", "Medium", "Hot", "Extra hot"]);
         setAllowKitchenNotes(true);
       }
+
+      if (item.electronics) {
+        setCompatibility(item.electronics.compatibility || "");
+        setBrandFocus(item.electronics.brandFocus || "");
+        setMaterial(item.electronics.material || "");
+        setWarrantyPeriod(item.electronics.warrantyPeriod || "");
+        setAccessoryType(item.electronics.accessoryType || "");
+      } else {
+        setCompatibility("");
+        setBrandFocus("");
+        setMaterial("");
+        setWarrantyPeriod("");
+        setAccessoryType("");
+      }
+
+      if (item.pharmacy) {
+        setExpiryDate(item.pharmacy.expiryDate || "");
+        setBatchNumber(item.pharmacy.batchNumber || "");
+        setRequiresPrescription(item.pharmacy.requiresPrescription ?? false);
+        setDosageForm(item.pharmacy.dosageForm || "");
+      } else {
+        setExpiryDate("");
+        setBatchNumber("");
+        setRequiresPrescription(false);
+        setDosageForm("");
+      }
       
       // Determine template based on item structure
       if (item.unitConversions && item.unitConversions.length > 0 && item.color) {
@@ -258,11 +328,29 @@ export function ItemFormSheet({
       setProteinAddons([{ name: "Chicken", price: 1500 }, { name: "Beef", price: 1200 }, { name: "Fish", price: 1800 }]);
       setSpiceLevels(["Mild", "Medium", "Hot", "Extra hot"]);
       setAllowKitchenNotes(true);
+      setCompatibility("");
+      setBrandFocus("");
+      setMaterial("");
+      setWarrantyPeriod("");
+      setAccessoryType("");
+      setExpiryDate("");
+      setBatchNumber("");
+      setRequiresPrescription(false);
+      setDosageForm("");
+      setShowNameSuggestions(false);
       setCurrentStep(1);
       setProductType("simple");
       setShowAdvanced(false);
+
+      if (isPhoneAccessoriesSeller) {
+        setAvailColours(["Black", "Clear", "Sierra Blue", "Space Gray"]);
+        setAvailSizes(["iPhone 15 Pro", "iPhone 15 Pro Max", "iPhone 15", "iPhone 14 Pro"]);
+      } else {
+        setAvailColours(["Red", "Navy", "Gold"]);
+        setAvailSizes(["38", "39", "40", "41"]);
+      }
     }
-  }, [open, item, reset]);
+  }, [open, item, reset, isPhoneAccessoriesSeller, isPharmacy]);
 
   // Generate Suggested SKU from Name
   useEffect(() => {
@@ -377,6 +465,21 @@ export function ItemFormSheet({
       finalSizesStr = availSizes.join(", ");
     }
 
+    const electronicsData = isPhoneAccessoriesSeller ? {
+      compatibility: compatibility.trim(),
+      brandFocus: brandFocus.trim(),
+      material: material.trim(),
+      warrantyPeriod: warrantyPeriod.trim(),
+      accessoryType: accessoryType.trim(),
+    } : undefined;
+
+    const pharmacyData = isPharmacy ? {
+      expiryDate: expiryDate || undefined,
+      batchNumber: batchNumber.trim() || undefined,
+      requiresPrescription: requiresPrescription,
+      dosageForm: dosageForm || undefined,
+    } : undefined;
+
     onSave({
       ...data,
       color: finalColorsStr,
@@ -385,6 +488,8 @@ export function ItemFormSheet({
       supplierId: data.supplierId || null,
       locationId: data.locationId || null,
       description: data.description || "",
+      electronics: electronicsData,
+      pharmacy: pharmacyData,
     });
   };
 
@@ -405,12 +510,16 @@ export function ItemFormSheet({
     
     setTimeout(() => {
       setValue("name", "Ankara Fabric Red Wax");
+      setValue("sku", "ANKARA-RED-WAX");
       setValue("sellingPrice", 4500);
       setValue("unit", "yard");
       setProductType("both");
       setVoiceSimState("done");
+      setHighlightedFields({ name: true, sku: true, price: true, unit: true });
+      setCurrentStep(3);
       toast.success("Voice parsed successfully: 'Ankara Fabric Red Wax, ₦4,500'!");
-    }, 2500);
+      setTimeout(() => setHighlightedFields({}), 4500);
+    }, 1800);
   };
 
   const triggerBarcodeSimulation = () => {
@@ -424,8 +533,11 @@ export function ItemFormSheet({
       setValue("unit", "pcs");
       setProductType("simple");
       setBarcodeSimState("done");
-      toast.success("Scanned Barcode: '6151100021319' prefilled details.");
-    }, 2000);
+      setHighlightedFields({ name: true, sku: true, price: true, unit: true });
+      setCurrentStep(3);
+      toast.success("Scanned Barcode: '6151100021319' prefilled details!");
+      setTimeout(() => setHighlightedFields({}), 4500);
+    }, 1500);
   };
 
   const triggerPhotoSimulation = () => {
@@ -435,11 +547,36 @@ export function ItemFormSheet({
     setTimeout(() => {
       setValue("imageUrl", "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&auto=format&fit=crop&q=60");
       setValue("name", "Quick Snap Red Shoe");
+      setValue("sku", "SNAP-RED-SHOE");
       setValue("sellingPrice", 18000);
       setProductType("variants");
       setPhotoSimState("done");
+      setHighlightedFields({ name: true, sku: true, price: true, image: true });
+      setCurrentStep(3);
       toast.success("Captured! Prefilled default info for instant billing.");
-    }, 2200);
+      setTimeout(() => setHighlightedFields({}), 4500);
+    }, 1800);
+  };
+
+  const triggerLocalUnitsSimulation = () => {
+    setLocalUnitSimState("translating");
+    toast.info("Calibrating West African local scale size mappings...");
+
+    setTimeout(() => {
+      setValue("name", "Oloyin Beans Mudu");
+      setValue("sku", "BEANS-OLOYIN-MUDU");
+      setValue("sellingPrice", 1600);
+      setValue("unit", "mudu");
+      setProductType("bulk");
+      setValue("unitConversions", [
+        { unitId: "bag", multiplier: 40, priceNgn: 58000 }
+      ]);
+      setLocalUnitSimState("done");
+      setHighlightedFields({ name: true, sku: true, price: true, unit: true, unitConversions: true });
+      setCurrentStep(3);
+      toast.success("Applied Local Units preset (Oloyin Beans, 1 Mudu = ₦1,600, with 40x Bag conversion)!");
+      setTimeout(() => setHighlightedFields({}), 4500);
+    }, 1500);
   };
 
   const labelCls = "text-[11px] font-bold uppercase tracking-wider text-muted-foreground/90 mb-1.5 block";
@@ -465,6 +602,43 @@ export function ItemFormSheet({
                   <label className={labelCls}>Item name *</label>
                   <input {...register("name")} className={inputCls} placeholder="Jollof rice" />
                   {errors.name && <p className="text-xs text-rose-500 mt-1">{errors.name.message}</p>}
+                </div>
+                <div>
+                  <label className={labelCls}>Product Picture</label>
+                  <div className="flex items-center gap-4 mt-1 bg-background/50 p-2.5 rounded-lg border">
+                    {imageUrl ? (
+                      <div className="relative h-14 w-14 rounded-lg overflow-hidden border bg-muted shrink-0">
+                        <img src={imageUrl} alt="Product preview" className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setValue("imageUrl", "")}
+                          className="absolute top-0.5 right-0.5 bg-rose-500 text-white rounded-full p-0.5 hover:bg-rose-600 transition-colors"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="h-14 w-14 border-2 border-dashed border-muted-foreground/30 rounded-lg flex flex-col items-center justify-center text-muted-foreground hover:border-amber-500 hover:text-amber-600 transition-colors bg-muted/10 group shrink-0"
+                      >
+                        <ImageIcon className="w-4 h-4 group-hover:scale-105 transition-transform" />
+                        <span className="text-[8px] font-bold mt-0.5 uppercase">Add</span>
+                      </button>
+                    )}
+                    <div className="flex-1 text-[10px] text-muted-foreground leading-normal">
+                      <p className="font-semibold text-foreground/80 text-[11px]">Upload dish photo</p>
+                      <p className="text-[9px]">Optional picture for menus.</p>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-amber-600 font-bold underline mt-0.5 inline-block text-[9px]"
+                      >
+                        Browse file
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label className={labelCls}>Description</label>
@@ -657,9 +831,15 @@ export function ItemFormSheet({
                       productType === "variants" ? "border-primary bg-primary/[0.03] shadow-sm" : "border-border hover:border-gray-300"
                     )}
                   >
-                    <div className="h-9 w-9 rounded-lg bg-pink-100/70 text-pink-600 flex items-center justify-center font-bold text-lg">👕</div>
-                    <div className="font-bold text-sm text-slate-800">Has options</div>
-                    <div className="text-[11px] text-muted-foreground leading-tight">Different colours / sizes</div>
+                    <div className="h-9 w-9 rounded-lg bg-pink-100/70 text-pink-600 flex items-center justify-center font-bold text-lg">
+                      {isPhoneAccessoriesSeller ? "📱" : "👕"}
+                    </div>
+                    <div className="font-bold text-sm text-slate-800">
+                      {isPhoneAccessoriesSeller ? "Has model / color variants" : "Has options"}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground leading-tight">
+                      {isPhoneAccessoriesSeller ? "Compatible models (iPhone 15, S24) or color styles" : "Different colours / sizes"}
+                    </div>
                   </div>
 
                   <div 
@@ -690,14 +870,75 @@ export function ItemFormSheet({
 
               {/* Product Info Fields */}
               <div className="space-y-4 pt-2 border-t">
-                <div>
+                <div className="relative">
                   <label className={labelCls}>Product Name *</label>
                   <input 
                     {...register("name")} 
                     className={inputCls} 
-                    placeholder="e.g. Ankara Wax Fabric or Peak Milk" 
+                    placeholder={isPharmacy ? "e.g. Paracetamol, Amoxil, Coartem..." : "e.g. Ankara Wax Fabric or Peak Milk"} 
+                    onFocus={() => setShowNameSuggestions(true)}
+                    onBlur={() => {
+                      setTimeout(() => setShowNameSuggestions(false), 200);
+                    }}
                   />
                   {errors.name && <p className="text-xs text-rose-500 mt-1">{errors.name.message}</p>}
+
+                  {/* Clinical Drug Library Autocomplete Dropdown */}
+                  {isPharmacy && showNameSuggestions && matchedDrugs.length > 0 && (
+                    <div className="absolute z-50 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white dark:bg-slate-900 border border-teal-100 rounded-lg shadow-lg divide-y divide-slate-100 dark:divide-slate-800 scrollbar-none">
+                      <div className="p-1.5 bg-teal-50/50 dark:bg-teal-950/20 text-[9px] font-extrabold text-teal-800 dark:text-teal-300 flex items-center justify-between">
+                        <span>💡 INBUILT NAFDAC/WHO DRUG SUGGESTIONS</span>
+                        <span>{matchedDrugs.length} matched</span>
+                      </div>
+                      {matchedDrugs.map((drug) => (
+                        <button
+                          key={drug.id}
+                          type="button"
+                          className="w-full text-left p-2.5 hover:bg-teal-50/30 dark:hover:bg-teal-950/20 transition-all flex items-center justify-between"
+                          onMouseDown={() => {
+                            setValue("name", drug.name);
+                            setValue("description", drug.description);
+                            if (drug.imageUrl) {
+                              setValue("imageUrl", drug.imageUrl);
+                            }
+                            
+                            // Try to find matching category by name
+                            const matchCat = categories.find(c => 
+                              c.name.toLowerCase().includes(drug.category.toLowerCase()) || 
+                              drug.category.toLowerCase().includes(c.name.toLowerCase())
+                            );
+                            if (matchCat) {
+                              setValue("categoryId", matchCat.id);
+                            }
+                            
+                            setDosageForm(drug.dosageForm);
+                            setRequiresPrescription(drug.requiresPrescription);
+                            
+                            setShowNameSuggestions(false);
+                            toast.success(`Loaded clinical details for ${drug.name}!`);
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{drug.emoji}</span>
+                            <div>
+                              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{drug.name}</p>
+                              <p className="text-[9px] text-muted-foreground">{drug.activeIngredient} · {drug.manufacturer}</p>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className={cn(
+                              "text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider",
+                              drug.requiresPrescription 
+                                ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300" 
+                                : "bg-teal-100 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300"
+                            )}>
+                              {drug.requiresPrescription ? "POM (Rx)" : "OTC"}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -731,7 +972,7 @@ export function ItemFormSheet({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">General / Uncategorized</SelectItem>
-                        {categories.map((c) => (
+                        {filteredCategories.map((c) => (
                           <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -779,6 +1020,126 @@ export function ItemFormSheet({
                     placeholder="Describe main characteristics..." 
                   />
                 </div>
+
+                {/* Product Picture Field */}
+                <div>
+                  <label className={labelCls}>Product Picture</label>
+                  <div className="flex items-center gap-4 mt-1 bg-background/50 p-3 rounded-lg border">
+                    {imageUrl ? (
+                      <div className="relative h-16 w-16 rounded-lg overflow-hidden border bg-muted shrink-0">
+                        <img src={imageUrl} alt="Product preview" className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setValue("imageUrl", "")}
+                          className="absolute top-0.5 right-0.5 bg-rose-500 text-white rounded-full p-0.5 hover:bg-rose-600 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="h-16 w-16 border-2 border-dashed border-muted-foreground/30 rounded-lg flex flex-col items-center justify-center text-muted-foreground hover:border-[#007E85]/50 hover:text-[#007E85] transition-colors bg-muted/10 group shrink-0"
+                      >
+                        <ImageIcon className="w-5 h-5 group-hover:scale-105 transition-transform" />
+                        <span className="text-[8px] font-bold mt-1 uppercase">Add</span>
+                      </button>
+                    )}
+                    <div className="flex-1 text-[11px] text-muted-foreground leading-normal">
+                      <p className="font-semibold text-foreground/80 text-xs">Upload product photo</p>
+                      <p className="text-[10px]">Optional. Supports PNG, JPG, or WEBP.</p>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-[#007E85] font-bold underline mt-0.5 inline-block text-[10px]"
+                      >
+                        Browse file
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {isPhoneAccessoriesSeller && (
+                  <div className="p-4 bg-teal-50/35 border border-teal-200/60 rounded-xl space-y-3.5 shadow-none">
+                    <div className="flex items-center gap-1.5 text-teal-700 font-extrabold text-xs uppercase tracking-wider">
+                      <Smartphone className="w-3.5 h-3.5" /> 🔌 Phone Accessories Profile
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-tight -mt-1.5">
+                      Specify compatibility, materials, and warranty to streamline catalog filtering and matching.
+                    </p>
+                    
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className={labelCls}>Accessory Type</label>
+                        <Select value={accessoryType} onValueChange={setAccessoryType}>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="case">Case / Cover</SelectItem>
+                            <SelectItem value="charger">Charger / Adapter</SelectItem>
+                            <SelectItem value="cable">Charging Cable</SelectItem>
+                            <SelectItem value="audio">Earphones / Audio</SelectItem>
+                            <SelectItem value="protector">Screen Protector</SelectItem>
+                            <SelectItem value="powerbank">Power Bank</SelectItem>
+                            <SelectItem value="mount">Mount / Holder</SelectItem>
+                            <SelectItem value="other">Other Accessory</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <label className={labelCls}>Compatible Devices</label>
+                        <input 
+                          type="text" 
+                          value={compatibility} 
+                          onChange={(e) => setCompatibility(e.target.value)} 
+                          className={inputCls} 
+                          placeholder="e.g. iPhone 15 Pro, S24" 
+                        />
+                      </div>
+
+                      <div>
+                        <label className={labelCls}>Brand / Focus</label>
+                        <input 
+                          type="text" 
+                          value={brandFocus} 
+                          onChange={(e) => setBrandFocus(e.target.value)} 
+                          className={inputCls} 
+                          placeholder="e.g. Oraimo, Apple, Anker" 
+                        />
+                      </div>
+
+                      <div>
+                        <label className={labelCls}>Material / Style</label>
+                        <input 
+                          type="text" 
+                          value={material} 
+                          onChange={(e) => setMaterial(e.target.value)} 
+                          className={inputCls} 
+                          placeholder="e.g. Silicon, Tempered Glass" 
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Warranty Period</label>
+                      <Select value={warrantyPeriod} onValueChange={setWarrantyPeriod}>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="No warranty" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No warranty</SelectItem>
+                          <SelectItem value="1_month">1 Month Warranty</SelectItem>
+                          <SelectItem value="3_months">3 Months Warranty</SelectItem>
+                          <SelectItem value="6_months">6 Months Warranty</SelectItem>
+                          <SelectItem value="1_year">1 Year Warranty</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Step 1 Actions */}
@@ -905,11 +1266,37 @@ export function ItemFormSheet({
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <label className={labelCls}>Smallest Unit</label>
-                        <input 
-                          {...register("unit")} 
-                          className={inputCls} 
-                          placeholder="mudu, yard..." 
-                        />
+                        <div className="flex gap-1.5">
+                          <input 
+                            {...register("unit")} 
+                            className={`${inputCls} flex-1`} 
+                            placeholder="mudu, yard..." 
+                          />
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setValue("unit", e.target.value);
+                              }
+                            }}
+                            value={watch("unit") || ""}
+                            className="h-9 rounded-md border border-input bg-muted px-2 text-xs font-semibold max-w-[110px]"
+                          >
+                            <option value="">-- Preset --</option>
+                            <option value="pcs">Pcs</option>
+                            <option value="mudu">Mudu</option>
+                            <option value="kongo">Kongo</option>
+                            <option value="derica">Derica</option>
+                            <option value="paint bucket">Paint Bucket</option>
+                            <option value="paint rubber">Paint Rubber</option>
+                            <option value="bag">Bag</option>
+                            <option value="carton">Carton</option>
+                            <option value="yard">Yard</option>
+                            <option value="roll">Roll</option>
+                            <option value="cup">Cup</option>
+                            <option value="crate">Crate</option>
+                            <option value="kg">Kg</option>
+                          </select>
+                        </div>
                       </div>
                       <div>
                         <label className={labelCls}>Sale Price</label>
@@ -1000,13 +1387,39 @@ export function ItemFormSheet({
                           </button>
 
                           <div className="grid grid-cols-2 gap-2 mt-2">
-                            <div>
+                             <div>
                               <span className="text-[10px] text-slate-500 font-bold block mb-1">Unit Name</span>
-                              <input 
-                                {...register(`unitConversions.${idx}.unitId` as const)}
-                                className="h-8 border rounded px-2 w-full text-xs font-semibold"
-                                placeholder="e.g. mudu, carton"
-                              />
+                              <div className="flex gap-1.5">
+                                <input 
+                                  {...register(`unitConversions.${idx}.unitId` as const)}
+                                  className="h-8 border rounded px-2 flex-1 text-xs font-semibold"
+                                  placeholder="e.g. mudu, carton"
+                                />
+                                <select
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      setValue(`unitConversions.${idx}.unitId`, e.target.value);
+                                    }
+                                  }}
+                                  value={watch(`unitConversions.${idx}.unitId`) || ""}
+                                  className="h-8 rounded border border-input bg-muted px-1 text-[10px] font-semibold max-w-[90px]"
+                                >
+                                  <option value="">-- Preset --</option>
+                                  <option value="pcs">Pcs</option>
+                                  <option value="mudu">Mudu</option>
+                                  <option value="kongo">Kongo</option>
+                                  <option value="derica">Derica</option>
+                                  <option value="paint bucket">Paint Bucket</option>
+                                  <option value="paint rubber">Paint Rubber</option>
+                                  <option value="bag">Bag</option>
+                                  <option value="carton">Carton</option>
+                                  <option value="yard">Yard</option>
+                                  <option value="roll">Roll</option>
+                                  <option value="cup">Cup</option>
+                                  <option value="crate">Crate</option>
+                                  <option value="kg">Kg</option>
+                                </select>
+                              </div>
                             </div>
                             <div>
                               <span className="text-[10px] text-slate-500 font-bold block mb-1">Contains (= how many {watch("unit") || "pcs"})</span>
@@ -1122,11 +1535,40 @@ export function ItemFormSheet({
                           Add
                         </Button>
                       </div>
+
+                      {isPhoneAccessoriesSeller && (
+                        <div className="pt-1.5 flex flex-wrap gap-1 items-center">
+                          <span className="text-[9px] text-muted-foreground font-extrabold mr-1">Palettes:</span>
+                          {[
+                            { label: "Basic", list: ["Black", "Clear", "White"] },
+                            { label: "Titanium", list: ["Natural Titanium", "Blue Titanium", "Black Titanium", "White Titanium"] },
+                            { label: "Sleek", list: ["Sierra Blue", "Space Gray", "Deep Purple", "Pink"] }
+                          ].map(pal => (
+                            <button
+                              key={pal.label}
+                              type="button"
+                              onClick={() => {
+                                const newCols = [...availColours];
+                                pal.list.forEach(c => {
+                                  if (!newCols.includes(c)) newCols.push(c);
+                                });
+                                setAvailColours(newCols);
+                                toast.success(`Added ${pal.label} colors.`);
+                              }}
+                              className="text-[9px] bg-teal-50 border border-teal-200/50 hover:bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 rounded-md transition-all active:scale-95"
+                            >
+                              + {pal.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Sizes chips */}
                     <div className="space-y-1.5 pt-2 border-t border-dashed">
-                      <span className={labelCls}>Sizes Available</span>
+                      <span className={labelCls}>
+                        {isPhoneAccessoriesSeller ? "Compatible Models" : "Sizes Available"}
+                      </span>
                       <div className="flex flex-wrap gap-1.5 mb-2">
                         {availSizes.map((sz, idx) => (
                           <span key={idx} className="bg-white border rounded-full px-3 py-1 text-xs font-semibold text-slate-700 inline-flex items-center gap-1.5">
@@ -1146,7 +1588,7 @@ export function ItemFormSheet({
                           value={newSizeInput} 
                           onChange={e => setNewSizeInput(e.target.value)}
                           className="h-8 border rounded-md px-2.5 text-xs flex-1"
-                          placeholder="e.g. 42 or XL"
+                          placeholder={isPhoneAccessoriesSeller ? "e.g. iPhone 15 Pro Max" : "e.g. 42 or XL"}
                         />
                         <Button 
                           type="button" 
@@ -1162,6 +1604,34 @@ export function ItemFormSheet({
                           Add
                         </Button>
                       </div>
+
+                      {isPhoneAccessoriesSeller && (
+                        <div className="pt-1.5 flex flex-wrap gap-1 items-center">
+                          <span className="text-[9px] text-muted-foreground font-extrabold mr-1">Models:</span>
+                          {[
+                            { label: "iPhone 15", list: ["iPhone 15", "iPhone 15 Pro", "iPhone 15 Pro Max"] },
+                            { label: "iPhone 14", list: ["iPhone 14", "iPhone 14 Pro", "iPhone 14 Pro Max"] },
+                            { label: "iPhone 13", list: ["iPhone 13", "iPhone 13 Pro", "iPhone 13 Pro Max"] },
+                            { label: "Galaxy S24", list: ["Galaxy S24", "Galaxy S24 Plus", "Galaxy S24 Ultra"] }
+                          ].map(pal => (
+                            <button
+                              key={pal.label}
+                              type="button"
+                              onClick={() => {
+                                const newSzs = [...availSizes];
+                                pal.list.forEach(s => {
+                                  if (!newSzs.includes(s)) newSzs.push(s);
+                                });
+                                setAvailSizes(newSzs);
+                                toast.success(`Added ${pal.label} series compatible models.`);
+                              }}
+                              className="text-[9px] bg-teal-50 border border-teal-200/50 hover:bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 rounded-md transition-all active:scale-95"
+                            >
+                              + {pal.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1170,7 +1640,11 @@ export function ItemFormSheet({
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="text-[12px] font-bold text-slate-800">Same price for all variants?</span>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">Most boutiques sell the same item style at one price.</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {isPhoneAccessoriesSeller 
+                            ? "Most accessories dealers sell the same design across different phone models at one price."
+                            : "Most boutiques sell the same item style at one price."}
+                        </p>
                       </div>
                       <input 
                         type="checkbox" 
@@ -1308,7 +1782,7 @@ export function ItemFormSheet({
                     <div className="bg-sky-50 p-3 rounded-lg border border-sky-100 text-[11px] text-sky-800 flex items-center gap-2">
                       <div className="bg-sky-500 text-white rounded-full h-4 w-4 flex items-center justify-center font-bold">✓</div>
                       <span>
-                        <strong>{getVariantCount()} variants</strong> will be created: {availColours.length} colours × {availSizes.length} sizes.
+                        <strong>{getVariantCount()} variants</strong> will be created: {availColours.length} colours × {availSizes.length} {isPhoneAccessoriesSeller ? "models" : "sizes"}.
                       </span>
                     </div>
                   </div>
@@ -1467,6 +1941,71 @@ export function ItemFormSheet({
                 </div>
               )}
 
+              {/* Pharmacy Clinical Specifications */}
+              {isPharmacy && (
+                <div className="p-4 bg-teal-50/50 dark:bg-teal-950/20 rounded-xl border border-teal-100 dark:border-teal-900/60 space-y-4 shadow-none">
+                  <div className="flex items-center gap-1.5 text-teal-600 dark:text-teal-400 font-bold text-xs uppercase tracking-wider">
+                    <Pill className="w-3.5 h-3.5" />
+                    Pharmacy Clinical Specifications
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Expiry Date *</label>
+                      <input 
+                        type="date" 
+                        value={expiryDate} 
+                        onChange={e => setExpiryDate(e.target.value)} 
+                        className={inputCls} 
+                      />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Batch Number</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. BNT-2026X" 
+                        value={batchNumber} 
+                        onChange={e => setBatchNumber(e.target.value)} 
+                        className={inputCls} 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Dosage Form</label>
+                      <select 
+                        value={dosageForm} 
+                        onChange={e => setDosageForm(e.target.value)} 
+                        className={inputCls}
+                      >
+                        <option value="">Select form...</option>
+                        <option value="Tablet">Tablet</option>
+                        <option value="Capsule">Capsule</option>
+                        <option value="Liquid/Suspension">Liquid / Suspension</option>
+                        <option value="Syrup">Syrup</option>
+                        <option value="Inhaler">Inhaler</option>
+                        <option value="Injection Pen">Injection Pen</option>
+                        <option value="Cream/Ointment">Cream / Ointment</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2 rounded-lg border border-teal-100 dark:border-teal-900/40 bg-teal-50/10 mt-5">
+                      <div className="mr-2">
+                        <span className="text-[10px] font-bold text-teal-900 dark:text-teal-300">Requires Rx?</span>
+                        <p className="text-[8px] text-muted-foreground leading-tight">Prescription needed.</p>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        checked={requiresPrescription} 
+                        onChange={e => setRequiresPrescription(e.target.checked)} 
+                        className="rounded text-teal-600 focus:ring-teal-500 h-4 w-4" 
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Step 2 buttons */}
               <div className="flex gap-2 pt-3">
                 <Button 
@@ -1494,19 +2033,42 @@ export function ItemFormSheet({
               <div className="p-5 bg-[#007E85]/5 border border-[#007E85]/10 rounded-xl space-y-4">
                 <div className="flex items-center gap-2 text-[#007E85] font-bold text-sm">
                   <span className="text-lg">✓</span>
-                  <span>Looks good! Review before saving.</span>
+                  <span>Review Product Details</span>
                 </div>
-
                 <div className="space-y-3 pt-2 text-xs">
-                  <div className="flex justify-between border-b pb-2">
+                  <div className={cn(
+                    "flex justify-between border-b pb-2 transition-all duration-1000 rounded px-1.5 py-1",
+                    highlightedFields.name && "bg-emerald-100/60 dark:bg-emerald-950/40 ring-1 ring-emerald-500 scale-[1.02] shadow-sm animate-pulse"
+                  )}>
                     <span className="text-slate-500 font-bold uppercase">Product name</span>
                     <span className="font-bold text-slate-900">{watch("name") || "(untitled)"}</span>
                   </div>
 
-                  <div className="flex justify-between border-b pb-2">
+                  <div className={cn(
+                    "flex justify-between border-b pb-2 transition-all duration-1000 rounded px-1.5 py-1",
+                    highlightedFields.sku && "bg-emerald-100/60 dark:bg-emerald-950/40 ring-1 ring-emerald-500 scale-[1.02] shadow-sm animate-pulse"
+                  )}>
                     <span className="text-slate-500 font-bold uppercase">SKU code</span>
                     <span className="font-mono font-bold text-slate-800">{watch("sku") || "(none)"}</span>
                   </div>
+
+                  <div className={cn(
+                    "flex justify-between border-b pb-2 transition-all duration-1000 rounded px-1.5 py-1",
+                    highlightedFields.price && "bg-emerald-100/60 dark:bg-emerald-950/40 ring-1 ring-emerald-500 scale-[1.02] shadow-sm animate-pulse"
+                  )}>
+                    <span className="text-slate-500 font-bold uppercase">Selling Price</span>
+                    <span className="font-mono font-extrabold text-[#007E85]">₦{(watch("sellingPrice") || 0).toLocaleString()}</span>
+                  </div>
+
+                  {watch("imageUrl") && (
+                    <div className={cn(
+                      "flex items-center justify-between border-b pb-2 transition-all duration-1000 rounded px-1.5 py-1",
+                      highlightedFields.image && "bg-emerald-100/60 dark:bg-emerald-950/40 ring-1 ring-emerald-500 scale-[1.02] shadow-sm animate-pulse"
+                    )}>
+                      <span className="text-slate-500 font-bold uppercase">Captured Photo</span>
+                      <img src={watch("imageUrl") || ""} alt="Captured preview" className="w-10 h-10 object-cover rounded-md border" />
+                    </div>
+                  )}
 
                   <div className="flex justify-between border-b pb-2">
                     <span className="text-slate-500 font-bold uppercase">Category</span>
@@ -1520,11 +2082,22 @@ export function ItemFormSheet({
                     <span className="font-extrabold text-[#007E85] uppercase tracking-wider">{productType}</span>
                   </div>
 
-                  <div className="flex justify-between border-b pb-2">
+                  <div className={cn(
+                    "flex justify-between border-b pb-2 transition-all duration-1000 rounded px-1.5 py-1",
+                    highlightedFields.unit && "bg-emerald-100/60 dark:bg-emerald-950/40 ring-1 ring-emerald-500 scale-[1.02] shadow-sm animate-pulse"
+                  )}>
+                    <span className="text-slate-500 font-bold uppercase">Base Unit</span>
+                    <span className="font-bold text-slate-900 uppercase">{watch("unit") || "pcs"}</span>
+                  </div>
+
+                  <div className={cn(
+                    "flex justify-between border-b pb-2 transition-all duration-1000 rounded px-1.5 py-1",
+                    highlightedFields.unitConversions && "bg-emerald-100/60 dark:bg-emerald-950/40 ring-1 ring-emerald-500 scale-[1.02] shadow-sm animate-pulse"
+                  )}>
                     <span className="text-slate-500 font-bold uppercase">Configuration</span>
                     <span className="font-semibold text-slate-900">
                       {productType === "simple" && "1 Price · 1 Stock ledger"}
-                      {productType === "variants" && `${getVariantCount()} variants (${availColours.length} Cols × ${availSizes.length} Sizes)`}
+                      {productType === "variants" && `${getVariantCount()} variants (${availColours.length} Cols × ${availSizes.length} ${isPhoneAccessoriesSeller ? "Models" : "Sizes"})`}
                       {productType === "bulk" && `Bulk units enabled with conversion metrics`}
                       {productType === "both" && `${availColours.length} Colours with wholesale multipliers`}
                     </span>
@@ -1536,6 +2109,27 @@ export function ItemFormSheet({
                       ₦{simulatedTotalStockVal().toLocaleString()}
                     </span>
                   </div>
+
+                  {isPharmacy && (
+                    <div className="border-t pt-2 mt-2 space-y-1.5 text-[11px]">
+                      <div className="flex justify-between">
+                        <span className="text-teal-600 dark:text-teal-400 font-bold uppercase">Expiry Date</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{expiryDate || "Not Set"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-teal-600 dark:text-teal-400 font-bold uppercase">Batch Number</span>
+                        <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{batchNumber || "Not Set"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-teal-600 dark:text-teal-400 font-bold uppercase">Dosage Form</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{dosageForm || "Not Set"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-teal-600 dark:text-teal-400 font-bold uppercase">Prescription Req. (POM)</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{requiresPrescription ? "Yes (Requires Prescription)" : "No (Over-The-Counter)"}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1694,9 +2288,12 @@ export function ItemFormSheet({
 
               {/* 4. Local Language unit translations */}
               <div className="p-4 bg-white rounded-xl border shadow-sm space-y-2.5">
-                <div className="flex items-center gap-2 font-bold text-sm text-slate-800">
-                  <BookOpen className="h-4 w-4 text-[#007E85]" />
-                  <span>Local Unit Multipliers (Mudu, Kongo)</span>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2 font-bold text-sm text-slate-800">
+                    <BookOpen className="h-4 w-4 text-[#007E85]" />
+                    <span>Local Unit Multipliers (Mudu, Kongo)</span>
+                  </div>
+                  <span className="text-[9px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded-full">Foodstuff / Retail</span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed">
                   We allow entering custom local scale sizes like <strong>mudu, derica, or paint buckets</strong> natively as-is because NexaOS only needs the ratio (e.g. 5) rather than the English meanings.
@@ -1705,6 +2302,15 @@ export function ItemFormSheet({
                   <div className="flex justify-between"><span className="font-bold text-slate-700">1 mudu</span><span>= 5 base cups</span></div>
                   <div className="flex justify-between"><span className="font-bold text-slate-700">1 paint bucket</span><span>= 4 mudu</span></div>
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full text-xs h-8 bg-[#007E85]/5 hover:bg-[#007E85]/10 border-[#007E85]/20 text-[#007E85] font-bold"
+                  disabled={localUnitSimState === "translating"}
+                  onClick={triggerLocalUnitsSimulation}
+                >
+                  {localUnitSimState === "translating" ? "⚖️ Calibrating local 'mudu' factors..." : "🌾 Test Local Units & prefill (Oloyin Beans mudu)"}
+                </Button>
               </div>
 
               <div className="pt-3">
@@ -1721,6 +2327,13 @@ export function ItemFormSheet({
         </div>
         </>
         )}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleImageUpload}
+          accept="image/*"
+          className="hidden"
+        />
       </SheetContent>
     </Sheet>
   );

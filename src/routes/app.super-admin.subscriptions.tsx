@@ -471,6 +471,20 @@ export function SubscriptionsManagementPage() {
         await updateDoc(doc(db, "stores", selectedStore.id), updatedFields);
         await setDoc(doc(db, "subscriptionEvents", eventId), newEvent);
         toast.success("Store subscription audit logs synchronized live on Cloud!");
+
+        // Trigger agent commission processing on the server
+        try {
+          fetch("/api/subscription/process-commission", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ eventId })
+          }).then(res => res.json())
+            .then(data => console.log("[Commission Process Result]:", data))
+            .catch(err => console.error("Failed to call commission process API:", err));
+        } catch (e) {
+          console.error("Failed to trigger commission calculation on server:", e);
+        }
+
         await loadDatabase();
         
         // Refresh selectedStore detail representation

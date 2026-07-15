@@ -327,10 +327,13 @@ export function SuperAdminLayout() {
     { label: "Dashboard", href: "/app/super-admin", icon: Activity },
     { label: "Store Branches", href: "/app/super-admin/stores", icon: Building2 },
     { label: "User Administration", href: "/app/super-admin/users", icon: Users },
-    { label: "WhatsApp API Hub", href: "/app/super-admin/updates", icon: MessageSquare },
+    { label: "Updates & Feature Lock", href: "/app/super-admin/updates", icon: MessageSquare },
+    { label: "Support Chats", href: "/app/super-admin/chats", icon: MessageSquare },
     { label: "AI Agents Hub", href: "/app/super-admin/agents", icon: Bot },
+    { label: "Agent Network", href: "/app/super-admin/agents-network", icon: Users },
     { label: "Subscriptions", href: "/app/super-admin/subscriptions", icon: CreditCard },
     { label: "QR Attribution", href: "/app/super-admin/attribution", icon: QrCode },
+    { label: "Retention Engine", href: "/app/super-admin/retention", icon: Activity },
     { label: "Backups & Maintenance", href: "/app/super-admin/landing", icon: Database },
   ];
 

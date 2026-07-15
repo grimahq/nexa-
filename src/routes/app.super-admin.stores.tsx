@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { db } from "@/lib/firebase";
 import { doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { useDemo } from "@/hooks/useDemo";
 
 export const Route = createFileRoute("/app/super-admin/stores")({
   component: SuperAdminStores,
@@ -24,8 +25,9 @@ const SECTOR_LABELS: Record<string, string> = {
 };
 
 function SuperAdminStores() {
-  const { superStores, setSuperStores, currentStoreId, setCurrentStoreId, logs, setLogs } = useSuperAdminContext();
+  const { superStores, setSuperStores, superUsers, setSuperUsers, currentStoreId, setCurrentStoreId, logs, setLogs } = useSuperAdminContext();
   const [search, setSearch] = useState("");
+  const { isDemo } = useDemo();
 
   // Dialogs
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -60,6 +62,55 @@ function SuperAdminStores() {
     }
 
     const newStoreId = `store-${Date.now()}`;
+    const newStoreValuation = Number(valuation) || 0;
+
+    if (isDemo) {
+      const newStore: SuperStore = {
+        id: newStoreId,
+        name,
+        sector,
+        manager,
+        managerEmail,
+        itemCount: 0,
+        valuationNgn: newStoreValuation,
+        healthScore: 100,
+        alerts: 0,
+        status: "active",
+      };
+
+      const newUser = {
+        id: `user-${Date.now()}`,
+        name: manager,
+        email: managerEmail,
+        role: "admin" as const,
+        storeId: newStoreId,
+        storeName: name,
+        joinedDate: new Date().toISOString().slice(0, 10),
+        status: "active" as const,
+      };
+
+      setSuperStores(prev => [...prev, newStore]);
+      setSuperUsers(prev => [...prev, newUser]);
+
+      const newLog = {
+        id: `log-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        user: "nexatechnologies.dev@gmail.com",
+        action: `Provisioned new storefront (Demo mode): "${name}"`,
+        store: name,
+        status: "success" as const,
+      };
+      setLogs(prev => [newLog, ...prev]);
+
+      toast.success(`Storefront "${name}" provisioned successfully in local environment!`);
+      setIsAddOpen(false);
+      setName("");
+      setManager("");
+      setManagerEmail("");
+      setValuation("500000");
+      return;
+    }
+
     try {
       await setDoc(doc(db, "stores", newStoreId), {
         id: newStoreId,
@@ -67,11 +118,25 @@ function SuperAdminStores() {
         businessType: sector,
         ownerName: manager,
         ownerEmail: managerEmail,
-        valuationNgn: Number(valuation) || 0,
+        valuationNgn: newStoreValuation,
         healthScore: 100,
         alerts: 0,
         status: "active",
         isOnboarded: true,
+        createdAt: new Date().toISOString(),
+      });
+
+      // Create linked owner profile
+      const newUserId = `user-${Date.now()}`;
+      await setDoc(doc(db, "users", newUserId), {
+        id: newUserId,
+        name: manager,
+        email: managerEmail,
+        role: "admin",
+        storeId: newStoreId,
+        storeName: name,
+        status: "active",
+        onboardingCompleted: true,
         createdAt: new Date().toISOString(),
       });
 
@@ -112,13 +177,41 @@ function SuperAdminStores() {
     e.preventDefault();
     if (!editingStore) return;
 
+    const updatedValuation = Number(valuation) || 0;
+
+    if (isDemo) {
+      setSuperStores(prev => prev.map(s => s.id === editingStore.id ? {
+        ...s,
+        name,
+        sector,
+        manager,
+        managerEmail,
+        valuationNgn: updatedValuation
+      } : s));
+
+      const newLog = {
+        id: `log-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        user: "nexatechnologies.dev@gmail.com",
+        action: `Updated storefront parameters (Demo mode): "${name}"`,
+        store: name,
+        status: "info" as const,
+      };
+      setLogs(prev => [newLog, ...prev]);
+
+      toast.success(`Store "${name}" updated successfully (Demo).`);
+      setIsEditOpen(false);
+      setEditingStore(null);
+      return;
+    }
+
     try {
       await updateDoc(doc(db, "stores", editingStore.id), {
         storeName: name,
         businessType: sector,
         ownerName: manager,
         ownerEmail: managerEmail,
-        valuationNgn: Number(valuation) || 0,
+        valuationNgn: updatedValuation,
       });
 
       const newLogId = `log-${Date.now()}`;
@@ -148,6 +241,12 @@ function SuperAdminStores() {
     };
     const nextStatus = nextStatusMap[store.status];
 
+    if (isDemo) {
+      setSuperStores(prev => prev.map(s => s.id === store.id ? { ...s, status: nextStatus } : s));
+      toast.info(`"${store.name}" is now in ${nextStatus.toUpperCase()} mode (Demo).`);
+      return;
+    }
+
     try {
       await updateDoc(doc(db, "stores", store.id), {
         status: nextStatus,
@@ -171,6 +270,14 @@ function SuperAdminStores() {
   };
 
   const handleDeleteStore = async (store: SuperStore) => {
+    if (isDemo) {
+      setSuperStores(prev => prev.filter(s => s.id !== store.id));
+      toast.success(`Storefront "${store.name}" deleted (Demo).`);
+      setIsDeleteOpen(false);
+      setDeletingStore(null);
+      return;
+    }
+
     try {
       await deleteDoc(doc(db, "stores", store.id));
 
@@ -193,6 +300,30 @@ function SuperAdminStores() {
     }
   };
 
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return; // Only left click drag
+    const container = e.currentTarget;
+    container.style.cursor = "grabbing";
+    
+    const startX = e.pageX - container.offsetLeft;
+    const scrollLeft = container.scrollLeft;
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const x = moveEvent.pageX - container.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      container.scrollLeft = scrollLeft - walk;
+    };
+    
+    const handleMouseUp = () => {
+      container.style.cursor = "grab";
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+    
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -211,8 +342,11 @@ function SuperAdminStores() {
         </Button>
       </div>
 
-      <div className="overflow-hidden border border-muted-foreground/10 rounded-lg">
-        <table className="w-full text-left text-xs border-collapse">
+      <div 
+        className="overflow-x-auto cursor-grab active:cursor-grabbing border border-muted-foreground/10 rounded-lg scrollbar-thin touch-pan-x"
+        onMouseDown={handleMouseDown}
+      >
+        <table className="w-full text-left text-xs border-collapse min-w-[950px]">
           <thead>
             <tr className="border-b bg-muted/50 text-muted-foreground font-semibold">
               <th className="p-3">Branch Name</th>
