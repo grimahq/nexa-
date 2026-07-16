@@ -10,6 +10,37 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { motion, AnimatePresence } from "motion/react";
 import "@/styles/landing.css";
+import { 
+  ShoppingCart, 
+  Package, 
+  TrendingUp, 
+  CreditCard, 
+  DollarSign, 
+  Users, 
+  Phone, 
+  MapPin, 
+  Globe, 
+  Building, 
+  Zap, 
+  Gift, 
+  ShieldCheck, 
+  Sparkles, 
+  User, 
+  Bell, 
+  Award, 
+  Smartphone, 
+  MessageCircle, 
+  BarChart3, 
+  Plus, 
+  Home, 
+  Menu, 
+  MoreHorizontal, 
+  Sun,
+  Store,
+  Clock,
+  Trash2,
+  Minus 
+} from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -244,6 +275,252 @@ function LandingPage() {
   });
   const [isSending, setIsSending] = useState(false);
   const [formSuccess, setFormSuccess] = useState(false);
+
+  // --- INTERACTIVE SIMULATOR STATES ---
+  const [simProducts, setSimProducts] = useState([
+    { id: "1", name: "Indomie Super Pack", price: 1500, stock: 5, category: "Noodles" },
+    { id: "2", name: "Coca-Cola 50cl", price: 400, stock: 18, category: "Drinks" },
+    { id: "3", name: "Peak Milk Sachet", price: 250, stock: 45, category: "Dairy" },
+    { id: "4", name: "Golden Penny Spaghetti", price: 950, stock: 12, category: "Grains" },
+    { id: "5", name: "Milo 20g Sachet", price: 180, stock: 3, category: "Beverages" }
+  ]);
+  const [simCart, setSimCart] = useState<{ id: string; quantity: number; overridePrice?: number }[]>([]);
+  const [simSales, setSimSales] = useState<{ id: string; items: { name: string; qty: number; price: number }[]; total: number; paymentMethod: string; time: string }[]>([]);
+  const [simDebtList, setSimDebtList] = useState([
+    { id: "1", debtor: "Chinedu O.", amount: 4500, date: "Yesterday" },
+    { id: "2", debtor: "Mama Blessing", amount: 1200, date: "2 days ago" },
+  ]);
+  const [simActiveTab, setSimActiveTab] = useState<"home" | "sales" | "items" | "more">("home");
+  const [simView, setSimView] = useState<"dashboard" | "analytics" | "add-product" | "restock" | "debt-book" | "alerts-log" | "checkout-success" | "pos-cart">("dashboard");
+  const [newProdName, setNewProdName] = useState("");
+  const [newProdPrice, setNewProdPrice] = useState("");
+  const [newProdStock, setNewProdStock] = useState("");
+  const [newProdCat, setNewProdCat] = useState("Provisions");
+  const [simDebtorName, setSimDebtorName] = useState("");
+  const [simAlertNotification, setSimAlertNotification] = useState<{ title: string; message: string; type: "success" | "warning" | "info" } | null>(null);
+  const [simNotificationHistory, setSimNotificationHistory] = useState<{ id: string; text: string; time: string; type: string }[]>([
+    { id: "1", text: "8 AM Daily Report sent to Hassan Bala", time: "8:00 AM", type: "info" },
+    { id: "2", text: "Low stock alert: Milo 20g Sachet (3 left)", time: "Yesterday", type: "warning" }
+  ]);
+  const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState<"Transfer" | "Cash" | "POS" | "Credit">("Transfer");
+  const [lastCheckoutDetails, setLastCheckoutDetails] = useState<{ id: string; total: number; paymentMethod: string } | null>(null);
+
+  const triggerSimAlert = (title: string, message: string, type: "success" | "warning" | "info") => {
+    setSimAlertNotification({ title, message, type });
+    setSimNotificationHistory(prev => [
+      {
+        id: Date.now().toString(),
+        text: `${title}: ${message}`,
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        type
+      },
+      ...prev
+    ]);
+  };
+
+  useEffect(() => {
+    if (simAlertNotification) {
+      const timer = setTimeout(() => {
+        setSimAlertNotification(null);
+      }, 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [simAlertNotification]);
+
+  const simStats = useMemo(() => {
+    const salesTotal = simSales.reduce((sum, sale) => sum + sale.total, 0);
+    const finalRevenue = 184200 + salesTotal;
+
+    const salesUnits = simSales.reduce((sum, sale) => sum + sale.items.reduce((uSum, item) => uSum + item.qty, 0), 0);
+    const finalUnits = 34 + salesUnits;
+
+    const lowStockCount = simProducts.filter(p => p.stock <= 5).length;
+
+    return {
+      revenue: finalRevenue,
+      units: finalUnits,
+      lowStockCount
+    };
+  }, [simProducts, simSales]);
+
+  // --- INTERACTIVE SIMULATOR ACTION HANDLERS ---
+  const handleSimAddProduct = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProdName.trim() || !newProdPrice || !newProdStock) {
+      triggerSimAlert("Error ⚠️", "Please fill in all fields", "warning");
+      return;
+    }
+    const price = parseFloat(newProdPrice);
+    const stock = parseInt(newProdStock);
+    if (isNaN(price) || isNaN(stock) || price <= 0 || stock < 0) {
+      triggerSimAlert("Error ⚠️", "Please enter valid numeric values", "warning");
+      return;
+    }
+
+    const newProd = {
+      id: (simProducts.length + 1).toString(),
+      name: newProdName,
+      price,
+      stock,
+      category: newProdCat
+    };
+
+    setSimProducts(prev => [...prev, newProd]);
+    triggerSimAlert("Product Added 📦", `Saved "${newProdName}" successfully!`, "success");
+    setNewProdName("");
+    setNewProdPrice("");
+    setNewProdStock("");
+    setSimView("dashboard");
+    setSimActiveTab("home");
+  };
+
+  const handleSimQuickRestock = (prodId: string, qtyToAdd: number) => {
+    setSimProducts(prev => prev.map(p => {
+      if (p.id === prodId) {
+        const updatedStock = p.stock + qtyToAdd;
+        triggerSimAlert("Stock Updated ⚡", `Restocked "${p.name}" by +${qtyToAdd} units!`, "success");
+        return { ...p, stock: updatedStock };
+      }
+      return p;
+    }));
+  };
+
+  const handleSimRestockSubmit = (prodId: string, qtyStr: string) => {
+    const qty = parseInt(qtyStr);
+    if (isNaN(qty) || qty <= 0) {
+      triggerSimAlert("Error ⚠️", "Please enter a valid quantity", "warning");
+      return;
+    }
+
+    setSimProducts(prev => prev.map(p => {
+      if (p.id === prodId) {
+        const updatedStock = p.stock + qty;
+        triggerSimAlert("Stock Updated ⚡", `Restocked "${p.name}" by +${qty} units!`, "success");
+        return { ...p, stock: updatedStock };
+      }
+      return p;
+    }));
+    setSimView("dashboard");
+    setSimActiveTab("home");
+  };
+
+  const handleAddToCart = (prodId: string) => {
+    const product = simProducts.find(p => p.id === prodId);
+    if (!product) return;
+
+    const cartItem = simCart.find(item => item.id === prodId);
+    const currentQtyInCart = cartItem ? cartItem.quantity : 0;
+
+    if (currentQtyInCart >= product.stock) {
+      triggerSimAlert("Out of Stock ⚠️", `Only ${product.stock} units of ${product.name} left!`, "warning");
+      return;
+    }
+
+    setSimCart(prev => {
+      if (cartItem) {
+        return prev.map(item => item.id === prodId ? { ...item, quantity: item.quantity + 1 } : item);
+      } else {
+        return [...prev, { id: prodId, quantity: 1 }];
+      }
+    });
+
+    triggerSimAlert("Added 🛒", `Added 1x ${product.name}`, "info");
+  };
+
+  const handleRemoveFromCart = (prodId: string) => {
+    setSimCart(prev => {
+      const item = prev.find(i => i.id === prodId);
+      if (item && item.quantity > 1) {
+        return prev.map(i => i.id === prodId ? { ...i, quantity: i.quantity - 1 } : i);
+      } else {
+        return prev.filter(i => i.id !== prodId);
+      }
+    });
+  };
+
+  const handleClearCartItem = (prodId: string) => {
+    setSimCart(prev => prev.filter(i => i.id !== prodId));
+  };
+
+  const handleSimCheckout = () => {
+    if (simCart.length === 0) {
+      triggerSimAlert("Empty Cart ⚠️", "Please add items to cart first", "warning");
+      return;
+    }
+
+    // Prepare sales items
+    const itemsDetail = simCart.map(cartItem => {
+      const p = simProducts.find(prod => prod.id === cartItem.id)!;
+      const finalPrice = cartItem.overridePrice !== undefined ? cartItem.overridePrice : p.price;
+      return {
+        id: p.id,
+        name: p.name,
+        qty: cartItem.quantity,
+        price: finalPrice
+      };
+    });
+
+    const subtotal = itemsDetail.reduce((sum, item) => sum + (item.price * item.qty), 0);
+
+    // Deduct stocks
+    setSimProducts(prev => prev.map(p => {
+      const cartItem = simCart.find(ci => ci.id === p.id);
+      if (cartItem) {
+        return { ...p, stock: Math.max(0, p.stock - cartItem.quantity) };
+      }
+      return p;
+    }));
+
+    const debtorNameText = simDebtorName.trim() || "Regular Customer";
+
+    // Handle debt logging if Credit is chosen
+    if (checkoutPaymentMethod === "Credit") {
+      const newDebt = {
+        id: (simDebtList.length + 1).toString(),
+        debtor: debtorNameText,
+        amount: subtotal,
+        date: "Just now"
+      };
+      setSimDebtList(prev => [newDebt, ...prev]);
+      triggerSimAlert("Debt Logged ⚠️", `₦${subtotal.toLocaleString()} logged to ${debtorNameText}'s account. WhatsApp reminder scheduled!`, "warning");
+      setSimDebtorName("");
+    } else {
+      triggerSimAlert(
+        "Payment Confirmed! 💰",
+        `Received ₦${subtotal.toLocaleString()} via ${checkoutPaymentMethod}. Receipt sent via WhatsApp.`,
+        "success"
+      );
+    }
+
+    // Add to sales log
+    const newSale = {
+      id: `NX-${Math.floor(1000 + Math.random() * 9000)}`,
+      items: itemsDetail,
+      total: subtotal,
+      paymentMethod: checkoutPaymentMethod,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    };
+
+    setSimSales(prev => [newSale, ...prev]);
+    setLastCheckoutDetails(newSale);
+    setSimCart([]); // Clear cart
+    setSimView("checkout-success");
+  };
+
+  const handleCollectDebt = (id: string, name: string, amount: number) => {
+    setSimDebtList(prev => prev.filter(debt => debt.id !== id));
+    triggerSimAlert("Debt Paid ✅", `Collected ₦${amount.toLocaleString()} from ${name}. WhatsApp notification sent!`, "success");
+    
+    // Log as cash sale
+    const newSale = {
+      id: `NX-${Math.floor(1000 + Math.random() * 9000)}`,
+      items: [{ name: `Debt Paid: ${name}`, qty: 1, price: amount }],
+      total: amount,
+      paymentMethod: "Cash",
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    };
+    setSimSales(prev => [newSale, ...prev]);
+  };
 
   useEffect(() => {
     try {
@@ -530,10 +807,27 @@ function LandingPage() {
         <nav id="nav" className={scrolled ? "scrolled" : ""}>
           <div className="nav-inner">
             <a className="nav-brand" onClick={() => goto('home')}>
-              <div className="nav-logo-box">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M4 4L10 4L14 12L10 20H4L8 12L4 4Z" fill="white" opacity=".9"/>
-                  <path d="M12 4H20L16 12L20 20H12L16 12L12 4Z" fill="white" opacity=".55"/>
+              <div className="nav-logo-box always-animated-logo">
+                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="nexaBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#083344" />
+                      <stop offset="100%" stopColor="#115e59" />
+                    </linearGradient>
+                    <linearGradient id="nexaTealGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#0ea5e9" />
+                      <stop offset="50%" stopColor="#0d9488" />
+                      <stop offset="100%" stopColor="#10b981" />
+                    </linearGradient>
+                  </defs>
+                  {/* Bag Handle */}
+                  <path d="M 38,28 C 38,14 62,14 62,28" stroke="url(#nexaTealGrad)" strokeWidth="5.5" strokeLinecap="round" fill="none" />
+                  {/* Bag Body */}
+                  <path d="M 24,32 C 24,32 76,32 76,32 L 70,76 C 69,81 31,81 30,76 Z" fill="url(#nexaBgGrad)" stroke="url(#nexaTealGrad)" strokeWidth="3" strokeLinejoin="round" />
+                  {/* Dynamic 'N' swoosh and arrow */}
+                  <path className="nexa-arrow-path" d="M 20,54 C 20,44 28,38 38,44 C 48,50 46,64 54,68 C 60,71 68,68 72,58 L 80,40" stroke="url(#nexaTealGrad)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                  {/* Arrow tip */}
+                  <path d="M 68,40 H 80 V 52" stroke="url(#nexaTealGrad)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                 </svg>
               </div>
               <span className="nav-brand-name">Nexa<span>StoreOS</span></span>
@@ -796,7 +1090,7 @@ function LandingPage() {
                 >
                   <div className="cmp-head">
                     <div className="cmp-versus"><span className="cmp-vs-old">WhatsApp Records</span><span className="cmp-arrow">→</span><span className="cmp-vs-new">NexaOS</span></div>
-                    <div className="cmp-icon">💬</div>
+                    <div className="cmp-icon"><MessageCircle className="w-5 h-5 text-blue-500" /></div>
                     <div className="cmp-title">No more digging through chats.</div>
                   </div>
                   <div className="cmp-body">
@@ -811,14 +1105,14 @@ function LandingPage() {
                 >
                   <div className="cmp-head">
                     <div className="cmp-versus"><span className="cmp-vs-old">Excel / Sheets</span><span className="cmp-arrow">→</span><span className="cmp-vs-new">NexaOS</span></div>
-                    <div className="cmp-icon">📊</div>
+                    <div className="cmp-icon"><BarChart3 className="w-5 h-5 text-teal-500" /></div>
                     <div className="cmp-title">Multi-user. No crashes. Ever.</div>
                   </div>
                   <div className="cmp-body">
                     <div className="cmp-row"><div className="cmp-row-icon bad-icon">✕</div><div className="cmp-row-text">Crashes when two staff edit at once. One bad formula destroys months of data.</div></div>
                     <div className="cmp-row"><div className="cmp-row-icon good-icon">✓</div><div className="cmp-row-text">Multiple staff, zero conflicts, live sync. Automated receipts every transaction.</div></div>
                   </div>
-                  <div className="cmp-bonus">🎁 We import your Excel data free on day one.</div>
+                  <div className="cmp-bonus"><Gift className="w-4 h-4 text-emerald-500 inline mr-1.5 shrink-0" /> We import your Excel data free on day one.</div>
                 </motion.div>
                 <motion.div 
                   className="cmp-item"
@@ -827,7 +1121,7 @@ function LandingPage() {
                 >
                   <div className="cmp-head">
                     <div className="cmp-versus"><span className="cmp-vs-old">Basic POS</span><span className="cmp-arrow">→</span><span className="cmp-vs-new">NexaOS</span></div>
-                    <div className="cmp-icon">🖥️</div>
+                    <div className="cmp-icon"><Package className="w-5 h-5 text-purple-500" /></div>
                     <div className="cmp-title">Complete inventory intelligence.</div>
                   </div>
                   <div className="cmp-body">
@@ -866,23 +1160,687 @@ function LandingPage() {
                   <div className="phone-outer">
                     <div className="phone-inner">
                       <div className="phone-notch"></div>
-                      <div className="phone-screen">
-                        <div className="ps-topbar"><div className="ps-logo">Nexa<span>OS</span></div><div className="ps-time">8:00 AM</div></div>
-                        <div className="ps-name">Hassan Bala</div>
-                        <div className="ps-sub">Admin · Store Dashboard</div>
-                        <div className="ps-grid">
-                          <div className="ps-card"><div className="ps-card-icon">➕</div><div className="ps-card-label">Add Product</div></div>
-                          <div className="ps-card"><div className="ps-card-icon">📦</div><div className="ps-card-label">Restock</div></div>
-                          <div className="ps-card"><div className="ps-card-icon">📈</div><div className="ps-card-label">Analytics</div></div>
-                          <div className="ps-card"><div className="ps-card-icon">💳</div><div className="ps-card-label">New Sale</div></div>
+                      <div className="phone-screen min-h-[420px] max-h-[420px] flex flex-col justify-between text-left relative overflow-hidden bg-[#0C1025] select-none text-white p-2.5">
+                        {/* Simulated Push Notification alert */}
+                        <AnimatePresence>
+                          {simAlertNotification && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -40, scale: 0.9 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: -20, scale: 0.9 }}
+                              className="absolute top-2.5 left-2 right-2 z-50 bg-[#1A1F3D] border border-blue-500/30 rounded-xl p-2 shadow-lg flex items-start gap-2 text-[10px]"
+                            >
+                              <div className="bg-[#2B5BFF]/20 p-1 rounded-lg text-blue-400">
+                                <Zap className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-bold text-white flex justify-between items-center">
+                                  <span>{simAlertNotification.title}</span>
+                                  <span className="text-[8px] text-slate-400 font-mono">NexaAlert</span>
+                                </div>
+                                <div className="text-slate-300 leading-tight mt-0.5">{simAlertNotification.message}</div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {/* FIXED TOPBAR */}
+                        <div className="ps-topbar flex justify-between items-center mb-1.5 shrink-0 px-1">
+                          <div className="ps-logo flex items-center gap-1">
+                            <span className="text-white font-bold text-[11px]">Nexa<span className="text-[#00C4CF]">OS</span></span>
+                          </div>
+                          <div className="ps-time text-[9px] text-slate-400 font-mono flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5 animate-pulse text-teal-400" />
+                            8:00 AM
+                          </div>
                         </div>
-                        <div className="ps-metric"><span className="ps-m-label">Today's Revenue</span><span className="ps-m-val">₦184,200</span></div>
-                        <div className="ps-metric"><span className="ps-m-label">Top Seller</span><span className="ps-m-val">↑ 34 units</span></div>
-                        <div className="ps-bar">
-                          <div className="ps-bar-item on">⊞<br/>Home</div>
-                          <div className="ps-bar-item">💳<br/>Sales</div>
-                          <div className="ps-bar-item">☰<br/>Items</div>
-                          <div className="ps-bar-item">…<br/>More</div>
+
+                        {/* SCROLLABLE MAIN BODY */}
+                        <div className="flex-1 overflow-y-auto pr-0.5 custom-scrollbar pb-2">
+                          {/* 1. HOME TAB */}
+                          {simActiveTab === "home" && (
+                            <>
+                              {simView === "dashboard" && (
+                                <div className="animate-fade-in">
+                                  <div className="px-1 mb-3">
+                                    <div className="ps-name text-sm font-bold text-white leading-tight">Hassan Bala</div>
+                                    <div className="ps-sub text-[8px] text-slate-400">Admin · Store Dashboard</div>
+                                  </div>
+
+                                  {/* Grid Actions */}
+                                  <div className="ps-grid grid grid-cols-2 gap-2 mb-3">
+                                    <button 
+                                      onClick={() => { setSimView("add-product"); }}
+                                      className="ps-card bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 active:scale-95 transition-all rounded-xl p-2 text-center"
+                                    >
+                                      <div className="ps-card-icon flex justify-center mb-1"><Plus className="w-4 h-4 text-slate-300" /></div>
+                                      <div className="ps-card-label text-[8px] text-slate-400 uppercase font-semibold tracking-wider">Add Product</div>
+                                    </button>
+
+                                    <button 
+                                      onClick={() => { setSimView("restock"); }}
+                                      className="ps-card bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 active:scale-95 transition-all rounded-xl p-2 text-center"
+                                    >
+                                      <div className="ps-card-icon flex justify-center mb-1"><Package className="w-4 h-4 text-emerald-400" /></div>
+                                      <div className="ps-card-label text-[8px] text-slate-400 uppercase font-semibold tracking-wider">Restock</div>
+                                    </button>
+
+                                    <button 
+                                      onClick={() => { setSimView("analytics"); }}
+                                      className="ps-card bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 active:scale-95 transition-all rounded-xl p-2 text-center"
+                                    >
+                                      <div className="ps-card-icon flex justify-center mb-1"><TrendingUp className="w-4 h-4 text-purple-400" /></div>
+                                      <div className="ps-card-label text-[8px] text-slate-400 uppercase font-semibold tracking-wider">Analytics</div>
+                                    </button>
+
+                                    <button 
+                                      onClick={() => { setSimActiveTab("sales"); setSimView("dashboard"); }}
+                                      className="ps-card bg-[#2B5BFF]/10 border border-[#2B5BFF]/30 hover:bg-[#2B5BFF]/20 active:scale-95 transition-all rounded-xl p-2 text-center"
+                                    >
+                                      <div className="ps-card-icon flex justify-center mb-1"><CreditCard className="w-4 h-4 text-amber-400" /></div>
+                                      <div className="ps-card-label text-[8px] text-amber-300 uppercase font-semibold tracking-wider">New Sale</div>
+                                    </button>
+                                  </div>
+
+                                  {/* Metrics Card */}
+                                  <div className="space-y-1.5">
+                                    <div 
+                                      onClick={() => setSimView("analytics")}
+                                      className="ps-metric bg-[#2B5BFF]/10 border border-[#2B5BFF]/20 hover:bg-[#2B5BFF]/15 cursor-pointer rounded-xl p-2.5 flex justify-between items-center transition animate-fade-in"
+                                    >
+                                      <span className="ps-m-label text-[8px] text-slate-300">Today's Revenue</span>
+                                      <span className="ps-m-val font-bold text-xs text-[#00C4CF]">₦{simStats.revenue.toLocaleString()}</span>
+                                    </div>
+
+                                    <div className="ps-metric bg-[#2B5BFF]/10 border border-[#2B5BFF]/20 rounded-xl p-2.5 flex justify-between items-center">
+                                      <span className="ps-m-label text-[8px] text-slate-300">Top Seller</span>
+                                      <span className="ps-m-val font-bold text-xs text-[#00C4CF]">↑ {simStats.units} units</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Low Stock Warning inside home */}
+                                  {simStats.lowStockCount > 0 && (
+                                    <div 
+                                      onClick={() => { setSimActiveTab("items"); }}
+                                      className="mt-2.5 p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/15 cursor-pointer text-[8.5px] text-amber-400 flex items-center justify-between animate-pulse"
+                                    >
+                                      <span>⚠️ {simStats.lowStockCount} items running low!</span>
+                                      <span className="underline font-bold">View & Restock</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 1.1 ADD PRODUCT VIEW */}
+                              {simView === "add-product" && (
+                                <div className="animate-fade-in text-[9px]">
+                                  <div className="flex justify-between items-center mb-2 px-1">
+                                    <span className="text-[11px] font-bold text-white">Add Product</span>
+                                    <button onClick={() => setSimView("dashboard")} className="text-[9px] text-[#00C4CF] hover:underline">Cancel</button>
+                                  </div>
+                                  <form onSubmit={handleSimAddProduct} className="space-y-2 p-1.5 bg-white/5 border border-white/10 rounded-xl">
+                                    <div>
+                                      <label className="block text-[8px] text-slate-400 mb-0.5">Product Name</label>
+                                      <input 
+                                        type="text" 
+                                        value={newProdName} 
+                                        onChange={e => setNewProdName(e.target.value)}
+                                        placeholder="e.g. Peak Milk Can" 
+                                        className="w-full bg-[#141833] border border-white/10 rounded px-1.5 py-1 text-[9px] text-white focus:outline-none focus:border-blue-500"
+                                      />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                      <div>
+                                        <label className="block text-[8px] text-slate-400 mb-0.5">Price (₦)</label>
+                                        <input 
+                                          type="number" 
+                                          value={newProdPrice} 
+                                          onChange={e => setNewProdPrice(e.target.value)}
+                                          placeholder="3500" 
+                                          className="w-full bg-[#141833] border border-white/10 rounded px-1.5 py-1 text-[9px] text-white focus:outline-none focus:border-blue-500"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[8px] text-slate-400 mb-0.5">Stock</label>
+                                        <input 
+                                          type="number" 
+                                          value={newProdStock} 
+                                          onChange={e => setNewProdStock(e.target.value)}
+                                          placeholder="10" 
+                                          className="w-full bg-[#141833] border border-white/10 rounded px-1.5 py-1 text-[9px] text-white focus:outline-none focus:border-blue-500"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[8px] text-slate-400 mb-0.5">Category</label>
+                                      <select 
+                                        value={newProdCat} 
+                                        onChange={e => setNewProdCat(e.target.value)}
+                                        className="w-full bg-[#141833] border border-white/10 rounded px-1 py-1 text-[9px] text-white focus:outline-none focus:border-blue-500"
+                                      >
+                                        <option value="Provisions">Provisions</option>
+                                        <option value="Drinks">Drinks</option>
+                                        <option value="Noodles">Noodles</option>
+                                        <option value="Grains">Grains</option>
+                                        <option value="Beverages">Beverages</option>
+                                      </select>
+                                    </div>
+                                    <button 
+                                      type="submit" 
+                                      className="w-full py-1 text-[9px] font-bold bg-[#12D176] text-slate-950 rounded hover:bg-[#12D176]/90 active:scale-95 transition-all mt-1"
+                                    >
+                                      Save Product
+                                    </button>
+                                  </form>
+                                </div>
+                              )}
+
+                              {/* 1.2 RESTOCK VIEW */}
+                              {simView === "restock" && (
+                                <div className="animate-fade-in text-[9px]">
+                                  <div className="flex justify-between items-center mb-2 px-1">
+                                    <span className="text-[11px] font-bold text-white">Bulk Restock</span>
+                                    <button onClick={() => setSimView("dashboard")} className="text-[9px] text-[#00C4CF] hover:underline">Cancel</button>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    {simProducts.map(p => (
+                                      <div key={p.id} className="p-1.5 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between text-[9px]">
+                                        <div className="min-w-0 flex-1 pr-1">
+                                          <div className="font-bold text-white leading-tight truncate">{p.name}</div>
+                                          <div className="text-[8px] text-slate-400 mt-0.5">Stock: <span className="font-bold text-white">{p.stock}</span></div>
+                                        </div>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <button 
+                                            onClick={() => handleSimQuickRestock(p.id, 5)}
+                                            className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-[8px] hover:bg-emerald-500/30 active:scale-95"
+                                          >
+                                            +5
+                                          </button>
+                                          <button 
+                                            onClick={() => handleSimQuickRestock(p.id, 20)}
+                                            className="px-1.5 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded text-[8px] hover:bg-blue-500/30 active:scale-95"
+                                          >
+                                            +20
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 1.3 DETAILED ANALYTICS VIEW */}
+                              {simView === "analytics" && (
+                                <div className="animate-fade-in text-[9px]">
+                                  <div className="flex justify-between items-center mb-2 px-1">
+                                    <span className="text-[11px] font-bold text-white">Analytics Hub</span>
+                                    <button onClick={() => setSimView("dashboard")} className="text-[9px] text-[#00C4CF] hover:underline">Back</button>
+                                  </div>
+                                  <div className="bg-white/5 border border-white/10 rounded-xl p-2 mb-2">
+                                    <div className="text-[8px] text-slate-400 mb-1">Simulated Live Sales Activity</div>
+                                    {/* Small custom bar chart */}
+                                    <div className="flex items-end justify-between h-14 pt-1 px-1 border-b border-white/10">
+                                      <div className="w-2.5 bg-[#2B5BFF] h-8 rounded-t"></div>
+                                      <div className="w-2.5 bg-[#00C4CF] h-10 rounded-t"></div>
+                                      <div className="w-2.5 bg-[#12D176] h-6 rounded-t"></div>
+                                      <div className="w-2.5 bg-amber-500 h-9 rounded-t"></div>
+                                      <div className="w-2.5 bg-purple-500 h-11 rounded-t"></div>
+                                      <div className="w-2.5 bg-[#2B5BFF] h-14 rounded-t"></div>
+                                      <div className="w-2.5 bg-[#00C4CF] h-12 rounded-t"></div>
+                                    </div>
+                                    <div className="flex justify-between text-[6px] text-slate-500 mt-0.5 px-0.5">
+                                      <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <div className="text-[8px] text-slate-400 px-1">Recent Activity Log</div>
+                                    {simSales.length === 0 ? (
+                                      <div className="p-1.5 bg-white/5 border border-white/10 rounded-lg text-slate-500 text-center text-[8px]">
+                                        No sales logged in this simulation. Go to "New Sale" to record one!
+                                      </div>
+                                    ) : (
+                                      <div className="max-h-24 overflow-y-auto space-y-1 pr-0.5">
+                                        {simSales.map((sale) => (
+                                          <div key={sale.id} className="p-1 bg-white/5 border border-white/10 rounded flex justify-between items-center text-[8px]">
+                                            <div className="min-w-0 flex-1 pr-1">
+                                              <div className="font-bold text-white truncate">{sale.items.map(i => `${i.qty}x ${i.name}`).join(', ')}</div>
+                                              <div className="text-slate-500 text-[6.5px]">{sale.time} · {sale.paymentMethod}</div>
+                                            </div>
+                                            <div className="text-[#00C4CF] font-bold shrink-0">₦{sale.total}</div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
+
+                          {/* 2. SALES CATALOG TAB (POS) */}
+                          {simActiveTab === "sales" && (
+                            <div className="animate-fade-in text-[9px]">
+                              {simView === "dashboard" && (
+                                <>
+                                  <div className="flex justify-between items-center mb-2 px-1">
+                                    <span className="text-[11px] font-bold text-white">Record Sale (POS)</span>
+                                    {simCart.length > 0 && (
+                                      <button 
+                                        onClick={() => setSimView("pos-cart")}
+                                        className="text-[9.5px] text-[#00C4CF] font-bold flex items-center gap-1 hover:underline"
+                                      >
+                                        Cart ({simCart.reduce((sum, item) => sum + item.quantity, 0)}) 🛒
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
+                                    {simProducts.map(p => {
+                                      const cartItem = simCart.find(ci => ci.id === p.id);
+                                      const quantityInCart = cartItem ? cartItem.quantity : 0;
+                                      return (
+                                        <div key={p.id} className="p-1.5 bg-white/5 border border-white/10 rounded-xl flex justify-between items-center">
+                                          <div className="min-w-0 flex-1 pr-1">
+                                            <div className="font-bold text-white leading-snug truncate">{p.name}</div>
+                                            <div className="text-[8px] text-slate-400 mt-0.5">
+                                              ₦{p.price.toLocaleString()} · <span className={p.stock <= 5 ? "text-amber-400 font-bold" : "text-slate-400"}>{p.stock} left</span>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-1.5 shrink-0">
+                                            {quantityInCart > 0 && (
+                                              <>
+                                                <button 
+                                                  onClick={() => handleRemoveFromCart(p.id)}
+                                                  className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center text-slate-300 hover:bg-white/20 active:scale-90"
+                                                >
+                                                  <Minus className="w-2.5 h-2.5" />
+                                                </button>
+                                                <span className="text-white font-bold text-[9.5px] w-3 text-center">{quantityInCart}</span>
+                                              </>
+                                            )}
+                                            <button 
+                                              onClick={() => handleAddToCart(p.id)}
+                                              disabled={p.stock === 0}
+                                              className="w-4 h-4 rounded-full bg-[#2B5BFF] disabled:bg-slate-700 flex items-center justify-center text-white hover:bg-[#2B5BFF]/90 active:scale-90"
+                                            >
+                                              <Plus className="w-2.5 h-2.5" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+
+                                  {/* Bottom Checkout trigger */}
+                                  {simCart.length > 0 && (
+                                    <button 
+                                      onClick={() => setSimView("pos-cart")}
+                                      className="w-full mt-3 py-1.5 bg-[#12D176] hover:bg-[#12D176]/90 active:scale-95 text-slate-950 font-bold text-[10px] rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-lg"
+                                    >
+                                      <ShoppingCart className="w-3.5 h-3.5" />
+                                      Review Order (₦{simCart.reduce((sum, item) => {
+                                        const p = simProducts.find(prod => prod.id === item.id);
+                                        const finalPrice = item.overridePrice !== undefined ? item.overridePrice : (p ? p.price : 0);
+                                        return sum + (finalPrice * item.quantity);
+                                      }, 0).toLocaleString()})
+                                    </button>
+                                  )}
+                                </>
+                              )}
+
+                              {/* 2.1 POS CART REVIEW */}
+                              {simView === "pos-cart" && (
+                                <div className="animate-fade-in text-[9px]">
+                                  <div className="flex justify-between items-center mb-2 px-1">
+                                    <span className="text-[11px] font-bold text-white">Review Cart</span>
+                                    <button onClick={() => setSimView("dashboard")} className="text-[9px] text-[#00C4CF] hover:underline">Add Items</button>
+                                  </div>
+
+                                  <div className="space-y-1 max-h-36 overflow-y-auto bg-white/5 border border-white/10 rounded-xl p-1.5 mb-2.5">
+                                    {simCart.map(cartItem => {
+                                      const p = simProducts.find(prod => prod.id === cartItem.id)!;
+                                      const activePrice = cartItem.overridePrice !== undefined ? cartItem.overridePrice : p.price;
+                                      const isCustomPrice = cartItem.overridePrice !== undefined && cartItem.overridePrice !== p.price;
+                                      return (
+                                        <div key={p.id} className="flex flex-col border-b border-white/5 py-1.5 last:border-0 text-[8.5px] gap-1">
+                                          <div className="flex justify-between items-start">
+                                            <div className="min-w-0 flex-1">
+                                              <div className="font-bold text-white truncate leading-tight">{p.name}</div>
+                                              <div className="text-slate-400 text-[7.5px] mt-0.5">
+                                                Qty: <span className="text-white font-mono">{cartItem.quantity}</span> x ₦{p.price.toLocaleString()} (Catalog)
+                                              </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                              <div className="text-emerald-400 font-bold font-mono">₦{(activePrice * cartItem.quantity).toLocaleString()}</div>
+                                              <button 
+                                                onClick={() => handleClearCartItem(p.id)}
+                                                className="text-rose-500 hover:text-rose-400 p-0.5"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                          
+                                          {/* Custom deal / manual override input for simulation */}
+                                          <div className="flex items-center gap-1.5 pl-1">
+                                            <span className="text-[7.5px] text-slate-400">Unit Price:</span>
+                                            <div className="flex items-center gap-0.5 bg-white/5 px-1 py-0.5 rounded border border-white/10">
+                                              <span className="text-[7px] text-slate-500">₦</span>
+                                              <input 
+                                                type="number"
+                                                value={activePrice}
+                                                onChange={(e) => {
+                                                  const val = parseFloat(e.target.value) || 0;
+                                                  setSimCart(prev => prev.map(item => item.id === p.id ? { ...item, overridePrice: val } : item));
+                                                }}
+                                                className="w-12 h-3.5 bg-transparent text-white text-[7.5px] font-mono text-center focus:outline-none"
+                                              />
+                                            </div>
+                                            {isCustomPrice ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setSimCart(prev => prev.map(item => item.id === p.id ? { ...item, overridePrice: undefined } : item));
+                                                }}
+                                                className="text-[7px] text-amber-400 underline font-bold"
+                                              >
+                                                Reset
+                                              </button>
+                                            ) : (
+                                              <span className="text-[7px] text-slate-500 italic">Customizable</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+
+                                  {/* Payment method selector */}
+                                  <div className="bg-white/5 border border-white/10 rounded-xl p-1.5 space-y-1.5 mb-3.5">
+                                    <div className="text-[8px] text-slate-400">Payment Channel</div>
+                                    <div className="grid grid-cols-4 gap-1">
+                                      {(["Transfer", "Cash", "POS", "Credit"] as const).map(m => (
+                                        <button
+                                          key={m}
+                                          type="button"
+                                          onClick={() => setCheckoutPaymentMethod(m)}
+                                          className={`py-1 text-[7px] font-bold rounded text-center transition ${checkoutPaymentMethod === m ? "bg-[#2B5BFF] text-white" : "bg-[#141833] text-slate-400 border border-white/5 hover:bg-white/5"}`}
+                                        >
+                                          {m}
+                                        </button>
+                                      ))}
+                                    </div>
+
+                                    {checkoutPaymentMethod === "Credit" && (
+                                      <div className="pt-1.5 animate-fade-in">
+                                        <label className="block text-[7.5px] text-slate-400 mb-0.5">Debtor Name (Debt book account)</label>
+                                        <input 
+                                          type="text"
+                                          value={simDebtorName}
+                                          onChange={e => setSimDebtorName(e.target.value)}
+                                          placeholder="e.g. Mama Blessing"
+                                          className="w-full bg-[#141833] border border-white/10 rounded px-1.5 py-0.5 text-[8px] text-white focus:outline-none focus:border-blue-500"
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Total block */}
+                                  <div className="flex justify-between items-center mb-3.5 px-1">
+                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Order Total:</span>
+                                    <span className="text-sm font-bold text-[#00C4CF]">
+                                      ₦{simCart.reduce((sum, item) => {
+                                        const p = simProducts.find(prod => prod.id === item.id);
+                                        const finalPrice = item.overridePrice !== undefined ? item.overridePrice : (p ? p.price : 0);
+                                        return sum + (finalPrice * item.quantity);
+                                      }, 0).toLocaleString()}
+                                    </span>
+                                  </div>
+
+                                  <button 
+                                    onClick={handleSimCheckout}
+                                    className="w-full py-1.5 bg-[#12D176] text-slate-950 font-bold rounded-lg text-[10px] hover:bg-[#12D176]/90 active:scale-95 transition-all shadow-md"
+                                  >
+                                    Confirm checkout ⚡
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* 2.2 CHECKOUT SUCCESS VIEW */}
+                              {simView === "checkout-success" && lastCheckoutDetails && (
+                                <div className="text-center py-2 animate-fade-in text-[9px]">
+                                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto mb-2 animate-pulse">
+                                    <Zap className="w-5 h-5 animate-bounce" />
+                                  </div>
+                                  <div className="text-[11px] font-bold text-white leading-tight">Receipt Generated!</div>
+                                  <div className="text-[7.5px] text-slate-400 mt-0.5">Ref ID: {lastCheckoutDetails.id}</div>
+                                  
+                                  <div className="my-2.5 p-2 bg-white/5 border border-white/10 rounded-lg text-left text-[8px] space-y-1 max-w-[200px] mx-auto font-sans">
+                                    <div className="flex justify-between"><span className="text-slate-400">Total Charged:</span><span className="font-bold text-white">₦{lastCheckoutDetails.total.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span className="text-slate-400">Payment:</span><span className="text-[#00C4CF] font-bold">{lastCheckoutDetails.paymentMethod}</span></div>
+                                    <div className="border-t border-white/5 pt-1 text-[7px] text-teal-400 italic flex items-center gap-1 justify-center text-center">
+                                      <Smartphone className="w-2.5 h-2.5" /> WhatsApp Receipt Delivered
+                                    </div>
+                                  </div>
+
+                                  <div className="flex gap-1.5 justify-center max-w-[200px] mx-auto mt-3">
+                                    <button 
+                                      onClick={() => { setSimView("dashboard"); }}
+                                      className="flex-1 py-1 text-[8px] font-bold bg-[#2B5BFF] text-white rounded hover:bg-blue-600 active:scale-95"
+                                    >
+                                      Sell More
+                                    </button>
+                                    <button 
+                                      onClick={() => { setSimActiveTab("home"); setSimView("dashboard"); }}
+                                      className="flex-1 py-1 text-[8px] font-bold bg-white/10 text-slate-300 rounded hover:bg-white/15"
+                                    >
+                                      Home
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* 3. ITEMS CATALOG TAB */}
+                          {simActiveTab === "items" && (
+                            <div className="animate-fade-in text-[9px]">
+                              <div className="flex justify-between items-center mb-2 px-1">
+                                <span className="text-[11px] font-bold text-white">Stock Management</span>
+                                <span className="text-[7.5px] px-1.5 py-0.5 bg-white/10 rounded font-bold font-mono text-slate-300">
+                                  {simProducts.length} SKU
+                                </span>
+                              </div>
+
+                              <div className="space-y-1.5 max-h-64 overflow-y-auto pr-0.5">
+                                {simProducts.map(p => (
+                                  <div key={p.id} className="p-1.5 bg-white/5 border border-white/10 rounded-xl flex justify-between items-center text-[8.5px]">
+                                    <div className="min-w-0 flex-1 pr-1">
+                                      <div className="font-bold text-white truncate leading-snug">{p.name}</div>
+                                      <div className="flex items-center gap-1 mt-0.5">
+                                        <span className="text-[7.5px] text-[#00C4CF] font-bold">₦{p.price.toLocaleString()}</span>
+                                        <span className="text-slate-500">·</span>
+                                        <span className="text-[7.5px] text-slate-400 truncate max-w-[60px]">{p.category}</span>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                                      <span className={`px-1.5 py-0.5 rounded-[4px] font-bold text-[7.5px] ${p.stock === 0 ? "bg-rose-500/20 text-rose-300" : p.stock <= 5 ? "bg-amber-500/20 text-amber-300 animate-pulse" : "bg-emerald-500/20 text-emerald-300"}`}>
+                                        {p.stock === 0 ? "Out" : `${p.stock} left`}
+                                      </span>
+                                      <button 
+                                        onClick={() => handleSimQuickRestock(p.id, 10)}
+                                        className="px-1 py-0.5 bg-[#2B5BFF]/10 hover:bg-[#2B5BFF]/20 border border-blue-500/30 rounded font-bold text-[7px] text-blue-300 active:scale-90 transition-all"
+                                        title="Quick restock +10"
+                                      >
+                                        +10
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 4. MORE FEATURES TAB */}
+                          {simActiveTab === "more" && (
+                            <div className="animate-fade-in text-[9px]">
+                              {simView === "dashboard" && (
+                                <div className="space-y-2 px-0.5">
+                                  <span className="text-[11px] font-bold text-white block mb-1">More Operations</span>
+                                  
+                                  {/* Menu buttons */}
+                                  <button 
+                                    onClick={() => setSimView("debt-book")}
+                                    className="w-full text-left p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center justify-between transition"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className="bg-amber-500/20 p-1 rounded-lg text-amber-400"><CreditCard className="w-3.5 h-3.5" /></div>
+                                      <div>
+                                        <div className="font-bold text-white leading-none">Credit Book (Debtors)</div>
+                                        <div className="text-[7.5px] text-slate-400 mt-0.5">Track and ping customer balances</div>
+                                      </div>
+                                    </div>
+                                    <span className="text-amber-400 font-bold font-mono text-[9px] bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0">
+                                      ₦{simDebtList.reduce((sum, d) => sum + d.amount, 0).toLocaleString()}
+                                    </span>
+                                  </button>
+
+                                  <button 
+                                    onClick={() => setSimView("alerts-log")}
+                                    className="w-full text-left p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center justify-between transition"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className="bg-blue-500/20 p-1 rounded-lg text-blue-400"><Smartphone className="w-3.5 h-3.5" /></div>
+                                      <div>
+                                        <div className="font-bold text-white leading-none">WhatsApp Notification Log</div>
+                                        <div className="text-[7.5px] text-slate-400 mt-0.5">Verify background report deliveries</div>
+                                      </div>
+                                    </div>
+                                    <span className="text-[7.5px] text-slate-500">History</span>
+                                  </button>
+
+                                  <div className="p-2 bg-[#2B5BFF]/10 border border-[#2B5BFF]/20 rounded-xl mt-4">
+                                    <div className="font-bold text-white text-[8px] flex items-center gap-1.5 mb-1.5">
+                                      <Zap className="w-3 h-3 text-yellow-400" /> Dynamic App Stats
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-1.5 text-[7.5px] text-slate-400 leading-tight">
+                                      <div>Total Products: <span className="font-bold text-white">{simProducts.length}</span></div>
+                                      <div>Completed Sales: <span className="font-bold text-white">{simSales.length}</span></div>
+                                      <div>Simulated Database: <span className="text-teal-400 font-bold">Encrypted</span></div>
+                                      <div>Cloud Ingress: <span className="text-emerald-400 font-bold">99.9% Uptime</span></div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 4.1 DEBT BOOK SUBVIEW */}
+                              {simView === "debt-book" && (
+                                <div className="animate-fade-in text-[9px]">
+                                  <div className="flex justify-between items-center mb-2 px-1">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[11px] font-bold text-white">Credit & Debt Book</span>
+                                    </div>
+                                    <button onClick={() => setSimView("dashboard")} className="text-[9px] text-[#00C4CF] hover:underline">Back</button>
+                                  </div>
+
+                                  <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl flex justify-between items-center mb-2">
+                                    <span className="text-[8px] text-slate-300">Total Active Debts</span>
+                                    <span className="font-mono text-[11px] font-bold text-amber-400">
+                                      ₦{simDebtList.reduce((sum, d) => sum + d.amount, 0).toLocaleString()}
+                                    </span>
+                                  </div>
+
+                                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+                                    {simDebtList.length === 0 ? (
+                                      <div className="p-2 bg-white/5 border border-white/10 rounded-lg text-slate-500 text-center text-[8px]">
+                                        Excellent! No active customer debts on file.
+                                      </div>
+                                    ) : (
+                                      simDebtList.map(d => (
+                                        <div key={d.id} className="p-1.5 bg-white/5 border border-white/10 rounded-xl flex justify-between items-center text-[8.5px]">
+                                          <div className="min-w-0 flex-1 pr-1">
+                                            <div className="font-bold text-white truncate leading-tight">{d.debtor}</div>
+                                            <div className="text-[7.5px] text-slate-400 mt-0.5">{d.date}</div>
+                                          </div>
+                                          <div className="flex items-center gap-1.5 shrink-0">
+                                            <span className="font-mono text-rose-400 font-bold text-[8.5px]">₦{d.amount.toLocaleString()}</span>
+                                            <button 
+                                              onClick={() => handleCollectDebt(d.id, d.debtor, d.amount)}
+                                              className="px-1.5 py-0.5 bg-emerald-500 text-slate-950 font-bold rounded text-[7.5px] hover:bg-emerald-400 active:scale-90"
+                                            >
+                                              Pay
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 4.2 ALERTS LOG SUBVIEW */}
+                              {simView === "alerts-log" && (
+                                <div className="animate-fade-in text-[9px]">
+                                  <div className="flex justify-between items-center mb-2 px-1">
+                                    <span className="text-[11px] font-bold text-white">Nexa Alerts Log</span>
+                                    <button onClick={() => setSimView("dashboard")} className="text-[9px] text-[#00C4CF] hover:underline">Back</button>
+                                  </div>
+
+                                  <div className="space-y-1 max-h-56 overflow-y-auto pr-0.5">
+                                    {simNotificationHistory.map(n => (
+                                      <div key={n.id} className="p-1.5 bg-white/5 border border-white/10 rounded-lg text-[8px] flex items-start gap-1.5 leading-snug">
+                                        <div className="mt-0.5 shrink-0">
+                                          {n.type === "success" && <span className="text-emerald-400">●</span>}
+                                          {n.type === "warning" && <span className="text-amber-400">●</span>}
+                                          {n.type === "info" && <span className="text-blue-400">●</span>}
+                                        </div>
+                                        <div className="flex-1 min-w-0 font-sans">
+                                          <p className="text-slate-300 break-words">{n.text}</p>
+                                          <span className="text-[6.5px] text-slate-500 font-mono block mt-0.5">{n.time}</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* FIXED BOTTOM NAVIGATION BAR */}
+                        <div className="ps-bar flex justify-around items-center border-t border-white/10 pt-1.5 shrink-0 bg-[#0C1025] px-1">
+                          <button 
+                            onClick={() => { setSimActiveTab("home"); setSimView("dashboard"); }}
+                            className={`ps-bar-item flex-1 text-center transition py-0.5 ${simActiveTab === "home" ? "text-blue-400 font-bold" : "text-slate-500 hover:text-slate-400"}`}
+                          >
+                            <Home className="w-4 h-4 mx-auto mb-0.5" />
+                            <span className="text-[7.5px] block leading-none">Home</span>
+                          </button>
+                          
+                          <button 
+                            onClick={() => { setSimActiveTab("sales"); setSimView("dashboard"); }}
+                            className={`ps-bar-item flex-1 text-center transition py-0.5 ${simActiveTab === "sales" ? "text-blue-400 font-bold" : "text-slate-500 hover:text-slate-400"}`}
+                          >
+                            <CreditCard className="w-4 h-4 mx-auto mb-0.5" />
+                            <span className="text-[7.5px] block leading-none">Sales</span>
+                          </button>
+                          
+                          <button 
+                            onClick={() => { setSimActiveTab("items"); setSimView("dashboard"); }}
+                            className={`ps-bar-item flex-1 text-center transition py-0.5 ${simActiveTab === "items" ? "text-blue-400 font-bold" : "text-slate-500 hover:text-slate-400"}`}
+                          >
+                            <Menu className="w-4 h-4 mx-auto mb-0.5" />
+                            <span className="text-[7.5px] block leading-none">Items</span>
+                          </button>
+                          
+                          <button 
+                            onClick={() => { setSimActiveTab("more"); setSimView("dashboard"); }}
+                            className={`ps-bar-item flex-1 text-center transition py-0.5 ${simActiveTab === "more" ? "text-blue-400 font-bold" : "text-slate-500 hover:text-slate-400"}`}
+                          >
+                            <MoreHorizontal className="w-4 h-4 mx-auto mb-0.5" />
+                            <span className="text-[7.5px] block leading-none">More</span>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -892,7 +1850,7 @@ function LandingPage() {
                     animate={{ y: [0, -10, 0], x: [0, 4, 0] }}
                     transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
                   >
-                    <div className="fchip-label">📱 8 AM Summary</div>
+                    <div className="fchip-label flex items-center gap-1"><Smartphone className="w-3 h-3 text-blue-500" /> 8 AM Summary</div>
                     <div className="fchip-val">Revenue: ₦184,200</div>
                   </motion.div>
                   <motion.div 
@@ -900,7 +1858,7 @@ function LandingPage() {
                     animate={{ y: [0, -12, 0], x: [0, -3, 0] }}
                     transition={{ duration: 6, delay: 0.6, repeat: Infinity, ease: "easeInOut" }}
                   >
-                    <div className="fchip-label">⚡ Low stock alert</div>
+                    <div className="fchip-label flex items-center gap-1"><Zap className="w-3 h-3 text-red-500 animate-pulse" /> Low stock alert</div>
                     <div className="fchip-val">Indomie: 5 bags left</div>
                   </motion.div>
                   <motion.div 
@@ -908,7 +1866,7 @@ function LandingPage() {
                     animate={{ y: [0, -8, 0], x: [0, 3, 0] }}
                     transition={{ duration: 4, delay: 1.2, repeat: Infinity, ease: "easeInOut" }}
                   >
-                    <div className="fchip-label">💰 Payment confirmed</div>
+                    <div className="fchip-label flex items-center gap-1"><DollarSign className="w-3 h-3 text-emerald-500" /> Payment confirmed</div>
                     <div className="fchip-val">₦12,500 received</div>
                   </motion.div>
                 </motion.div>
@@ -920,19 +1878,19 @@ function LandingPage() {
                   viewport={{ once: true, margin: "-100px" }}
                 >
                   <motion.div className="feat-item" variants={fadeUpVariants} whileHover={{ x: 8, transition: { type: "spring", stiffness: 200 } }}>
-                    <div className="fi-icon fi-i1">🌅</div>
+                    <div className="fi-icon fi-i1"><Sun className="w-5 h-5 text-blue-600" /></div>
                     <div><div className="fi-title font-sans">8 AM Daily Summaries</div><p className="fi-body">Wake up knowing yesterday's exact revenue, top-selling items, and what to restock — delivered to your WhatsApp before your day begins.</p></div>
                   </motion.div>
                   <motion.div className="feat-item" variants={fadeUpVariants} whileHover={{ x: 8, transition: { type: "spring", stiffness: 200 } }}>
-                    <div className="fi-icon fi-i2">⚡</div>
+                    <div className="fi-icon fi-i2"><Zap className="w-5 h-5 text-emerald-600 animate-pulse" /></div>
                     <div><div className="fi-title">Instant Payment Alerts</div><p className="fi-body">Every payment triggers a WhatsApp ping in real time. Know the moment money hits — with full receipt details and item breakdown.</p></div>
                   </motion.div>
                   <motion.div className="feat-item" variants={fadeUpVariants} whileHover={{ x: 8, transition: { type: "spring", stiffness: 200 } }}>
-                    <div className="fi-icon fi-i3">📦</div>
+                    <div className="fi-icon fi-i3"><Package className="w-5 h-5 text-purple-600" /></div>
                     <div><div className="fi-title">Low-Stock Smart Alerts</div><p className="fi-body">NexaOS monitors every product and pings you before you run out. Set thresholds and get instant reorder reminders automatically.</p></div>
                   </motion.div>
                   <motion.div className="feat-item" variants={fadeUpVariants} whileHover={{ x: 8, transition: { type: "spring", stiffness: 200 } }}>
-                    <div className="fi-icon fi-i4">📊</div>
+                    <div className="fi-icon fi-i4"><BarChart3 className="w-5 h-5 text-amber-600" /></div>
                     <div><div className="fi-title font-sans">Live Margin Intelligence</div><p className="fi-body">See profit per product in real time. Identify which items make the most money — without any manual calculations.</p></div>
                   </motion.div>
                 </motion.div>
@@ -987,6 +1945,13 @@ function LandingPage() {
                 </div>
               </div>
 
+              {billingCycle === "annual" && (
+                <div className="mx-auto max-w-xl text-center -mt-2 mb-6 p-3.5 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 text-emerald-700 text-xs font-semibold flex items-center justify-center gap-2 shadow-sm">
+                  <Gift className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span><strong>Supercharger Annual Offer:</strong> 2 Months Free applied automatically on all plans!</span>
+                </div>
+              )}
+
               {/* Mobile/Tablet Tab Selector */}
               <div className="pricing-selector">
                 {PRICING_PLANS.map((plan, index) => (
@@ -1032,6 +1997,18 @@ function LandingPage() {
                             <div className="pc-strike">
                               Was ₦{strikeOutPrice.toLocaleString()}{displayPeriod} — Save ₦{(strikeOutPrice - currentPrice).toLocaleString()}
                             </div>
+
+                            {isAnnual ? (
+                              <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-bold text-emerald-600 animate-pulse self-start">
+                                <Gift className="w-3.5 h-3.5 shrink-0" />
+                                <span>2 MONTHS FREE SAVINGS</span>
+                              </div>
+                            ) : (
+                              <div className="mt-2.5 text-[11px] font-medium text-slate-500 flex items-center gap-1.5 self-start">
+                                <Sparkles className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                                <span>Switch to annual to save ₦{(plan.monthlyPrice * 2).toLocaleString()}!</span>
+                              </div>
+                            )}
 
                             <ul className="pc-list">
                               {plan.features.map((feat, fIdx) => (
@@ -1346,17 +2323,17 @@ function LandingPage() {
           <section className="section" style={{ paddingTop: '20px' }}>
             <div className="wrap">
               <div className="product-showcase rv">
-                <div className="showcase-img" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '80px' }}>
-                  🏪
+                <div className="showcase-img" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Store className="w-20 h-20 text-teal-500" />
                 </div>
                 <div className="showcase-content">
                   <div className="eyebrow ey-teal"><span className="ey-dot"></span>Your Smart Dashboard</div>
                   <h3 className="display-md" style={{ marginBottom: '12px' }}>The dashboard<br/>your staff will love.</h3>
                   <p className="body-md">Clean, intuitive, and built for speed. Process a sale in under 10 seconds. Your team learns it in one session.</p>
                   <div className="sc-tags">
-                    <span className="sc-tag sc-tag-blue">📱 Mobile-first</span>
-                    <span className="sc-tag sc-tag-green">⚡ Real-time sync</span>
-                    <span className="sc-tag sc-tag-amber">🇳🇬 Built for Nigeria</span>
+                    <span className="sc-tag sc-tag-blue flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5" /> Mobile-first</span>
+                    <span className="sc-tag sc-tag-green flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" /> Real-time sync</span>
+                    <span className="sc-tag sc-tag-amber flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> Built for Nigeria</span>
                   </div>
                 </div>
               </div>
@@ -1365,12 +2342,12 @@ function LandingPage() {
                 <h3 className="display-md">One system. Six superpowers.</h3>
               </div>
               <div className="modules-grid">
-                <div className="module-card rv d1"><div className="mc-icon mc-i1">🛒</div><div className="mc-title">Product Catalog</div><p className="mc-body">Add unlimited products with prices, categories, images, and stock levels. Bulk-import from Excel free on day one.</p></div>
-                <div className="module-card rv d2"><div className="mc-icon mc-i2">📦</div><div className="mc-title">Inventory &amp; Restocking</div><p className="mc-body">Real-time stock tracking with automated reorder alerts delivered straight to your WhatsApp instantly.</p></div>
-                <div className="module-card rv d3"><div className="mc-icon mc-i3">📈</div><div className="mc-title font-sans">Analytics &amp; Reports</div><p className="mc-body">Daily summaries, top sellers, revenue trends — every number you need, delivered at 8 AM without lifting a finger.</p></div>
-                <div className="module-card rv d1"><div className="mc-icon mc-i4">💳</div><div className="mc-title">New Sale &amp; Receipts</div><p className="mc-body">Process any sale in seconds. Automated digital receipts sent to customers instantly with full payment history.</p></div>
-                <div className="module-card rv d2"><div className="mc-icon mc-i5">💰</div><div className="mc-title">Debt Management</div><p className="mc-body">Track credit sales and outstanding balances. Send automated payment reminders. Collect what you're owed.</p></div>
-                <div className="module-card rv d3"><div className="mc-icon mc-i6">👥</div><div className="mc-title">Multi-User Access</div><p className="mc-body">Let multiple staff work simultaneously with no conflicts. Assign roles and track who sold what, when.</p></div>
+                <div className="module-card rv d1"><div className="mc-icon mc-i1"><ShoppingCart className="w-5 h-5 text-[#2b5bff]" /></div><div className="mc-title">Product Catalog</div><p className="mc-body">Add unlimited products with prices, categories, images, and stock levels. Bulk-import from Excel free on day one.</p></div>
+                <div className="module-card rv d2"><div className="mc-icon mc-i2"><Package className="w-5 h-5 text-[#12d176]" /></div><div className="mc-title">Inventory &amp; Restocking</div><p className="mc-body">Real-time stock tracking with automated reorder alerts delivered straight to your WhatsApp instantly.</p></div>
+                <div className="module-card rv d3"><div className="mc-icon mc-i3"><TrendingUp className="w-5 h-5 text-[#6e40c9]" /></div><div className="mc-title font-sans">Analytics &amp; Reports</div><p className="mc-body">Daily summaries, top sellers, revenue trends — every number you need, delivered at 8 AM without lifting a finger.</p></div>
+                <div className="module-card rv d1"><div className="mc-icon mc-i4"><CreditCard className="w-5 h-5 text-[#f5a623]" /></div><div className="mc-title">New Sale &amp; Receipts</div><p className="mc-body">Process any sale in seconds. Automated digital receipts sent to customers instantly with full payment history.</p></div>
+                <div className="module-card rv d2"><div className="mc-icon mc-i5"><DollarSign className="w-5 h-5 text-[#00c4cf]" /></div><div className="mc-title">Debt Management</div><p className="mc-body">Track credit sales and outstanding balances. Send automated payment reminders. Collect what you're owed.</p></div>
+                <div className="module-card rv d3"><div className="mc-icon mc-i6"><Users className="w-5 h-5 text-[#f03a6e]" /></div><div className="mc-title">Multi-User Access</div><p className="mc-body">Let multiple staff work simultaneously with no conflicts. Assign roles and track who sold what, when.</p></div>
               </div>
             </div>
           </section>
@@ -1423,10 +2400,10 @@ function LandingPage() {
                 <h3 className="display-md">Every tool in one place.</h3>
               </div>
               <div className="feats2">
-                <div className="feat2-card rv d1"><div className="f2c-icon">📊</div><div className="f2c-title font-sans">Business Overview</div><p className="f2c-body">See total sales, revenue trends, and daily performance at a glance from your dashboard home screen.</p></div>
-                <div className="feat2-card rv d2"><div className="f2c-icon">🏆</div><div className="f2c-title font-sans">Top Sellers &amp; Customers</div><p className="f2c-body">Identify your best products and most valuable customers automatically. Know what to stock more of.</p></div>
-                <div className="feat2-card rv d3"><div className="f2c-icon">💰</div><div className="f2c-title">Debt Management &amp; Collections</div><p className="f2c-body">Track credit sales and outstanding payments. Send automated reminders to collect what you're owed.</p></div>
-                <div className="feat2-card rv d4"><div className="f2c-icon">🔔</div><div className="f2c-title font-sans">Real-Time WhatsApp Alerts</div><p className="f2c-body">Instant pings for every payment, low stock event, and daily summary. Your store talks to you constantly.</p></div>
+                <div className="feat2-card rv d1"><div className="f2c-icon"><BarChart3 className="w-6 h-6 text-blue-600" /></div><div className="f2c-title font-sans">Business Overview</div><p className="f2c-body">See total sales, revenue trends, and daily performance at a glance from your dashboard home screen.</p></div>
+                <div className="feat2-card rv d2"><div className="f2c-icon"><Award className="w-6 h-6 text-amber-500" /></div><div className="f2c-title font-sans">Top Sellers &amp; Customers</div><p className="f2c-body">Identify your best products and most valuable customers automatically. Know what to stock more of.</p></div>
+                <div className="feat2-card rv d3"><div className="f2c-icon"><DollarSign className="w-6 h-6 text-teal-600" /></div><div className="f2c-title">Debt Management &amp; Collections</div><p className="f2c-body">Track credit sales and outstanding payments. Send automated reminders to collect what you're owed.</p></div>
+                <div className="feat2-card rv d4"><div className="f2c-icon"><Bell className="w-6 h-6 text-purple-600 animate-pulse" /></div><div className="f2c-title font-sans">Real-Time WhatsApp Alerts</div><p className="f2c-body">Instant pings for every payment, low stock event, and daily summary. Your store talks to you constantly.</p></div>
               </div>
             </div>
           </section>
@@ -1468,7 +2445,9 @@ function LandingPage() {
               <div className="ceo-card-wrap">
                 <div className="ceo-photo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                    <div style={{ fontSize: '72px', marginBottom: '12px' }}>👨🏾‍💼</div>
+                    <div className="flex justify-center items-center w-20 h-20 rounded-full bg-slate-800/80 border-2 border-teal-500/30 mx-auto mb-4 shadow-xl">
+                      <User className="w-10 h-10 text-teal-400" />
+                    </div>
                     <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '18px', fontWeight: 800, color: '#fff' }}>Abdulrasheed Mahmoud Bello</div>
                     <div style={{ fontSize: '12px', color: 'rgba(255,255,255,.65)', marginTop: '4px' }}>CEO · Nexa Digital Solutions LTD</div>
                   </div>
@@ -1478,10 +2457,10 @@ function LandingPage() {
                   <div className="ceo-name">Abdulrasheed Mahmoud Bello</div>
                   <div className="ceo-title-badge">CEO · Nexa Digital Solutions LTD</div>
                   <div className="ceo-contacts">
-                    <a href="tel:09038026109" className="cc-link"><span style={{ fontSize: '14px' }}>📞</span>090-380-26109</a>
-                    <a href="tel:08132321056" className="cc-link"><span style={{ fontSize: '14px' }}>📱</span>081-323-21056</a>
-                    <a href="#" className="cc-link" onClick={e => e.preventDefault()}><span style={{ fontSize: '14px' }}>📍</span>Lamurde St, Barade, Jalingo</a>
-                    <a href="#" className="cc-link" onClick={e => e.preventDefault()}><span style={{ fontSize: '14px' }}>🌐</span>@NexaTechs</a>
+                    <a href="tel:09038026109" className="cc-link flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-blue-400 shrink-0" />090-380-26109</a>
+                    <a href="tel:08132321056" className="cc-link flex items-center gap-1.5"><MessageCircle className="w-3.5 h-3.5 text-green-400 shrink-0" />081-323-21056</a>
+                    <a href="#" className="cc-link flex items-center gap-1.5" onClick={e => e.preventDefault()}><MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0" />Lamurde St, Barade, Jalingo</a>
+                    <a href="#" className="cc-link flex items-center gap-1.5" onClick={e => e.preventDefault()}><Globe className="w-3.5 h-3.5 text-teal-400 shrink-0" />@NexaTechs</a>
                   </div>
                 </div>
               </div>
@@ -1493,10 +2472,10 @@ function LandingPage() {
               <p>Nexa Digital Solutions LTD isn't remote software with an email ticket system. We're a local partner who walks into your store, understands your operation, and ensures the system works — not just on day one, but permanently.</p>
               <p>We believe every Nigerian retailer deserves the same intelligence tools that big supermarket chains use. NexaStoreOS brings that power to local shops, provision stores, and distributors — at a price that makes sense for local reality.</p>
               <div className="about-tags">
-                <span className="a-tag">🏢 Jalingo, Taraba State</span>
-                <span className="a-tag">📱 Mobile-First Design</span>
-                <span className="a-tag">🇳🇬 Built for Nigeria</span>
-                <span className="a-tag">🤝 Personal Support</span>
+                <span className="a-tag flex items-center gap-1.5"><Building className="w-3.5 h-3.5 text-slate-500 shrink-0" /> Jalingo, Taraba State</span>
+                <span className="a-tag flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5 text-blue-500 shrink-0" /> Mobile-First Design</span>
+                <span className="a-tag flex items-center gap-1.5"><Globe className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Built for Nigeria</span>
+                <span className="a-tag flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-teal-500 shrink-0" /> Personal Support</span>
               </div>
               <button className="btn btn-primary" onClick={() => goto('contact')}>Book Free Demo →</button>
             </div>
@@ -1509,9 +2488,9 @@ function LandingPage() {
                 <h3 className="display-md">Why clients trust Nexa.</h3>
               </div>
               <div className="value-grid">
-                <div className="value-card rv d1"><div className="vc-icon">🤝</div><div className="vc-title">Local Presence</div><p className="vc-body">We're in Jalingo — not a chatbot. Real people who come to your store, set everything up, and stay reachable always.</p></div>
-                <div className="value-card rv d2"><div className="vc-icon">🛡️</div><div className="vc-title">Zero-Risk Guarantee</div><p className="vc-body">30-day full refund if NexaOS doesn't save you more than it costs. We mean it — every kobo back, no questions.</p></div>
-                <div className="value-card rv d3"><div className="vc-icon">⚡</div><div className="vc-title">Fast Onboarding</div><p className="vc-body">Live in under 10 minutes. We handle the technical setup completely. You focus on selling.</p></div>
+                <div className="value-card rv d1"><div className="vc-icon"><Users className="w-7 h-7 text-blue-600" /></div><div className="vc-title">Local Presence</div><p className="vc-body">We're in Jalingo — not a chatbot. Real people who come to your store, set everything up, and stay reachable always.</p></div>
+                <div className="value-card rv d2"><div className="vc-icon"><ShieldCheck className="w-7 h-7 text-emerald-600" /></div><div className="vc-title">Zero-Risk Guarantee</div><p className="vc-body">30-day full refund if NexaOS doesn't save you more than it costs. We mean it — every kobo back, no questions.</p></div>
+                <div className="value-card rv d3"><div className="vc-icon"><Zap className="w-7 h-7 text-amber-500" /></div><div className="vc-title">Fast Onboarding</div><p className="vc-body">Live in under 10 minutes. We handle the technical setup completely. You focus on selling.</p></div>
               </div>
             </div>
           </section>
@@ -1521,7 +2500,7 @@ function LandingPage() {
             <p className="body-lg rv d1">Local business. Local intelligence. Local support.</p>
             <div className="cta-btns rv d2">
               <button className="btn btn-white" onClick={() => goto('contact')}>Get in Touch</button>
-              <button className="btn btn-ghost" onClick={() => window.location.href = "tel:09038026109"}>📞 Call Now →</button>
+              <button className="btn btn-ghost flex items-center justify-center gap-2" onClick={() => window.location.href = "tel:09038026109"}><Phone className="w-4 h-4 text-blue-600 shrink-0" /> Call Now →</button>
             </div>
           </section>
         </motion.div>
@@ -1561,12 +2540,12 @@ function LandingPage() {
                     </div>
                     <p className="ci-brand-sub"><strong style={{ color: 'var(--ink)' }}>Nexa Digital Solutions LTD</strong><br/>Building Intelligent Business Systems<br/>Jalingo, Taraba State · Nigeria</p>
                   </div>
-                  <div className="ci-method"><div className="ci-m-icon">📞</div><div><div className="ci-m-label">Primary Phone</div><div className="ci-m-val">090-380-26109</div></div></div>
-                  <div className="ci-method"><div className="ci-m-icon">📱</div><div><div className="ci-m-label font-sans">WhatsApp</div><div className="ci-m-val">081-323-21056</div></div></div>
-                  <div className="ci-method"><div className="ci-m-icon">📍</div><div><div className="ci-m-label">Office Location</div><div className="ci-m-val">Lamurde St, Barade, Jalingo</div></div></div>
-                  <div className="ci-method"><div className="ci-m-icon">🌐</div><div><div className="ci-m-label">Website</div><div className="ci-m-val">nexastoreos.com</div></div></div>
-                  <div className="ci-method"><div className="ci-m-icon">📲</div><div><div className="ci-m-label">Social Media</div><div className="ci-m-val">@NexaTechs</div></div></div>
-                  <div className="ci-note"><strong style={{ color: 'var(--blue)' }}>⏰ Response time:</strong> We respond within 2 hours during business hours. For urgent matters, call directly.</div>
+                  <div className="ci-method"><div className="ci-m-icon flex items-center justify-center"><Phone className="w-4 h-4 text-blue-600" /></div><div><div className="ci-m-label">Primary Phone</div><div className="ci-m-val">090-380-26109</div></div></div>
+                  <div className="ci-method"><div className="ci-m-icon flex items-center justify-center"><MessageCircle className="w-4 h-4 text-green-600" /></div><div><div className="ci-m-label font-sans">WhatsApp</div><div className="ci-m-val">081-323-21056</div></div></div>
+                  <div className="ci-method"><div className="ci-m-icon flex items-center justify-center"><MapPin className="w-4 h-4 text-rose-500" /></div><div><div className="ci-m-label">Office Location</div><div className="ci-m-val">Lamurde St, Barade, Jalingo</div></div></div>
+                  <div className="ci-method"><div className="ci-m-icon flex items-center justify-center"><Globe className="w-4 h-4 text-teal-500" /></div><div><div className="ci-m-label">Website</div><div className="ci-m-val">nexastoreos.com</div></div></div>
+                  <div className="ci-method"><div className="ci-m-icon flex items-center justify-center"><Smartphone className="w-4 h-4 text-purple-600" /></div><div><div className="ci-m-label">Social Media</div><div className="ci-m-val">@NexaTechs</div></div></div>
+                  <div className="ci-note flex items-center gap-2"><Clock className="w-4 h-4 text-blue-500 shrink-0 animate-pulse" /><span><strong style={{ color: 'var(--blue)' }}>Response time:</strong> We respond within 2 hours during business hours. For urgent matters, call directly.</span></div>
                 </div>
                 <div className="contact-form-wrap rv d1">
                   <div className="cf-title font-sans">Request a Free Demo</div>
@@ -1646,7 +2625,7 @@ function LandingPage() {
             <h2 className="display-lg rv">Zero risk. Full support.</h2>
             <p className="body-lg rv d1">30-day money-back guarantee. Setup, training, and data migration all free.</p>
             <div className="cta-btns rv d2">
-              <button className="btn btn-white" onClick={() => window.location.href = "tel:09038026109"}>📞 Call: 090-380-26109</button>
+              <button className="btn btn-white flex items-center justify-center gap-2" onClick={() => window.location.href = "tel:09038026109"}><Phone className="w-4 h-4 text-blue-600 shrink-0" /> Call: 090-380-26109</button>
               <button className="btn btn-ghost" onClick={() => handleTryDemo()}>Try Local Demo →</button>
             </div>
           </section>
@@ -1663,10 +2642,27 @@ function LandingPage() {
               {/* Brand Column */}
               <div>
                 <div className="footer-brand-row">
-                  <div className="f-brand-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                      <path d="M4 4L10 4L14 12L10 20H4L8 12L4 4Z" fill="white" opacity=".9"/>
-                      <path d="M12 4H20L16 12L20 20H12L16 12L12 4Z" fill="white" opacity=".55"/>
+                  <div className="f-brand-icon always-animated-logo">
+                    <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <defs>
+                        <linearGradient id="nexaBgGradFooter" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#083344" />
+                          <stop offset="100%" stopColor="#115e59" />
+                        </linearGradient>
+                        <linearGradient id="nexaTealGradFooter" x1="0%" y1="100%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#0ea5e9" />
+                          <stop offset="50%" stopColor="#0d9488" />
+                          <stop offset="100%" stopColor="#10b981" />
+                        </linearGradient>
+                      </defs>
+                      {/* Bag Handle */}
+                      <path d="M 38,28 C 38,14 62,14 62,28" stroke="url(#nexaTealGradFooter)" strokeWidth="5.5" strokeLinecap="round" fill="none" />
+                      {/* Bag Body */}
+                      <path d="M 24,32 C 24,32 76,32 76,32 L 70,76 C 69,81 31,81 30,76 Z" fill="url(#nexaBgGradFooter)" stroke="url(#nexaTealGradFooter)" strokeWidth="3" strokeLinejoin="round" />
+                      {/* Dynamic 'N' swoosh and arrow */}
+                      <path className="nexa-arrow-path" d="M 20,54 C 20,44 28,38 38,44 C 48,50 46,64 54,68 C 60,71 68,68 72,58 L 80,40" stroke="url(#nexaTealGradFooter)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      {/* Arrow tip */}
+                      <path d="M 68,40 H 80 V 52" stroke="url(#nexaTealGradFooter)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                     </svg>
                   </div>
                   <span className="f-brand-name font-sans">Nexa<span>StoreOS</span></span>
@@ -1699,9 +2695,9 @@ function LandingPage() {
                 </div>
 
                 <div className="footer-contact-list">
-                  <a href="tel:09038026109" className="fc-contact-item"><span className="fc-contact-icon">📞</span>090-380-26109</a>
-                  <a href="tel:08132321056" className="fc-contact-item"><span className="fc-contact-icon">📱</span>081-323-21056</a>
-                  <span className="fc-contact-item"><span className="fc-contact-icon">📍</span>Lamurde St, Barade, Jalingo</span>
+                  <a href="tel:09038026109" className="fc-contact-item flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-blue-400 shrink-0" />090-380-26109</a>
+                  <a href="tel:08132321056" className="fc-contact-item flex items-center gap-1.5"><MessageCircle className="w-3.5 h-3.5 text-green-400 shrink-0" />081-323-21056</a>
+                  <span className="fc-contact-item flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0" />Lamurde St, Barade, Jalingo</span>
                 </div>
               </div>
 
@@ -1729,7 +2725,7 @@ function LandingPage() {
               {/* Location & hours */}
               <div>
                 <div className="fc-col-head">Location</div>
-                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,.45)', lineHeight: '1.85', marginBottom: '10px' }}>Lamurde Street, Barade<br/>Jalingo, Taraba State<br/>Nigeria 🇳🇬</p>
+                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,.45)', lineHeight: '1.85', marginBottom: '10px' }}>Lamurde Street, Barade<br/>Jalingo, Taraba State<br/>Nigeria</p>
                 <a href="https://nexastoreos.com" target="_blank" rel="noreferrer" style={{ fontSize: '13px', color: 'var(--blue)', fontWeight: 600, decoration: 'none', display: 'block', marginBottom: '4px' }}>nexastoreos.com ↗</a>
                 <span style={{ fontSize: '12px', color: 'rgba(255,255,255,.4)', display: 'block' }}>hello@nexastoreos.com</span>
                 <div className="footer-hrs-box">

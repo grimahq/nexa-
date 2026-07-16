@@ -3,6 +3,8 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import { resolvePrice } from "./src/utils/pricing";
+import { runScheduledReportsEvaluation, generateReportDataAndPDF, GmailApiEmailProvider } from "./src/utils/reportsBackend";
+import { resolveFeatureFlags } from "./src/utils/subscriptionUtils";
 
 async function startServer() {
   const app = express();
@@ -173,11 +175,13 @@ Provide the response as clean structured JSON.`;
   let serverDbInstance: any = null;
   async function getServerDb() {
     if (!serverDbInstance) {
-      const { initializeApp: serverInitApp } = await import("firebase/app");
-      const { getFirestore: serverGetFirestore } = await import("firebase/firestore");
+      const { initializeApp: serverInitApp, getApps: serverGetApps, getApp: serverGetApp } = await import("firebase/app");
+      const { initializeFirestore: serverInitFirestore } = await import("firebase/firestore");
       const firebaseConfig = await import("./firebase-applet-config.json");
-      const app = serverInitApp(firebaseConfig.default);
-      serverDbInstance = serverGetFirestore(app);
+      const app = serverGetApps().length > 0 ? serverGetApp() : serverInitApp(firebaseConfig.default);
+      serverDbInstance = serverInitFirestore(app, {
+        ignoreUndefinedProperties: true
+      }, firebaseConfig.default.firestoreDatabaseId || "(default)");
     }
     return serverDbInstance;
   }
@@ -800,20 +804,25 @@ Provide the response as clean structured JSON.`;
       const eventId = `evt-email-${Date.now()}-${storeId}`;
       const finalRecipient = recipientEmail || store.ownerEmail || store.email || "merchant@nexaos.io";
 
+      // Actually send the email using GmailApiEmailProvider
+      const emailProvider = new GmailApiEmailProvider();
+      const emailResult = await emailProvider.send(finalRecipient, subject, htmlBody, []);
+
       await setDoc(doc(db, "retentionEvents", eventId), {
         eventId,
         storeId,
         triggerId: "manual_email_campaign",
         channel: "email",
         sentAt: new Date().toISOString(),
-        status: "delivered",
+        status: emailResult.success ? "delivered" : "failed",
         agentId,
         meta: {
           message: subject,
           storeName: store.storeName || "Unnamed Store",
           phone: finalRecipient,
           htmlBody,
-          manual: true
+          manual: true,
+          error: emailResult.error || null
         }
       });
 
@@ -830,9 +839,128 @@ Provide the response as clean structured JSON.`;
         });
       }
 
-      res.json({ status: "success", eventId, simulated: true, recipient: finalRecipient });
+      res.json({
+        status: "success",
+        eventId,
+        simulated: emailResult.simulated,
+        recipient: finalRecipient,
+        error: emailResult.error || null
+      });
     } catch (error) {
       console.error("[Send Custom Email Server Error]:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // API Endpoint for bulk dispatching custom retention email campaign
+  app.post("/api/retention/send-bulk-email", async (req, res) => {
+    const { storeIds, subjectTemplate, htmlBodyTemplate } = req.body;
+    if (!Array.isArray(storeIds) || storeIds.length === 0 || !subjectTemplate || !htmlBodyTemplate) {
+      return res.status(400).json({ error: "storeIds (array), subjectTemplate, and htmlBodyTemplate are required" });
+    }
+
+    try {
+      const db = await getServerDb();
+      const { doc, getDoc, setDoc, query, where, getDocs, collection } = await import("firebase/firestore");
+      const emailProvider = new GmailApiEmailProvider();
+
+      const results = [];
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const storeId of storeIds) {
+        try {
+          const storeSnap = await getDoc(doc(db, "stores", storeId));
+          if (!storeSnap.exists()) {
+            results.push({ storeId, status: "failed", error: "Store not found" });
+            errorCount++;
+            continue;
+          }
+          const store = storeSnap.data();
+
+          // Calculate inactive days
+          const lastSaleTime = store.lastSaleDate ? new Date(store.lastSaleDate).getTime() : new Date(store.createdAt || Date.now()).getTime();
+          const daysInactive = Math.floor((Date.now() - lastSaleTime) / (1000 * 60 * 60 * 24));
+
+          const storeName = store.storeName || store.name || "Nexa Merchant";
+          const manager = store.ownerName || store.manager || "Store Manager";
+          const daysStr = daysInactive.toString();
+
+          // Compile templates
+          const compiledSubject = subjectTemplate
+            .replace(/\{\{storeName\}\}/g, storeName)
+            .replace(/\{\{manager\}\}/g, manager)
+            .replace(/\{\{days\}\}/g, daysStr);
+
+          const compiledBody = htmlBodyTemplate
+            .replace(/\{\{storeName\}\}/g, storeName)
+            .replace(/\{\{manager\}\}/g, manager)
+            .replace(/\{\{days\}\}/g, daysStr);
+
+          // Find referral/agent if any
+          const refQuery = query(collection(db, "referrals"), where("storeId", "==", storeId), where("status", "==", "converted"));
+          const refSnap = await getDocs(refQuery);
+          let agentId = null;
+          if (!refSnap.empty) {
+            agentId = refSnap.docs[0].data().agentId;
+          }
+
+          const eventId = `evt-email-bulk-${Date.now()}-${storeId}`;
+          const finalRecipient = store.ownerEmail || store.email || "merchant@nexaos.io";
+
+          const emailResult = await emailProvider.send(finalRecipient, compiledSubject, compiledBody, []);
+
+          await setDoc(doc(db, "retentionEvents", eventId), {
+            eventId,
+            storeId,
+            triggerId: "manual_bulk_email_campaign",
+            channel: "email",
+            sentAt: new Date().toISOString(),
+            status: emailResult.success ? "delivered" : "failed",
+            agentId,
+            meta: {
+              message: compiledSubject,
+              storeName,
+              phone: finalRecipient,
+              htmlBody: compiledBody,
+              manual: true,
+              bulk: true,
+              error: emailResult.error || null
+            }
+          });
+
+          if (agentId) {
+            const agentNotifId = `notif-agent-bulk-${Date.now()}-${storeId}`;
+            await setDoc(doc(db, "notifications", agentNotifId), {
+              id: agentNotifId,
+              type: "retention_alert",
+              title: "Bulk Email Outreach Sent",
+              message: `Your store [${storeName}] was included in a bulk outreach email campaign: "${compiledSubject}".`,
+              isRead: false,
+              agentId,
+              createdAt: new Date().toISOString()
+            });
+          }
+
+          results.push({ 
+            storeId, 
+            storeName, 
+            status: emailResult.success ? "success" : "failed", 
+            simulated: emailResult.simulated,
+            recipient: finalRecipient,
+            error: emailResult.error || null
+          });
+          successCount++;
+        } catch (innerErr) {
+          console.error(`[Bulk Email Single Store Error] for ${storeId}:`, innerErr);
+          results.push({ storeId, status: "failed", error: (innerErr as Error).message });
+          errorCount++;
+        }
+      }
+
+      res.json({ status: "success", processed: storeIds.length, successCount, errorCount, results });
+    } catch (error) {
+      console.error("[Bulk Email Server Error]:", error);
       res.status(500).json({ error: (error as Error).message });
     }
   });
@@ -841,7 +969,6 @@ Provide the response as clean structured JSON.`;
   app.post("/api/reports/generate-scheduled", async (req, res) => {
     try {
       const db = await getServerDb();
-      const { runScheduledReportsEvaluation } = await import("./src/utils/reportsBackend");
       const results = await runScheduledReportsEvaluation(db);
       res.json(results);
     } catch (error) {
@@ -860,7 +987,6 @@ Provide the response as clean structured JSON.`;
     try {
       const db = await getServerDb();
       const { doc, getDoc, collection, query, where, getDocs, addDoc } = await import("firebase/firestore");
-      const { generateReportDataAndPDF, GmailApiEmailProvider } = await import("./src/utils/reportsBackend");
 
       // 1. Fetch store
       const storeSnap = await getDoc(doc(db, "stores", storeId));
@@ -934,13 +1060,8 @@ Provide the response as clean structured JSON.`;
     }
 
     try {
-      const { initializeApp: serverInitApp } = await import("firebase/app");
-      const { getFirestore: serverGetFirestore } = await import("firebase/firestore");
-      const firebaseConfig = await import("./firebase-applet-config.json");
+      const serverDb = await getServerDb();
       const { resolveFeatureFlags } = await import("./src/utils/subscriptionUtils");
-
-      const serverApp = serverInitApp(firebaseConfig.default);
-      const serverDb = serverGetFirestore(serverApp);
 
       const resolved = await resolveFeatureFlags(serverDb, storeId);
       return res.json(resolved);

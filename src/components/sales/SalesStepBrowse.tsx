@@ -55,6 +55,7 @@ export function SalesStepBrowse({ cart, onAdd, onRemove }: SalesStepBrowseProps)
   const { settings: liveSettings } = useSystemSettings();
   
   const onboarding = isDemo ? demoOnboarding : liveSettings;
+  const isRestaurant = onboarding?.businessType === "restaurant";
   const [search, setSearch] = useState("");
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [animatingItems, setAnimatingItems] = useState<Set<string>>(new Set());
@@ -235,7 +236,6 @@ export function SalesStepBrowse({ cart, onAdd, onRemove }: SalesStepBrowseProps)
   }, [onAdd]);
 
   const isSearchEmpty = !search.trim() && !activeCat && !selectedModel && !selectedBrand;
-  const isRestaurant = onboarding?.businessType === "restaurant";
   const isPhoneAccessoriesSeller = onboarding?.businessType === "electronics" && (
     onboarding?.electronicsMainType === "accessories" ||
     !onboarding?.categories?.includes("devices")

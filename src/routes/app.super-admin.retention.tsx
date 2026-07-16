@@ -275,6 +275,25 @@ function SuperAdminRetention() {
   const [emailRecipientStoreId, setEmailRecipientStoreId] = useState("");
   const [customRecipientEmail, setCustomRecipientEmail] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [selectedBulkStoreIds, setSelectedBulkStoreIds] = useState<string[]>([]);
+  const [sendingBulk, setSendingBulk] = useState(false);
+
+  useEffect(() => {
+    const atRiskIds = stores.map(store => {
+      const lastSaleTime = store.lastSaleDate ? new Date(store.lastSaleDate).getTime() : new Date(store.createdAt || Date.now()).getTime();
+      const daysInactive = Math.floor((Date.now() - lastSaleTime) / (1000 * 60 * 60 * 24));
+      
+      let level = "healthy";
+      if (daysInactive >= 3) {
+        level = "at-risk";
+      } else if (!store.isOnboarded) {
+        level = "warning";
+      }
+      return { id: store.id, level };
+    }).filter(s => s.level !== "healthy").map(s => s.id);
+    
+    setSelectedBulkStoreIds(atRiskIds);
+  }, [stores]);
 
   // Targets & Objectives States
   const [targets, setTargets] = useState<RetentionTargetGoal[]>(INITIAL_TARGET_GOALS);
@@ -650,6 +669,39 @@ function SuperAdminRetention() {
       toast.error("Failed to send personalized email nudge.");
     } finally {
       setSendingEmail(false);
+    }
+  };
+
+  const handleSendBulkEmail = async () => {
+    if (selectedBulkStoreIds.length === 0) {
+      toast.error("Please select at least one store for bulk outreach.");
+      return;
+    }
+
+    setSendingBulk(true);
+    const toastId = toast.loading(`Connecting with Gmail API and executing bulk outreach to ${selectedBulkStoreIds.length} merchants...`);
+    try {
+      const res = await fetch("/api/retention/send-bulk-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storeIds: selectedBulkStoreIds,
+          subjectTemplate: emailSubject,
+          htmlBodyTemplate: emailBody
+        })
+      });
+
+      if (!res.ok) throw new Error("Failed to dispatch bulk retention campaign");
+      const data = await res.json();
+      toast.dismiss(toastId);
+      toast.success(`Success! Bulk email outreach completed. Successfully dispatched to ${data.successCount} merchants.`, {
+        duration: 5000
+      });
+    } catch (err) {
+      toast.dismiss(toastId);
+      toast.error("Failed to execute bulk email campaign.");
+    } finally {
+      setSendingBulk(false);
     }
   };
 
@@ -1242,60 +1294,144 @@ function SuperAdminRetention() {
               </CardContent>
             </Card>
 
-            {/* Quick Dispatch Desk */}
-            <Card className="shadow-none border border-muted-foreground/10">
-              <CardHeader className="pb-3 border-b">
-                <CardTitle className="text-xs font-bold font-sans uppercase">Quick Dispatch Desk</CardTitle>
-                <CardDescription className="text-[10px]">Target a specific merchant, specify recipient override and send personalized email instantly.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-6 space-y-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-muted-foreground">Target Recipient Store</label>
-                  <select
-                    value={emailRecipientStoreId}
-                    onChange={e => setEmailRecipientStoreId(e.target.value)}
-                    className="w-full text-xs p-2.5 rounded-lg border bg-background"
-                  >
-                    <option value="">-- Choose Merchant Store --</option>
-                    {stores.map(s => (
-                      <option key={s.id} value={s.id}>{s.storeName || s.name} ({s.ownerEmail || "No Email Defined"})</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-muted-foreground">Recipient Email Override</label>
-                  <input
-                    type="email"
-                    value={customRecipientEmail}
-                    onChange={e => setCustomRecipientEmail(e.target.value)}
-                    className="w-full text-xs p-2.5 rounded-lg border bg-background"
-                    placeholder="Optional: custom-email@domain.com"
-                  />
-                  <p className="text-[9px] text-muted-foreground">Defaults to merchant account owner email if left blank.</p>
-                </div>
-
-                <Button
-                  onClick={handleSendCustomEmail}
-                  disabled={sendingEmail || !emailRecipientStoreId}
-                  className="w-full text-xs bg-teal-600 hover:bg-teal-700 text-white font-bold h-10 gap-2 mt-4"
-                >
-                  <Mail className="h-4 w-4" />
-                  {sendingEmail ? "Dispatching..." : "Send Personalized Nudge"}
-                </Button>
-
-                {/* Live Compilation Preview Box */}
-                {emailRecipientStoreId && (
-                  <div className="mt-4 p-4 border border-dashed rounded-lg bg-muted/15 space-y-2">
-                    <span className="text-[9px] uppercase font-bold text-muted-foreground block border-b pb-1">Live Dynamic Compilation Preview</span>
-                    <div className="text-[11px] space-y-1 text-muted-foreground font-sans">
-                      <p><strong>Subject:</strong> {getCompiledSubjectPreview()}</p>
-                      <p className="text-[10px] bg-muted/40 p-2 rounded max-h-[140px] overflow-y-auto font-mono text-[9px] leading-normal" dangerouslySetInnerHTML={{ __html: getCompiledEmailPreview() }} />
-                    </div>
+            <div className="space-y-6">
+              {/* Quick Dispatch Desk */}
+              <Card className="shadow-none border border-muted-foreground/10">
+                <CardHeader className="pb-3 border-b">
+                  <CardTitle className="text-xs font-bold font-sans uppercase">Quick Dispatch Desk</CardTitle>
+                  <CardDescription className="text-[10px]">Target a specific merchant, specify recipient override and send personalized email instantly.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold text-muted-foreground">Target Recipient Store</label>
+                    <select
+                      value={emailRecipientStoreId}
+                      onChange={e => setEmailRecipientStoreId(e.target.value)}
+                      className="w-full text-xs p-2.5 rounded-lg border bg-background"
+                    >
+                      <option value="">-- Choose Merchant Store --</option>
+                      {stores.map(s => (
+                        <option key={s.id} value={s.id}>{s.storeName || s.name} ({s.ownerEmail || "No Email Defined"})</option>
+                      ))}
+                    </select>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold text-muted-foreground">Recipient Email Override</label>
+                    <input
+                      type="email"
+                      value={customRecipientEmail}
+                      onChange={e => setCustomRecipientEmail(e.target.value)}
+                      className="w-full text-xs p-2.5 rounded-lg border bg-background"
+                      placeholder="Optional: custom-email@domain.com"
+                    />
+                    <p className="text-[9px] text-muted-foreground">Defaults to merchant account owner email if left blank.</p>
+                  </div>
+
+                  <Button
+                    onClick={handleSendCustomEmail}
+                    disabled={sendingEmail || !emailRecipientStoreId}
+                    className="w-full text-xs bg-teal-600 hover:bg-teal-700 text-white font-bold h-10 gap-2 mt-4"
+                  >
+                    <Mail className="h-4 w-4" />
+                    {sendingEmail ? "Dispatching..." : "Send Personalized Nudge"}
+                  </Button>
+
+                  {/* Live Compilation Preview Box */}
+                  {emailRecipientStoreId && (
+                    <div className="mt-4 p-4 border border-dashed rounded-lg bg-muted/15 space-y-2">
+                      <span className="text-[9px] uppercase font-bold text-muted-foreground block border-b pb-1">Live Dynamic Compilation Preview</span>
+                      <div className="text-[11px] space-y-1 text-muted-foreground font-sans">
+                        <p><strong>Subject:</strong> {getCompiledSubjectPreview()}</p>
+                        <p className="text-[10px] bg-muted/40 p-2 rounded max-h-[140px] overflow-y-auto font-mono text-[9px] leading-normal" dangerouslySetInnerHTML={{ __html: getCompiledEmailPreview() }} />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Bulk Campaign Dispatch Desk */}
+              <Card className="shadow-none border border-muted-foreground/10">
+                <CardHeader className="pb-3 border-b">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-xs font-bold font-sans uppercase">Bulk Outreach Desk</CardTitle>
+                    <Badge variant="destructive" className="text-[8px] uppercase tracking-wider font-extrabold animate-pulse">BULK CAMPAIGN</Badge>
+                  </div>
+                  <CardDescription className="text-[10px]">Send personalized emails to multiple at-risk/warning merchants at once.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] uppercase font-bold text-muted-foreground">Select At-Risk Merchants</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const atRiskIds = atRiskStores.map(s => s.id);
+                          if (selectedBulkStoreIds.length === atRiskIds.length) {
+                            setSelectedBulkStoreIds([]);
+                          } else {
+                            setSelectedBulkStoreIds(atRiskIds);
+                          }
+                        }}
+                        className="text-[9px] text-teal-600 font-bold hover:underline"
+                      >
+                        {selectedBulkStoreIds.length === atRiskStores.length ? "Deselect All" : "Select All"}
+                      </button>
+                    </div>
+
+                    {atRiskStores.length === 0 ? (
+                      <div className="p-3 border border-dashed rounded-lg bg-emerald-500/5 text-center">
+                        <p className="text-[10px] text-emerald-600 font-bold">✔ No stores are currently at risk!</p>
+                      </div>
+                    ) : (
+                      <div className="border rounded-lg max-h-[160px] overflow-y-auto divide-y bg-background p-1.5 space-y-1">
+                        {atRiskStores.map(store => {
+                          const isChecked = selectedBulkStoreIds.includes(store.id);
+                          return (
+                            <label key={store.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/30 cursor-pointer text-[10px]">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  if (isChecked) {
+                                    setSelectedBulkStoreIds(selectedBulkStoreIds.filter(id => id !== store.id));
+                                  } else {
+                                    setSelectedBulkStoreIds([...selectedBulkStoreIds, store.id]);
+                                  }
+                                }}
+                                className="rounded border-muted text-teal-600 focus:ring-teal-500"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-foreground truncate">{store.storeName || store.name}</p>
+                                <p className="text-[9px] text-muted-foreground truncate">{store.ownerEmail || store.email || "No Email Defined"}</p>
+                              </div>
+                              <Badge variant={store.daysInactive >= 7 ? "destructive" : "warning"} className="text-[8px] px-1 py-0 scale-90">
+                                {store.daysInactive}d inactive
+                              </Badge>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    onClick={handleSendBulkEmail}
+                    disabled={sendingBulk || selectedBulkStoreIds.length === 0}
+                    className="w-full text-xs bg-red-600 hover:bg-red-700 text-white font-bold h-10 gap-2 mt-2"
+                  >
+                    <Send className="h-4 w-4" />
+                    {sendingBulk ? `Dispatching Bulk (${selectedBulkStoreIds.length})...` : `Dispatch Bulk Campaign (${selectedBulkStoreIds.length} Stores)`}
+                  </Button>
+
+                  <div className="p-3 bg-muted/20 border rounded-lg">
+                    <p className="text-[9px] text-muted-foreground leading-normal">
+                      <strong>Note:</strong> Bulk campaign compiles subject lines and body copy individually for each store, substituting personalized merge tags (<code>{"{{storeName}}"}</code>, <code>{"{{manager}}"}</code>, and <code>{"{{days}}"}</code>) prior to dispatch.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {/* Email Deliveries Feed */}

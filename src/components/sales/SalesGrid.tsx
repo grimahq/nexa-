@@ -589,10 +589,15 @@ export function SalesGrid() {
                     pricingMode={onboarding?.pricingMode || "single"}
                     activeTier={activeTier}
                     onChangeTier={setActiveTier}
+                    priceOverrides={priceOverrides}
                     onOverridePrice={(key, price) => {
                       setPriceOverrides((prev) => {
                         const next = new Map(prev);
-                        next.set(key, price);
+                        if (price === undefined) {
+                          next.delete(key);
+                        } else {
+                          next.set(key, price);
+                        }
                         return next;
                       });
                     }}
@@ -621,10 +626,15 @@ export function SalesGrid() {
                   pricingMode={onboarding?.pricingMode || "single"}
                   activeTier={activeTier}
                   onChangeTier={setActiveTier}
+                  priceOverrides={priceOverrides}
                   onOverridePrice={(key, price) => {
                     setPriceOverrides((prev) => {
                       const next = new Map(prev);
-                      next.set(key, price);
+                      if (price === undefined) {
+                        next.delete(key);
+                      } else {
+                        next.set(key, price);
+                      }
                       return next;
                     });
                   }}
