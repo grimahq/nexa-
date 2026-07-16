@@ -384,6 +384,33 @@
         "storeId": { "type": "string" }
       },
       "required": ["id", "customerName", "customerPhone", "balanceNgn", "transactions", "storeId"]
+    },
+    "ReportDelivery": {
+      "title": "Report Delivery",
+      "description": "Business report delivery record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "storeId": { "type": "string" },
+        "recipientEmail": { "type": "string" },
+        "frequency": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "delivered", "failed"] },
+        "sentAt": { "type": "string" },
+        "error": { "type": "string" },
+        "gmailQuotaUsedThisDay": { "type": "number" },
+        "simulated": { "type": "boolean" },
+        "summary": {
+          "type": "object",
+          "properties": {
+            "revenueNgn": { "type": "number" },
+            "transactionCount": { "type": "number" },
+            "averageTransactionNgn": { "type": "number" },
+            "topSellingItem": { "type": "string" },
+            "lowStockCount": { "type": "number" }
+          }
+        }
+      },
+      "required": ["storeId", "recipientEmail", "frequency", "status", "sentAt"]
     }
   },
   "firestore": {
@@ -466,6 +493,10 @@
     "retentionEvents": {
         "schema": "RetentionEvent",
         "description": "Events and alert delivery records representing fired retention actions."
+    },
+    "reportDeliveries": {
+        "schema": "ReportDelivery",
+        "description": "History of daily, weekly, or monthly email report deliveries."
     }
   }
 }

@@ -247,5 +247,11 @@ service cloud.firestore {
       allow read: if isSignedIn() && (resource.data.agentId == request.auth.uid || isAdmin());
       allow write: if isAdmin();
     }
+
+    // ─── REPORT DELIVERIES ──────────────────────────────
+    match /reportDeliveries/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
   }
 }
