@@ -257,6 +257,17 @@ export function SalesStepCheckout({
   };
 
   const handleCheckout = async () => {
+    if (payOnCredit) {
+      if (!customerPhone.trim()) {
+        toast.error("Phone number is required for credit sales");
+        return;
+      }
+      if (!customerName.trim()) {
+        toast.error("Customer name is required for credit sales");
+        return;
+      }
+    }
+
     const sale: SaleTransaction = {
       id: `sale-${Date.now()}`,
       customerName: customerName.trim() || undefined,

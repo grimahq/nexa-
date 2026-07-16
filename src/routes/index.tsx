@@ -230,6 +230,42 @@ const PRICING_PLANS = [
   }
 ];
 
+function SimulatorPriceInput({
+  initialPrice,
+  onPriceChange,
+}: {
+  initialPrice: number;
+  onPriceChange: (val: number) => void;
+}) {
+  const [raw, setRaw] = useState(initialPrice.toString());
+
+  useEffect(() => {
+    setRaw(initialPrice.toString());
+  }, [initialPrice]);
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      pattern="[0-9]*[.,]?[0-9]*"
+      value={raw}
+      onChange={(e) => {
+        const val = e.target.value;
+        if (/^[0-9]*\.?[0-9]*$/.test(val)) {
+          setRaw(val);
+          if (val !== "") {
+            const parsed = parseFloat(val);
+            if (!isNaN(parsed)) {
+              onPriceChange(parsed);
+            }
+          }
+        }
+      }}
+      className="w-12 h-3.5 bg-transparent text-white text-[7.5px] font-mono text-center focus:outline-none"
+    />
+  );
+}
+
 function LandingPage() {
   const { enterDemoMode } = useDemo();
   const { user, loading: authLoading } = useAuth();
@@ -1527,14 +1563,11 @@ function LandingPage() {
                                             <span className="text-[7.5px] text-slate-400">Unit Price:</span>
                                             <div className="flex items-center gap-0.5 bg-white/5 px-1 py-0.5 rounded border border-white/10">
                                               <span className="text-[7px] text-slate-500">₦</span>
-                                              <input 
-                                                type="number"
-                                                value={activePrice}
-                                                onChange={(e) => {
-                                                  const val = parseFloat(e.target.value) || 0;
+                                              <SimulatorPriceInput 
+                                                initialPrice={activePrice}
+                                                onPriceChange={(val) => {
                                                   setSimCart(prev => prev.map(item => item.id === p.id ? { ...item, overridePrice: val } : item));
                                                 }}
-                                                className="w-12 h-3.5 bg-transparent text-white text-[7.5px] font-mono text-center focus:outline-none"
                                               />
                                             </div>
                                             {isCustomPrice ? (

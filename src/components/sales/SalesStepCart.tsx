@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -53,17 +53,43 @@ export function SalesStepCart({
 }: SalesStepCartProps) {
   const total = items.reduce((s, ci) => s + (ci.calculatedUnitPrice ?? ci.item.sellingPrice) * USD_TO_NGN * ci.quantity, 0) + packagingFee;
 
+  // Track raw inputs for price overrides to prevent "choking" during typing
+  const [rawPrices, setRawPrices] = useState<Record<string, string>>({});
+
+  // Synchronize raw prices with prop updates
+  useEffect(() => {
+    const nextRaw: Record<string, string> = { ...rawPrices };
+    let changed = false;
+    items.forEach((ci) => {
+      const displayUnit = ci.selectedUnit || ci.item.unit;
+      const uniqueKey = ci.configStr 
+        ? `${ci.item.id}:${displayUnit}:${ci.configStr}` 
+        : `${ci.item.id}:${displayUnit}`;
+      
+      const currentVal = ci.calculatedUnitPrice ?? ci.item.sellingPrice;
+      const parsedRaw = parseFloat(nextRaw[uniqueKey]);
+      if (nextRaw[uniqueKey] === undefined || (!isNaN(parsedRaw) && parsedRaw !== currentVal)) {
+        nextRaw[uniqueKey] = currentVal.toString();
+        changed = true;
+      }
+    });
+    if (changed) {
+      setRawPrices(nextRaw);
+    }
+  }, [items, rawPrices]);
+
   // Core stock guard utility for cart review phase
-  const getAvailableTargetQty = useCallback((item: Item, targetUnitId: string) => {
+  const getAvailableTargetQty = useCallback((item: Item, targetUnitId: string, configStr?: string) => {
     if (item.restaurant) return 999999;
     let consumedBaseUnits = 0;
     items.forEach((ci) => {
       if (ci.item.id === item.id) {
-        const unitId = ci.selectedUnit || item.unit;
-        if (unitId !== targetUnitId) {
-          const multiplier = unitId === item.unit
+        const ciUnit = ci.selectedUnit || item.unit;
+        // Exclude the exact line we are currently adjusting/querying
+        if (!(ciUnit === targetUnitId && ci.configStr === configStr)) {
+          const multiplier = ciUnit === item.unit
             ? 1
-            : item.unitConversions?.find(c => c.unitId === unitId)?.multiplier || 1;
+            : item.unitConversions?.find(c => c.unitId === ciUnit)?.multiplier || 1;
           consumedBaseUnits += ci.quantity * multiplier;
         }
       }
@@ -176,12 +202,23 @@ export function SalesStepCart({
                     <div className="flex items-center gap-1 bg-muted/30 dark:bg-muted/10 p-0.5 rounded border border-border/50">
                       <span className="text-[10px] font-mono text-muted-foreground/70 uppercase px-1">₦</span>
                       <input
-                        type="number"
-                        value={unitPrice}
+                        type="text"
+                        inputMode="decimal"
+                        pattern="[0-9]*[.,]?[0-9]*"
+                        value={rawPrices[uniqueKey] !== undefined ? rawPrices[uniqueKey] : unitPrice.toString()}
                         onChange={(e) => {
-                          const val = parseFloat(e.target.value);
-                          if (!isNaN(val)) {
-                            onOverridePrice?.(uniqueKey, val);
+                          const rawVal = e.target.value;
+                          // Allow digits, decimal point, or empty
+                          if (/^[0-9]*\.?[0-9]*$/.test(rawVal)) {
+                            setRawPrices(prev => ({ ...prev, [uniqueKey]: rawVal }));
+                            if (rawVal === "") {
+                              onOverridePrice?.(uniqueKey, undefined);
+                            } else {
+                              const val = parseFloat(rawVal);
+                              if (!isNaN(val)) {
+                                onOverridePrice?.(uniqueKey, val);
+                              }
+                            }
                           }
                         }}
                         className="w-20 h-5 text-xs font-bold font-mono bg-background hover:bg-muted/40 rounded border border-border/50 text-slate-800 dark:text-slate-100 text-center focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
@@ -203,7 +240,7 @@ export function SalesStepCart({
                           let newQty = Number((ci.quantity * (oldConv / newConv)).toFixed(2));
 
                           // Ensure transition doesn't exceed maximum stock limits
-                          const maxAllowed = getAvailableTargetQty(ci.item, newUnit);
+                          const maxAllowed = getAvailableTargetQty(ci.item, newUnit, ci.configStr);
                           if (newQty > maxAllowed) {
                             newQty = Number(maxAllowed.toFixed(2));
                           }
@@ -266,7 +303,7 @@ export function SalesStepCart({
                           onChange={(e) => {
                             let val = parseFloat(e.target.value) || 0;
                             if (val < 0) val = 0;
-                            const maxAllowed = getAvailableTargetQty(ci.item, displayUnit);
+                            const maxAllowed = getAvailableTargetQty(ci.item, displayUnit, ci.configStr);
                             if (val > maxAllowed) val = maxAllowed;
                             onAdd(ci.item.id, Number(val.toFixed(2)), ci.selectedUnit, ci.configStr);
                           }}
@@ -280,7 +317,7 @@ export function SalesStepCart({
                       type="button"
                       onClick={() => onAdd(ci.item.id, undefined, ci.selectedUnit, ci.configStr)}
                       disabled={(() => {
-                        const maxAllowed = getAvailableTargetQty(ci.item, displayUnit);
+                        const maxAllowed = getAvailableTargetQty(ci.item, displayUnit, ci.configStr);
                         return ci.quantity >= maxAllowed;
                       })()}
                       className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-primary/10 hover:text-primary disabled:opacity-30 transition-colors animate-none"
@@ -289,7 +326,7 @@ export function SalesStepCart({
                     </button>
                   </div>
                   {(() => {
-                    const maxAllowed = getAvailableTargetQty(ci.item, displayUnit);
+                    const maxAllowed = getAvailableTargetQty(ci.item, displayUnit, ci.configStr);
                     if (ci.quantity >= maxAllowed) {
                       return (
                         <span className="text-[8px] text-destructive font-bold uppercase tracking-tighter">
