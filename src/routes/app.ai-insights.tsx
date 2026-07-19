@@ -23,6 +23,7 @@ import { useUpdateItem } from "@/hooks/useInventoryMutations";
 import { analyzeAllItems, type ReorderAnalysis } from "@/lib/reorder-engine";
 import { analyzeMovements, type AnomalySeverity, type AnomalyType } from "@/lib/anomaly-engine";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { subDays } from "date-fns";
 
 export const Route = createFileRoute("/app/ai-insights")({
@@ -53,7 +54,9 @@ function AiInsightsPage() {
         const parsed = JSON.parse(saved);
         return !!parsed.autoReorder;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error(e);
+    }
     return false;
   }, [currentTier]);
 

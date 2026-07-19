@@ -175,6 +175,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       permKey: "canAccessSettings",
       items: [
         ...(isSuperAdmin ? [{ label: "Super Admin", href: "/app/super-admin", icon: ShieldAlert }] : []),
+        { label: "Admin Tracker", href: "/app/tracker", icon: History },
         { label: "Staff", href: "/app/settings?tab=users", icon: Users, permKey: "canManageUsers" },
         { label: "Settings", href: "/app/settings", icon: Settings },
       ],

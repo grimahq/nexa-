@@ -21,6 +21,7 @@ import { useInventoryMutation } from "@/hooks/useInventoryMutation";
 import { getWhatsAppUrl } from "@/lib/whatsapp";
 import { SalesReceipt } from "@/components/sales/SalesReceipt";
 import type { SaleTransaction } from "@/types/inventory";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 const NAIRA = "₦";
 
@@ -77,7 +78,9 @@ function CustomersPage() {
         const parsed = JSON.parse(saved);
         return !!parsed.smartCohorts;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error(e);
+    }
     return false;
   }, [currentTier]);
 

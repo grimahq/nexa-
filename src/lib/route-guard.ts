@@ -20,6 +20,7 @@ const ROUTE_ACCESS: Record<string, UserRoleType[]> = {
   "/app/ecommerce": ["admin"],
   "/app/affiliates": ["admin"],
   "/app/locations": ["admin"],
+  "/app/tracker": ["admin"],
 };
 
 /**
