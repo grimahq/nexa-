@@ -89,9 +89,12 @@ export async function resolveFeatureFlags(
     }
     
     const resolvedPlan = plan || DEFAULT_PLANS.find(p => p.planId === tier) || DEFAULT_PLANS[0];
+    const storeData = storeSnap.exists() ? storeSnap.data() : null;
+    const overrides = storeData?.featureFlagsOverride || {};
     
     return {
       ...resolvedPlan.featureFlags,
+      ...overrides,
       planName: resolvedPlan.name,
       planId: resolvedPlan.planId,
       status: status
@@ -116,6 +119,7 @@ interface StoreBillingData {
   currentPeriodEnd?: string;
   trialEndsAt?: string | null;
   paymentMethodOnFile?: boolean;
+  featureFlagsOverride?: Partial<FeatureFlags>;
 }
 
 export function resolveFeatureFlagsSync(
@@ -130,9 +134,12 @@ export function resolveFeatureFlagsSync(
   }
   
   const plan = allPlans.find(p => p.planId === tier) || DEFAULT_PLANS.find(p => p.planId === tier) || DEFAULT_PLANS[0];
-  
+  const baseFlags = plan.featureFlags;
+  const overrides = storeData?.featureFlagsOverride || {};
+
   return {
-    ...plan.featureFlags,
+    ...baseFlags,
+    ...overrides,
     planName: plan.name,
     planId: plan.planId,
     status: status

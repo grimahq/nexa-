@@ -196,7 +196,23 @@ export function InStoreQRGeneratorModal({ open, onOpenChange }: InStoreQRGenerat
             <div class="footer-info">
               <div class="instruction">${sector === "restaurant" ? `🍳 ${label}` : `🛒 ${label}`}</div>
               <div class="badge">🌐 Geo-fenced Secure Order</div>
-              <p class="sub-instruction" style="margin-top:12px;">Powered by Nexa Social Commerce. Scan, cart your favorites, choose Moniepoint transfer and collect instantly on-site!</p>
+              <div style="margin-top: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+                <div style="font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em;">Powered by</div>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                  <svg style="height: 18px;" viewBox="0 0 210 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="translate(2, 4)">
+                      <path d="M 8 25 C 8 16 9.5 7 12 7 L 19.5 24" stroke="#2563EB" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M 21.5 24 C 23.2 17 24.5 12 24.5 7" stroke="#00B4D8" stroke-width="4.5" stroke-linecap="round" />
+                    </g>
+                    <text x="38" y="26" fill="#1A3FBF" font-family="Montserrat, Poppins, sans-serif" font-weight="900" font-size="19px" letter-spacing="-0.5px">Nexa</text>
+                    <text x="84" y="26" fill="#00B4D8" font-family="Montserrat, Poppins, sans-serif" font-weight="800" font-size="19px" letter-spacing="-0.5px">Store</text>
+                    <text x="137" y="26" fill="#475569" font-family="Montserrat, Poppins, sans-serif" font-weight="700" font-size="19px" letter-spacing="-0.5px">OS</text>
+                  </svg>
+                </div>
+                <a href="${import.meta.env.VITE_LANDING_URL || "https://nexastoreos.com"}" target="_blank" style="font-size: 11px; font-weight: 700; color: #2563EB; text-decoration: none; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dbeafe; padding: 4px 8px; border-radius: 6px; background-color: #eff6ff; font-family: system-ui, -apple-system, sans-serif;">
+                  <span>Click to create your store 🚀</span>
+                </a>
+              </div>
             </div>
           </div>
           <script>

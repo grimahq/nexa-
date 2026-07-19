@@ -31,6 +31,13 @@ import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import type { Item, SaleTransaction } from "@/types/inventory";
 import { QRCodeSVG } from "qrcode.react";
 import { Html5Qrcode } from "html5-qrcode";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const NAIRA = "₦";
 
@@ -97,7 +104,7 @@ interface QuickCartItem {
 
 export function SalesQuickScanCheckout() {
   const { data: items } = useItems();
-  const { addSale } = useInventoryMutation();
+  const { addSale, updateItem, createItem } = useInventoryMutation();
   const { user } = useAuth();
   const { isDemo, onboarding: demoOnboarding } = useDemo();
   const { settings: liveSettings } = useSystemSettings();
@@ -113,6 +120,16 @@ export function SalesQuickScanCheckout() {
   const [checkoutResult, setCheckoutResult] = useState<SaleTransaction | null>(null);
   const [laserActive, setLaserActive] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
+
+  // Scan mode mapping state: auto-detect both, store_qr only, or manufacturer_code only
+  const [selectedScanMode, setSelectedScanMode] = useState<"auto" | "store_qr" | "manufacturer_code">("auto");
+
+  // Restock & update catalog states for out of stock scans
+  const [restockItem, setRestockItem] = useState<Item | null>(null);
+  const [restockQty, setRestockQty] = useState<string>("10");
+  const [restockCost, setRestockCost] = useState<string>("0");
+  const [restockSelling, setRestockSelling] = useState<string>("0");
+  const [isUpdatingStock, setIsUpdatingStock] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const html5QrcodeRef = useRef<Html5Qrcode | null>(null);
@@ -211,61 +228,102 @@ export function SalesQuickScanCheckout() {
   const totalAmount = subtotal + taxAmount;
 
   const handleScanOrSubmit = (inputVal: string) => {
-    const query = inputVal.trim().toUpperCase();
-    if (!query) return;
+    const rawQuery = inputVal.trim();
+    if (!rawQuery) return;
 
-    // Find first item matching SKU or Barcode or exact name
-    const matchedItem = items.find(i => 
-      (i.sku && i.sku.toUpperCase() === query) || 
-      (i.barcode && i.barcode.toUpperCase() === query) ||
-      (i.name.toUpperCase().includes(query))
-    );
+    let matchedItem: Item | undefined = undefined;
+    let mappedAs: "store_qr" | "manufacturer_code" | "unknown" = "unknown";
 
-    if (matchedItem) {
-      // Check stock limit
-      const currentQty = scannedItems.get(matchedItem.id) ?? 0;
-      if (!matchedItem.restaurant && matchedItem.currentStock !== undefined && currentQty >= matchedItem.currentStock) {
-        playScanBeep("error");
-        toast.error(`Out of stock! Cannot add more of "${matchedItem.name}". Only ${matchedItem.currentStock} in inventory.`, {
-          icon: "⚠️",
-        });
-        setScanInput("");
-        return;
+    // 1. Try Store QR matching first if mode is auto or store_qr
+    if (selectedScanMode === "auto" || selectedScanMode === "store_qr") {
+      // JSON pattern detection
+      if (rawQuery.startsWith("{") && rawQuery.endsWith("}")) {
+        try {
+          const parsed = JSON.parse(rawQuery);
+          const targetId = parsed.id || parsed.productId || parsed.itemId;
+          if (targetId) {
+            matchedItem = items.find(i => i.id === targetId || (i.sku && i.sku.toUpperCase() === String(targetId).toUpperCase()));
+            if (matchedItem) mappedAs = "store_qr";
+          }
+        } catch (e) {
+          console.warn("Invalid JSON store QR, falling back to barcode", e);
+        }
       }
 
-      // Trigger scan success
-      playScanBeep("beep");
-      setScannedItems(prev => {
-        const next = new Map(prev);
-        const curr = next.get(matchedItem.id) ?? 0;
-        next.set(matchedItem.id, curr + 1);
-        return next;
-      });
-      toast.success(`Scanned: ${matchedItem.name} (${matchedItem.sku || matchedItem.barcode || "No Code"})`);
+      // Prefix pattern detection (e.g. STORE-1002, NEXA-1002)
+      if (!matchedItem) {
+        const prefixMatch = rawQuery.match(/^(?:STORE-|NEXA-)(.+)$/i);
+        if (prefixMatch) {
+          const targetId = prefixMatch[1].toUpperCase();
+          matchedItem = items.find(i => i.id.toUpperCase() === targetId || (i.sku && i.sku.toUpperCase() === targetId));
+          if (matchedItem) mappedAs = "store_qr";
+        }
+      }
+    }
+
+    // 2. Try Manufacturer Barcode / QR / SKU lookup if not matched yet and mode is auto or manufacturer_code
+    if (!matchedItem && (selectedScanMode === "auto" || selectedScanMode === "manufacturer_code")) {
+      const upperQuery = rawQuery.toUpperCase();
+      matchedItem = items.find(i => 
+        (i.sku && i.sku.toUpperCase() === upperQuery) || 
+        (i.barcode && i.barcode.toUpperCase() === upperQuery) ||
+        (i.name.toUpperCase().includes(upperQuery))
+      );
+      if (matchedItem) mappedAs = "manufacturer_code";
+    }
+
+    if (matchedItem) {
+      const currentQty = scannedItems.get(matchedItem.id) ?? 0;
+      const isOutOfStock = !matchedItem.restaurant && matchedItem.currentStock !== undefined && currentQty >= matchedItem.currentStock;
+
+      if (isOutOfStock) {
+        // "then if recognize and not in stock it should be sell and ask if to add to stock"
+        playScanBeep("beep");
+        setScannedItems(prev => {
+          const next = new Map(prev);
+          const curr = next.get(matchedItem!.id) ?? 0;
+          next.set(matchedItem!.id, curr + 1);
+          return next;
+        });
+
+        // Trigger prompt to restock & update catalog prices
+        setRestockItem(matchedItem);
+        setRestockQty("10");
+        setRestockCost(String(matchedItem.costPrice || 0));
+        setRestockSelling(String(matchedItem.sellingPrice || 0));
+
+        toast.warning(`Scanned: "${matchedItem.name}" is OUT OF STOCK. Added to cart anyway. Update stock using the dialog.`, {
+          duration: 5000,
+        });
+      } else {
+        // Normal scan success
+        playScanBeep("beep");
+        setScannedItems(prev => {
+          const next = new Map(prev);
+          const curr = next.get(matchedItem!.id) ?? 0;
+          next.set(matchedItem!.id, curr + 1);
+          return next;
+        });
+        toast.success(`Scanned: ${matchedItem.name} via ${mappedAs === "store_qr" ? "Store QR Mapping" : "Manufacturer Code"}`);
+      }
     } else {
       playScanBeep("error");
-      toast.error(`No inventory item matches "${query}"`);
+      toast.error(`No inventory item matches code "${rawQuery}" (${selectedScanMode === "store_qr" ? "Store QR Mode" : selectedScanMode === "manufacturer_code" ? "Manufacturer Mode" : "Auto Mode"})`);
     }
+
     setScanInput("");
     if (!isCameraActive) {
-      inputRef.current?.focus();
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
   };
 
   const handleSimulateScan = (item: Item) => {
-    // Check stock limit
-    const currentQty = scannedItems.get(item.id) ?? 0;
-    if (!item.restaurant && item.currentStock !== undefined && currentQty >= item.currentStock) {
-      playScanBeep("error");
-      toast.error(`Out of stock! Cannot add more of "${item.name}". Only ${item.currentStock} in inventory.`, {
-        icon: "⚠️",
-      });
-      return;
-    }
-
     setLaserActive(item.id);
     setTimeout(() => setLaserActive(null), 300);
-    
+
+    const currentQty = scannedItems.get(item.id) ?? 0;
+    const isOutOfStock = !item.restaurant && item.currentStock !== undefined && currentQty >= item.currentStock;
+
     playScanBeep("beep");
     setScannedItems(prev => {
       const next = new Map(prev);
@@ -273,9 +331,22 @@ export function SalesQuickScanCheckout() {
       next.set(item.id, curr + 1);
       return next;
     });
-    toast.success(`Scanned: ${item.name}`);
+
+    if (isOutOfStock) {
+      // Trigger prompt to restock & update catalog prices
+      setRestockItem(item);
+      setRestockQty("10");
+      setRestockCost(String(item.costPrice || 0));
+      setRestockSelling(String(item.sellingPrice || 0));
+      toast.warning(`Simulated Scan: "${item.name}" is OUT OF STOCK. Added to cart anyway. Update stock using the dialog.`, {
+        duration: 5000,
+      });
+    } else {
+      toast.success(`Simulated Scan: ${item.name}`);
+    }
+
     if (!isCameraActive) {
-      inputRef.current?.focus();
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
   };
 
@@ -488,6 +559,81 @@ export function SalesQuickScanCheckout() {
           <div>
             <h2 className="text-base font-bold text-foreground tracking-tight">Active Barcode Register</h2>
             <p className="text-[11px] text-muted-foreground">Place product close to active laser sensor or type SKU code.</p>
+          </div>
+        </div>
+
+        {/* MAPPING CONTROLS & DUAL SCAN MODE EXPLANATIONS */}
+        <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
+            <div>
+              <span className="text-[10px] font-black tracking-widest text-primary uppercase">Scan Mode Mapping & Pathways</span>
+              <h3 className="text-xs font-bold text-foreground">Specify scanner mapping algorithm</h3>
+            </div>
+            <div className="flex gap-1 bg-muted p-1 rounded-xl border border-border/40">
+              <button
+                type="button"
+                onClick={() => setSelectedScanMode("auto")}
+                className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all ${
+                  selectedScanMode === "auto"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted-foreground/10"
+                }`}
+              >
+                Auto-Detect
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedScanMode("store_qr")}
+                className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all ${
+                  selectedScanMode === "store_qr"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted-foreground/10"
+                }`}
+              >
+                Store QR
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedScanMode("manufacturer_code")}
+                className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all ${
+                  selectedScanMode === "manufacturer_code"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted-foreground/10"
+                }`}
+              >
+                Mfg Barcode
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs leading-relaxed text-muted-foreground">
+            <div className={`p-3 rounded-xl border transition-all ${
+              selectedScanMode === "store_qr" || selectedScanMode === "auto"
+                ? "bg-card border-primary/20 text-foreground"
+                : "bg-muted/10 border-transparent opacity-60"
+            }`}>
+              <div className="flex items-center gap-1.5 font-bold mb-1 text-primary text-[11px]">
+                <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                Store QR Code Map
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Matches customized tags printed inside your store. Decodes embedded JSON string <code className="font-mono bg-muted px-1 text-[9px]">{"{id: '...'}"}</code> or custom product ID labels directly to resolve catalog products.
+              </p>
+            </div>
+
+            <div className={`p-3 rounded-xl border transition-all ${
+              selectedScanMode === "manufacturer_code" || selectedScanMode === "auto"
+                ? "bg-card border-primary/20 text-foreground"
+                : "bg-muted/10 border-transparent opacity-60"
+            }`}>
+              <div className="flex items-center gap-1.5 font-bold mb-1 text-primary text-[11px]">
+                <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                Manufacturer QR / Barcode Map
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Decodes standard barcodes (UPC, EAN) on product packaging. Automatically maps barcode numeric values directly to corresponding SKU indices in your inventory records.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -785,6 +931,134 @@ export function SalesQuickScanCheckout() {
           <Check className="h-4 w-4" /> Verify & Complete Checkout
         </Button>
       </div>
+
+      {/* Restock & Update Catalog Dialog */}
+      <Dialog open={restockItem !== null} onOpenChange={(open) => { if (!open) setRestockItem(null); }}>
+        <DialogContent className="max-w-md bg-card border border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <AlertCircle className="h-5 w-5 text-amber-500 animate-bounce" />
+              Restock & Update Catalog Stock
+            </DialogTitle>
+            <DialogDescription>
+              &quot;{restockItem?.name}&quot; is out of stock (current catalog stock is {restockItem?.currentStock || 0}). 
+              You can record the sale anyway and immediately restock the item in your inventory below.
+            </DialogDescription>
+          </DialogHeader>
+
+          {restockItem && (
+            <div className="space-y-4 py-2 text-left">
+              <div className="grid grid-cols-2 gap-3 bg-muted/40 p-3 rounded-xl border border-border">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-muted-foreground block font-bold">CURRENT CATALOG STOCK</span>
+                  <span className="text-sm font-extrabold text-foreground font-mono">{restockItem.currentStock || 0} {restockItem.unit}</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-muted-foreground block font-bold">CURRENT SELLING PRICE</span>
+                  <span className="text-sm font-extrabold text-foreground font-mono">{NAIRA}{(restockItem.sellingPrice || 0).toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="space-y-3.5">
+                <div className="space-y-1.5">
+                  <Label htmlFor="restock-qty" className="text-xs font-bold text-foreground">
+                    Amount of Catalog Items to Add (+{restockItem.unit})
+                  </Label>
+                  <Input
+                    id="restock-qty"
+                    type="number"
+                    min="1"
+                    value={restockQty}
+                    onChange={(e) => setRestockQty(e.target.value)}
+                    placeholder="Enter stock amount to add... (e.g. 10)"
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    This will increase your catalog stock. New stock will be: <strong className="text-foreground font-mono">{(restockItem.currentStock || 0) + (parseInt(restockQty) || 0)} {restockItem.unit}</strong>.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="restock-selling" className="text-xs font-bold text-foreground">
+                      New Selling Price ({NAIRA})
+                    </Label>
+                    <Input
+                      id="restock-selling"
+                      type="number"
+                      min="0"
+                      value={restockSelling}
+                      onChange={(e) => setRestockSelling(e.target.value)}
+                      placeholder="Selling price"
+                      className="font-mono text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="restock-cost" className="text-xs font-bold text-foreground">
+                      New Cost Price ({NAIRA})
+                    </Label>
+                    <Input
+                      id="restock-cost"
+                      type="number"
+                      min="0"
+                      value={restockCost}
+                      onChange={(e) => setRestockCost(e.target.value)}
+                      placeholder="Cost price"
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl text-[11px] text-emerald-600 dark:text-emerald-400">
+                <Check className="h-4 w-4 shrink-0" />
+                <span>The product was successfully added to your sales cart. Updating catalog prices will keep future POS scans accurate!</span>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setRestockItem(null)}
+                  className="rounded-xl text-xs"
+                >
+                  Keep Cart & Skip Catalog Update
+                </Button>
+                <Button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      setIsUpdatingStock(true);
+                      const addedQty = parseInt(restockQty) || 0;
+                      const newSelling = parseFloat(restockSelling) || 0;
+                      const newCost = parseFloat(restockCost) || 0;
+
+                      await updateItem(restockItem.id, {
+                        currentStock: (restockItem.currentStock || 0) + addedQty,
+                        sellingPrice: newSelling,
+                        costPrice: newCost,
+                      });
+
+                      toast.success(`Catalog updated successfully! Restocked ${addedQty} units for "${restockItem.name}".`);
+                      setRestockItem(null);
+                    } catch (err) {
+                      console.error("Failed to update item stock/pricing:", err);
+                      toast.error("Failed to update catalog stock.");
+                    } finally {
+                      setIsUpdatingStock(false);
+                    }
+                  }}
+                  disabled={isUpdatingStock}
+                  className="bg-primary hover:brightness-110 text-primary-foreground rounded-xl text-xs font-bold"
+                >
+                  {isUpdatingStock ? "Updating..." : "Save & Update Stock"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

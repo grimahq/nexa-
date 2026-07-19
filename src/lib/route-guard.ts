@@ -3,8 +3,8 @@ import type { UserRoleType } from "@/lib/roles";
 /** Maps route paths to the minimum roles allowed */
 const ROUTE_ACCESS: Record<string, UserRoleType[]> = {
   "/app/dashboard": ["admin", "manager"],
-  "/app/sales": ["admin", "manager"],
-  "/app/sales-history": ["admin", "manager"],
+  "/app/sales": ["admin", "manager", "cashier"],
+  "/app/sales-history": ["admin", "manager", "cashier"],
   "/app/sales-analytics": ["admin"],
   "/app/catalog": ["admin", "manager"],
   "/app/requests": ["admin", "manager"],

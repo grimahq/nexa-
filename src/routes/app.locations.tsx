@@ -38,6 +38,19 @@ function LocationsPage() {
   const [transferOpen, setTransferOpen] = useState(false);
 
   const { flags } = useFeatureFlags();
+  const currentTier = flags.planId || "starter";
+
+  const multiBranchSyncEnabled = useMemo(() => {
+    if (currentTier === "starter") return false;
+    try {
+      const saved = localStorage.getItem("nexa_smart_features");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return !!parsed.multiBranchSync;
+      }
+    } catch (e) {}
+    return false;
+  }, [currentTier]);
 
   const selectedNode = useMemo(
     () => (selectedId ? findNode(tree, selectedId) : null),
@@ -56,6 +69,16 @@ function LocationsPage() {
       );
     } else {
       setFormOpen(true);
+    }
+  };
+
+  const handleTransferClick = () => {
+    if (!multiBranchSyncEnabled) {
+      toast.error("Please enable 'Multi-Branch Stock Synchronization' under Smart Features Settings to perform inter-branch stock transfers.", {
+        description: "This feature requires a Professional or Enterprise license."
+      });
+    } else {
+      setTransferOpen(true);
     }
   };
 
@@ -84,7 +107,7 @@ function LocationsPage() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setTransferOpen(true)}
+              onClick={handleTransferClick}
             >
               <ArrowRightLeft className="mr-1.5 h-4 w-4" />
               Transfer Stock

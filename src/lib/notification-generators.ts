@@ -8,6 +8,20 @@ import { differenceInDays } from "date-fns";
  * Deduplicates: skips if an unread alert for the same item already exists.
  */
 export function generateStockAlerts(store: DemoStore): void {
+  // Check if smart features enable lowStockAlerts
+  let lowStockAlertsEnabled = true;
+  try {
+    const saved = localStorage.getItem("nexa_smart_features");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.lowStockAlerts === false) {
+        lowStockAlertsEnabled = false;
+      }
+    }
+  } catch (e) {}
+
+  if (!lowStockAlertsEnabled) return;
+
   const prefs = store.getNotificationPrefs();
   const items = store.getItems();
   const existing = store.getNotifications();

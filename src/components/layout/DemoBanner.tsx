@@ -10,9 +10,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const roles: { value: UserRoleType; label: string }[] = [
+const roles: { value: UserRoleType | "requestor"; label: string }[] = [
   { value: "admin", label: "Admin" },
   { value: "manager", label: "Manager" },
+  { value: "cashier", label: "Cashier (Sales Only)" },
   { value: "requestor", label: "Requestor" },
 ];
 

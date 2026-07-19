@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
-import { Lightbulb, ArrowRight } from "lucide-react";
+import { Lightbulb, ArrowRight, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ReorderSuggestionCard } from "@/components/insights/ReorderSuggestionCard";
@@ -8,6 +8,7 @@ import { useUpdateItem } from "@/hooks/useInventoryMutations";
 import { toast } from "sonner";
 import type { Item, StockMovement, Supplier } from "@/types/inventory";
 import { analyzeAllItems, type ReorderAnalysis } from "@/lib/reorder-engine";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 interface DashboardReorderSectionProps {
   items: Item[];
@@ -17,6 +18,20 @@ interface DashboardReorderSectionProps {
 
 export function DashboardReorderSection({ items, movements, suppliers }: DashboardReorderSectionProps) {
   const updateItem = useUpdateItem();
+  const { flags } = useFeatureFlags();
+  const currentTier = flags.planId || "starter";
+
+  const autoReorderEnabled = useMemo(() => {
+    if (currentTier === "starter") return false;
+    try {
+      const saved = localStorage.getItem("nexa_smart_features");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return !!parsed.autoReorder;
+      }
+    } catch (e) {}
+    return false;
+  }, [currentTier]);
 
   const suggestions = useMemo(() => {
     const all = analyzeAllItems(items, movements, suppliers);
@@ -28,6 +43,31 @@ export function DashboardReorderSection({ items, movements, suppliers }: Dashboa
   }, [items, movements, suppliers]);
 
   const top5 = suggestions.slice(0, 5);
+
+  if (!autoReorderEnabled) {
+    return (
+      <section className="rounded-xl border border-purple-500/10 bg-purple-50/20 dark:bg-purple-950/5 p-4.5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20 text-[10px] font-bold uppercase tracking-wider">
+                Smart Feature Gated
+              </Badge>
+              <span className="text-xs text-muted-foreground font-medium">AI Auto-Reorder Suggestions</span>
+            </div>
+            <p className="text-xs text-muted-foreground max-w-xl">
+              Enable the **AI Auto-Reorder Predictions** engine in your Store Smart Features console to calculate optimal replenishment velocity and automate purchase orders.
+            </p>
+          </div>
+          <Button size="sm" variant="outline" asChild className="text-xs border-purple-500/20 text-purple-700 dark:text-purple-300 hover:bg-purple-500/5">
+            <Link to="/app/settings">
+              Activate Console <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+            </Link>
+          </Button>
+        </div>
+      </section>
+    );
+  }
 
   if (top5.length === 0) return null;
 

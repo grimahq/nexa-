@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { 
@@ -90,6 +90,7 @@ interface CommissionRule {
 }
 
 export function SuperAdminAgentsNetwork() {
+  const navigate = useNavigate();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [earnings, setEarnings] = useState<Earning[]>([]);
@@ -400,8 +401,27 @@ export function SuperAdminAgentsNetwork() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       
+      {/* HEADER SECTION */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-secondary/30 border border-muted-foreground/15 p-4 rounded-xl">
+        <div>
+          <h2 className="text-lg font-bold tracking-tight">Agent Network Overview</h2>
+          <p className="text-xs text-muted-foreground">Manage authorized growth agents, process payouts, and configure commission rules live.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => navigate({ to: "/agents" })}
+            className="text-xs font-semibold gap-1.5 border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+          >
+            <Users className="h-3.5 w-3.5" />
+            Open Public Agent Portal
+          </Button>
+        </div>
+      </div>
+
       {/* GLOBAL NETWORK OVERVIEW CARDS */}
       <div className="grid gap-4 md:grid-cols-4 sm:grid-cols-2">
         <Card className="shadow-none border border-muted-foreground/10">

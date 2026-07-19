@@ -97,7 +97,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       return "admin";
     }
 
-    if (profile?.role === "admin" || profile?.role === "manager") {
+    if (profile?.role === "admin" || profile?.role === "manager" || profile?.role === "cashier") {
       return profile.role as UserRoleType;
     }
     return "manager";

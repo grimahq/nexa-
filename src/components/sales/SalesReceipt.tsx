@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Printer, X, Download, MessageCircle, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import type { SaleTransaction } from "@/types/inventory";
 import { useDemo } from "@/hooks/useDemo";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { getWhatsAppUrl, buildPersonalizedReceiptText } from "@/lib/whatsapp";
+import { NexaLogo } from "@/components/shared/NexaLogo";
 
 const NAIRA = "₦";
 
@@ -52,25 +53,80 @@ function buildReceiptText(sale: SaleTransaction, storeName: string): string {
 
 async function generateReceiptPDF(sale: SaleTransaction, storeName: string): Promise<Blob> {
   const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ unit: "mm", format: [80, 200] }); // receipt width
 
   const w = 80;
-  let y = 10;
   const lm = 6; // left margin
   const rm = w - 6; // right margin
+  const maxContentWidth = rm - lm; // 68mm
   const isRepayment = sale.isDebtSettlement || sale.id.startsWith("repay-");
 
-  // Store name
+  const fmtNgnForPdf = (amount: number) => `N${amount.toLocaleString("en-NG", { minimumFractionDigits: 0 })}`;
+
+  // Create a temporary document to pre-calculate heights for dynamic page formatting
+  const tempDoc = new jsPDF({ unit: "mm", format: [80, 500] });
+  let calcY = 10;
+
+  // 1. Store Name wrapping calculation
+  tempDoc.setFontSize(14);
+  tempDoc.setFont("helvetica", "bold");
+  const storeLines = tempDoc.splitTextToSize(storeName, maxContentWidth);
+  calcY += storeLines.length * 5.5 + 4; // store title height + spacing
+
+  // 2. Info block (Receipt #, Date, Customer, Phone)
+  calcY += 16; // base height for line, receipt #, and date
+  if (sale.customerName) calcY += 4.5;
+  if (sale.customerPhone) calcY += 4.5;
+  calcY += 6; // separator line
+
+  // 3. Line items wrapping calculation
+  tempDoc.setFontSize(8);
+  sale.items.forEach((li) => {
+    tempDoc.setFont("helvetica", "bold");
+    const lines = tempDoc.splitTextToSize(li.itemName, maxContentWidth);
+    calcY += lines.length * 3.5; // item name lines
+    calcY += 5; // quantity, price details and spacing
+  });
+
+  // 4. Debt & Total section
+  calcY += 4;
+  if (sale.previousDebtPaidNgn && sale.previousDebtPaidNgn > 0) {
+    calcY += 12; // Items total, consolidated debt paid + lines
+  }
+  calcY += 12; // Total line, TOTAL label and amount + spacing
+
+  // 5. Footer lines
+  tempDoc.setFontSize(7);
+  const thanksText = isRepayment ? "Thank you for your payment!" : "Thank you for your purchase!";
+  const thanksLines = tempDoc.splitTextToSize(thanksText, maxContentWidth);
+  calcY += thanksLines.length * 3.5;
+
+  const poweredText = `Powered by ${storeName}`;
+  const poweredLines = tempDoc.splitTextToSize(poweredText, maxContentWidth);
+  calcY += poweredLines.length * 3.5 + 2;
+
+  calcY += 16; // POWERED BY NEXASTOREOS + "Create your store..." lines + margin
+
+  // Instantiate final document with perfectly calculated precise height
+  const pageHeight = Math.max(140, Math.ceil(calcY));
+  const doc = new jsPDF({ unit: "mm", format: [80, pageHeight] });
+
+  let y = 10;
+
+  // Render Store Name
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
-  doc.text(storeName, w / 2, y, { align: "center" });
-  y += 5;
+  storeLines.forEach((line: string) => {
+    doc.text(line, w / 2, y, { align: "center" });
+    y += 5.5;
+  });
+
+  y += 0.5;
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.text(isRepayment ? "Debt Settlement Receipt" : "Receipt of Purchase", w / 2, y, { align: "center" });
-  y += 6;
+  y += 5;
 
-  // Line
+  // Divider Line
   doc.setDrawColor(200);
   doc.line(lm, y, rm, y);
   y += 5;
@@ -88,16 +144,18 @@ async function generateReceiptPDF(sale: SaleTransaction, storeName: string): Pro
 
   if (sale.customerName) {
     doc.text("Customer", lm, y);
-    doc.text(sale.customerName, rm, y, { align: "right" });
-    y += 4;
+    // Truncate to ensure it never overlaps or crosses margins
+    const custName = sale.customerName.length > 22 ? sale.customerName.slice(0, 20) + "…" : sale.customerName;
+    doc.text(custName, rm, y, { align: "right" });
+    y += 4.5;
   }
   if (sale.customerPhone) {
     doc.text("Phone", lm, y);
     doc.text(sale.customerPhone, rm, y, { align: "right" });
-    y += 4;
+    y += 4.5;
   }
 
-  y += 2;
+  y += 1.5;
   doc.line(lm, y, rm, y);
   y += 5;
 
@@ -105,13 +163,16 @@ async function generateReceiptPDF(sale: SaleTransaction, storeName: string): Pro
   doc.setFontSize(8);
   sale.items.forEach((li) => {
     doc.setFont("helvetica", "bold");
-    const name = li.itemName.length > 28 ? li.itemName.slice(0, 26) + "…" : li.itemName;
-    doc.text(name, lm, y);
-    y += 3.5;
+    const nameLines = doc.splitTextToSize(li.itemName, maxContentWidth);
+    nameLines.forEach((line: string) => {
+      doc.text(line, lm, y);
+      y += 3.5;
+    });
+
     doc.setFont("helvetica", "normal");
     const qtyText = `${li.quantity}${li.unit && li.unit !== "pcs" ? li.unit : ""}`;
-    doc.text(`${qtyText} x ${fmtNgn(li.unitPriceNgn)}`, lm + 2, y);
-    doc.text(fmtNgn(li.unitPriceNgn * li.quantity), rm, y, { align: "right" });
+    doc.text(`${qtyText} x ${fmtNgnForPdf(li.unitPriceNgn)}`, lm + 2, y);
+    doc.text(fmtNgnForPdf(li.unitPriceNgn * li.quantity), rm, y, { align: "right" });
     y += 5;
   });
 
@@ -121,10 +182,10 @@ async function generateReceiptPDF(sale: SaleTransaction, storeName: string): Pro
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.text("Items Total", lm, y);
-    doc.text(fmtNgn(sale.totalNgn - sale.previousDebtPaidNgn), rm, y, { align: "right" });
+    doc.text(fmtNgnForPdf(sale.totalNgn - sale.previousDebtPaidNgn), rm, y, { align: "right" });
     y += 4;
     doc.text("Consolidated Debt Paid", lm, y);
-    doc.text(fmtNgn(sale.previousDebtPaidNgn), rm, y, { align: "right" });
+    doc.text(fmtNgnForPdf(sale.previousDebtPaidNgn), rm, y, { align: "right" });
     y += 4;
   }
 
@@ -134,15 +195,34 @@ async function generateReceiptPDF(sale: SaleTransaction, storeName: string): Pro
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.text("TOTAL", lm, y);
-  doc.text(fmtNgn(sale.totalNgn), rm, y, { align: "right" });
-  y += 8;
+  doc.text(fmtNgnForPdf(sale.totalNgn), rm, y, { align: "right" });
+  y += 7;
 
   // Footer
-  doc.setFontSize(7);
+  doc.line(lm, y, rm, y);
+  y += 5;
+  doc.setFontSize(7.5);
   doc.setFont("helvetica", "normal");
-  doc.text(isRepayment ? "Thank you for your payment!" : "Thank you for your purchase!", w / 2, y, { align: "center" });
+  thanksLines.forEach((line: string) => {
+    doc.text(line, w / 2, y, { align: "center" });
+    y += 3.5;
+  });
+  
+  y += 1;
+  poweredLines.forEach((line: string) => {
+    doc.text(line, w / 2, y, { align: "center" });
+    y += 3.5;
+  });
+  
   y += 3;
-  doc.text(`Powered by ${storeName}`, w / 2, y, { align: "center" });
+  doc.setFontSize(6.5);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(100, 116, 139); // slate-500
+  doc.text("POWERED BY NEXASTOREOS", w / 2, y, { align: "center" });
+  y += 3.5;
+  doc.setFontSize(7.5);
+  doc.setTextColor(37, 99, 235); // cobalt blue #2563eb
+  doc.text("Create your store: www.nexastoreos.com", w / 2, y, { align: "center" });
 
   return doc.output("blob");
 }
@@ -167,6 +247,14 @@ export function SalesReceipt({ sale, onClose }: SalesReceiptProps) {
     window.print();
     setTimeout(() => document.body.classList.remove("is-printing-receipt"), 1000);
   };
+
+  // Auto-trigger print on modal mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handlePrint();
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleDownloadPDF = async () => {
     setDownloading(true);
@@ -332,10 +420,28 @@ export function SalesReceipt({ sale, onClose }: SalesReceiptProps) {
 
           {/* Footer */}
           <div className="mt-4 text-center pb-4">
-            <p className="text-[10px] text-muted-foreground print:text-black">
+            <p className="text-[10px] text-muted-foreground print:text-black font-semibold">
               {isRepayment ? "Thank you for your payment!" : "Thank you for your purchase!"}
             </p>
-            <p className="text-[10px] text-muted-foreground/60 print:hidden mt-1 italic">Generated via Nexa OS</p>
+            <div className="mt-4 flex flex-col items-center justify-center gap-1.5 pt-3 border-t border-dashed border-border/80">
+              <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Powered by</span>
+              <a 
+                href={import.meta.env.VITE_LANDING_URL || "https://nexastoreos.com"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:opacity-80 transition-opacity"
+              >
+                <NexaLogo variant="full" height={16} className="text-foreground shrink-0" />
+              </a>
+              <a 
+                href={import.meta.env.VITE_LANDING_URL || "https://nexastoreos.com"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[9px] font-bold text-primary bg-primary/5 hover:bg-primary/10 border border-primary/20 px-2 py-1 rounded-md mt-1 transition-all animate-pulse"
+              >
+                Click to create your store 🚀
+              </a>
+            </div>
           </div>
         </div>
 

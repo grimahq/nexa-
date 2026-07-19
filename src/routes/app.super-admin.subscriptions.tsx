@@ -43,7 +43,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { db, auth } from "@/lib/firebase";
 import { collection, doc, getDocs, updateDoc, addDoc, setDoc, deleteDoc, writeBatch } from "firebase/firestore";
-import type { SubscriptionPlan, SubscriptionEvent, SubscriptionStatus, SubscriptionEventType } from "@/types/subscription";
+import type { SubscriptionPlan, SubscriptionEvent, SubscriptionStatus, SubscriptionEventType, FeatureFlags } from "@/types/subscription";
 import { DEFAULT_PLANS } from "@/utils/subscriptionUtils";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend } from "recharts";
 
@@ -58,6 +58,7 @@ export interface AdminStore {
   ownerId?: string;
   storePhone?: string;
   dunningContactedAt?: string | null;
+  featureFlagsOverride?: Partial<FeatureFlags>;
   [key: string]: unknown;
 }
 
@@ -118,6 +119,95 @@ export function SubscriptionsManagementPage() {
   const [flagCrossBranch, setFlagCrossBranch] = useState(false);
   const [flagB2B, setFlagB2B] = useState(false);
   const [flagMaxBranches, setFlagMaxBranches] = useState("1");
+
+  // Store custom feature overrides states
+  const [overridePricingMode, setOverridePricingMode] = useState<"inherit" | "force_true" | "force_false">("inherit");
+  const [overrideCrossBranch, setOverrideCrossBranch] = useState<"inherit" | "force_true" | "force_false">("inherit");
+  const [overrideB2B, setOverrideB2B] = useState<"inherit" | "force_true" | "force_false">("inherit");
+  const [overrideMaxBranches, setOverrideMaxBranches] = useState<"inherit" | "custom">("inherit");
+  const [customMaxBranches, setCustomMaxBranches] = useState<number>(1);
+
+  useEffect(() => {
+    if (selectedStore) {
+      const overrides = (selectedStore.featureFlagsOverride || {}) as Partial<FeatureFlags>;
+      
+      if (overrides.pricingMode === true) {
+        setOverridePricingMode("force_true");
+      } else if (overrides.pricingMode === false) {
+        setOverridePricingMode("force_false");
+      } else {
+        setOverridePricingMode("inherit");
+      }
+
+      if (overrides.crossBranchVisibility === true) {
+        setOverrideCrossBranch("force_true");
+      } else if (overrides.crossBranchVisibility === false) {
+        setOverrideCrossBranch("force_false");
+      } else {
+        setOverrideCrossBranch("inherit");
+      }
+
+      if (overrides.b2bMarketplace === true) {
+        setOverrideB2B("force_true");
+      } else if (overrides.b2bMarketplace === false) {
+        setOverrideB2B("force_false");
+      } else {
+        setOverrideB2B("inherit");
+      }
+
+      if (typeof overrides.maxBranches === "number") {
+        setOverrideMaxBranches("custom");
+        setCustomMaxBranches(overrides.maxBranches);
+      } else {
+        setOverrideMaxBranches("inherit");
+        setCustomMaxBranches(1);
+      }
+    }
+  }, [selectedStore]);
+
+  const handleSaveStoreOverrides = async () => {
+    if (!selectedStore) return;
+    
+    const overrides: Record<string, unknown> = {};
+    
+    if (overridePricingMode === "force_true") overrides.pricingMode = true;
+    if (overridePricingMode === "force_false") overrides.pricingMode = false;
+    
+    if (overrideCrossBranch === "force_true") overrides.crossBranchVisibility = true;
+    if (overrideCrossBranch === "force_false") overrides.crossBranchVisibility = false;
+    
+    if (overrideB2B === "force_true") overrides.b2bMarketplace = true;
+    if (overrideB2B === "force_false") overrides.b2bMarketplace = false;
+    
+    if (overrideMaxBranches === "custom") {
+      overrides.maxBranches = customMaxBranches;
+    }
+
+    try {
+      if (isDemoMode) {
+        const updatedStore = {
+          ...selectedStore,
+          featureFlagsOverride: overrides
+        };
+        setStores(stores.map(s => s.id === selectedStore.id ? updatedStore : s));
+        setSelectedStore(updatedStore);
+        toast.success("Feature overrides updated locally (Sandbox)!");
+      } else {
+        await updateDoc(doc(db, "stores", selectedStore.id), {
+          featureFlagsOverride: overrides
+        });
+        const updatedStore = {
+          ...selectedStore,
+          featureFlagsOverride: overrides
+        };
+        setStores(stores.map(s => s.id === selectedStore.id ? updatedStore : s));
+        setSelectedStore(updatedStore);
+        toast.success("Feature overrides saved successfully!");
+      }
+    } catch (err) {
+      toast.error(`Failed to save overrides: ${(err as Error).message}`);
+    }
+  };
 
   // Dunning dialog
   const [isDunningDialogOpen, setIsDunningDialogOpen] = useState(false);
@@ -1387,6 +1477,104 @@ export function SubscriptionsManagementPage() {
                       Toggle
                     </Button>
                   </div>
+                </div>
+              </div>
+
+              {/* STORE CUSTOM FEATURE FLAG OVERRIDES */}
+              <div className="border border-neutral-200/60 rounded-xl p-4 bg-secondary/5 space-y-4">
+                <span className="font-bold text-xs uppercase text-primary tracking-wider block border-b pb-1.5 flex items-center gap-1.5">
+                  <Settings2 className="h-4 w-4 text-sky-500" />
+                  Store-Specific Feature Overrides
+                </span>
+                <p className="text-[11px] text-muted-foreground -mt-2 leading-relaxed">
+                  Directly override active features and subscription tier limits for this specific store. When overridden, these settings take precedence.
+                </p>
+
+                <div className="space-y-3.5">
+                  {/* 1. Pricing Mode Override */}
+                  <div className="grid grid-cols-2 gap-2 items-center">
+                    <Label htmlFor="override_pricing" className="text-xs font-semibold">Multi-Tier Pricing Mode</Label>
+                    <Select value={overridePricingMode} onValueChange={(val) => setOverridePricingMode(val as "inherit" | "force_true" | "force_false")}>
+                      <SelectTrigger id="override_pricing" className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="inherit">Inherit from Plan</SelectItem>
+                        <SelectItem value="force_true">Force Enabled (Override)</SelectItem>
+                        <SelectItem value="force_false">Force Disabled (Override)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 2. Cross-Branch Override */}
+                  <div className="grid grid-cols-2 gap-2 items-center">
+                    <Label htmlFor="override_cross" className="text-xs font-semibold">Cross-Branch Visibility</Label>
+                    <Select value={overrideCrossBranch} onValueChange={(val) => setOverrideCrossBranch(val as "inherit" | "force_true" | "force_false")}>
+                      <SelectTrigger id="override_cross" className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="inherit">Inherit from Plan</SelectItem>
+                        <SelectItem value="force_true">Force Enabled (Override)</SelectItem>
+                        <SelectItem value="force_false">Force Disabled (Override)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 3. B2B Marketplace Override */}
+                  <div className="grid grid-cols-2 gap-2 items-center">
+                    <Label htmlFor="override_b2b" className="text-xs font-semibold">B2B Wholesale Marketplace</Label>
+                    <Select value={overrideB2B} onValueChange={(val) => setOverrideB2B(val as "inherit" | "force_true" | "force_false")}>
+                      <SelectTrigger id="override_b2b" className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="inherit">Inherit from Plan</SelectItem>
+                        <SelectItem value="force_true">Force Enabled (Override)</SelectItem>
+                        <SelectItem value="force_false">Force Disabled (Override)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 4. Max Branches Override */}
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2 items-center">
+                      <Label htmlFor="override_branches" className="text-xs font-semibold">Branches Limit Option</Label>
+                      <Select value={overrideMaxBranches} onValueChange={(val) => setOverrideMaxBranches(val as "inherit" | "custom")}>
+                        <SelectTrigger id="override_branches" className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="inherit">Inherit from Plan</SelectItem>
+                          <SelectItem value="custom">Custom Limit (Override)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {overrideMaxBranches === "custom" && (
+                      <div className="grid grid-cols-2 gap-2 items-center">
+                        <Label htmlFor="custom_branches_val" className="text-xs font-semibold pl-2 text-muted-foreground">Custom Max Branches</Label>
+                        <Input
+                          id="custom_branches_val"
+                          type="number"
+                          min={1}
+                          max={999}
+                          value={customMaxBranches}
+                          onChange={(e) => setCustomMaxBranches(parseInt(e.target.value) || 1)}
+                          className="h-8 text-xs border-neutral-200"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    onClick={handleSaveStoreOverrides}
+                    className="bg-sky-500 hover:bg-sky-600 text-white text-xs h-8 px-4"
+                  >
+                    Save Feature Overrides
+                  </Button>
                 </div>
               </div>
 

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Sparkles, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,20 @@ function AiInsightsPage() {
   const { isDemo, demoStore } = useDemo();
   const { can } = usePermissions();
   const updateItem = useUpdateItem();
+  const { flags } = useFeatureFlags();
+  const currentTier = flags.planId || "starter";
+
+  const autoReorderEnabled = useMemo(() => {
+    if (currentTier === "starter") return false;
+    try {
+      const saved = localStorage.getItem("nexa_smart_features");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return !!parsed.autoReorder;
+      }
+    } catch (e) {}
+    return false;
+  }, [currentTier]);
 
   const [urgency, setUrgency] = useState<UrgencyFilter>("all");
   const [confidence, setConfidence] = useState<ConfidenceFilter>("all");
@@ -142,69 +156,97 @@ function AiInsightsPage() {
         <Badge variant="secondary" className="text-xs">Beta</Badge>
       </div>
 
-      {/* Summary Metrics */}
-      <ForecastSummary analyses={allAnalyses} />
-
-      {/* Demand Chart */}
-      <DemandForecastChart items={items} movements={movements} />
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Select value={urgency} onValueChange={(v) => setUrgency(v as UrgencyFilter)}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Urgency" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Urgency</SelectItem>
-            <SelectItem value="critical">Critical (&lt;7d)</SelectItem>
-            <SelectItem value="moderate">Moderate (7-14d)</SelectItem>
-            <SelectItem value="low">Low (&gt;14d)</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={confidence} onValueChange={(v) => setConfidence(v as ConfidenceFilter)}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Confidence" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Confidence</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="low">Low</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Sort by" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="stockout">Days to Stockout</SelectItem>
-            <SelectItem value="delta">Order delta</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <span className="text-xs text-muted-foreground ml-auto">
-          {filtered.length} order{filtered.length !== 1 ? "s" : ""}
-        </span>
-      </div>
-
-      {/* Suggestion Cards */}
-      {filtered.length === 0 ? (
-        <p className="text-center text-sm text-muted-foreground py-8">
-          No suggested orders match the current filters.
-        </p>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((a) => (
-            <ReorderSuggestionCard
-              key={a.itemId}
-              analysis={a}
-              onApply={handleApply}
-              onDismiss={handleDismiss}
-            />
-          ))}
+      {/* AI Forecasting & Reordering Gated Screen */}
+      {!autoReorderEnabled ? (
+        <div className="relative overflow-hidden rounded-xl border border-purple-500/10 bg-purple-500/[0.01] dark:bg-purple-950/[0.04] p-8 text-center shadow-xs">
+          <div className="max-w-md mx-auto space-y-4 py-4">
+            <div className="h-12 w-12 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400 mx-auto border border-purple-500/20">
+              <Sparkles className="h-6 w-6" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-base font-bold text-foreground">AI Replenishment Engine Gated</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {currentTier === "starter" 
+                  ? "Predictive inventory analytics, sales velocity calculations, and automatic supplier reorder triggers are available on the Professional plan." 
+                  : "Activate 'AI Auto-Reorder Predictions' in your Smart Features settings to enable deep-learning sales velocity tracking, expected lead times, and automatic safety stock suggestion cards."}
+              </p>
+            </div>
+            <div className="flex justify-center gap-3 pt-2">
+              <Button size="sm" asChild className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-xs">
+                <Link to="/app/settings">
+                  {currentTier === "starter" ? "Upgrade License" : "Enable Smart Feature"}
+                </Link>
+              </Button>
+            </div>
+          </div>
         </div>
+      ) : (
+        <>
+          {/* Summary Metrics */}
+          <ForecastSummary analyses={allAnalyses} />
+
+          {/* Demand Chart */}
+          <DemandForecastChart items={items} movements={movements} />
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Select value={urgency} onValueChange={(v) => setUrgency(v as UrgencyFilter)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Urgency" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Urgency</SelectItem>
+                <SelectItem value="critical">Critical (&lt;7d)</SelectItem>
+                <SelectItem value="moderate">Moderate (7-14d)</SelectItem>
+                <SelectItem value="low">Low (&gt;14d)</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={confidence} onValueChange={(v) => setConfidence(v as ConfidenceFilter)}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Confidence" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Confidence</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="stockout">Days to Stockout</SelectItem>
+                <SelectItem value="delta">Order delta</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <span className="text-xs text-muted-foreground ml-auto">
+              {filtered.length} order{filtered.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+
+          {/* Suggestion Cards */}
+          {filtered.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-8">
+              No suggested orders match the current filters.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {filtered.map((a) => (
+                <ReorderSuggestionCard
+                  key={a.itemId}
+                  analysis={a}
+                  onApply={handleApply}
+                  onDismiss={handleDismiss}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Anomalies Section */}

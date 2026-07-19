@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc, collection } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "./AuthContext";
 import type { CustomFieldDefinition } from "@/types/inventory";
+import type { SubscriptionPlan } from "@/types/subscription";
+import { DEFAULT_PLANS } from "@/utils/subscriptionUtils";
 
 export interface ReorderDefaultsType {
   reorderPoint: number;
@@ -65,6 +67,7 @@ interface SystemSettingsContextValue {
   loading: boolean;
   updateSettings: (updates: Partial<StoreSettings>) => Promise<void>;
   setupStore: (onboardingData: Partial<StoreSettings>) => Promise<void>;
+  plans: SubscriptionPlan[];
 }
 
 const SystemSettingsContext = createContext<SystemSettingsContextValue | null>(null);
@@ -73,6 +76,24 @@ export function SystemSettingsProvider({ children }: { children: ReactNode }) {
   const { user, profile } = useAuth();
   const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>(DEFAULT_PLANS);
+
+  useEffect(() => {
+    if (!user) return;
+    const plansRef = collection(db, "subscriptionPlans");
+    const unsub = onSnapshot(plansRef, (snap) => {
+      const loaded: SubscriptionPlan[] = [];
+      snap.forEach(doc => {
+        loaded.push(doc.data() as SubscriptionPlan);
+      });
+      if (loaded.length > 0) {
+        setPlans(loaded);
+      }
+    }, (error) => {
+      console.warn("Error listening to subscription plans, falling back to defaults", error);
+    });
+    return () => unsub();
+  }, [user]);
 
   useEffect(() => {
     if (!user || !profile?.storeId) {
@@ -161,7 +182,7 @@ export function SystemSettingsProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <SystemSettingsContext.Provider value={{ settings, loading, updateSettings, setupStore }}>
+    <SystemSettingsContext.Provider value={{ settings, loading, updateSettings, setupStore, plans }}>
       {children}
     </SystemSettingsContext.Provider>
   );

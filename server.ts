@@ -170,6 +170,37 @@ Provide the response as clean structured JSON.`;
     }
   });
 
+  // API Endpoint for generating product descriptions securely
+  app.post("/api/gemini/generate-description", async (req, res) => {
+    const { productName, category } = req.body;
+    if (!productName || !category) {
+      return res.status(400).json({ error: "productName and category are required" });
+    }
+
+    if (!ai) {
+      console.warn("GEMINI_API_KEY is not configured or available. Using fallback description.");
+      return res.json({ description: `High quality ${productName} in the ${category} category.` });
+    }
+
+    try {
+      const prompt = `Generate a compelling, concise, and professional product description for a product named "${productName}" in the category "${category}". 
+The tone should be persuasive and suitable for social commerce (WhatsApp/Facebook). 
+Keep it under 300 characters. 
+Include some relevant emojis. 
+Do not include placeholders like [Price] or [Link].`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: prompt,
+      });
+
+      res.json({ description: response.text?.trim() || "" });
+    } catch (error) {
+      console.error("Failed to generate description:", error);
+      res.status(500).json({ error: "Failed to generate description" });
+    }
+  });
+
   // Lazy initialized server-side Firestore instance
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let serverDbInstance: any = null;
@@ -266,7 +297,7 @@ Provide the response as clean structured JSON.`;
       // Case A: First successful paid activation
       if ((eventType === "upgrade" || eventType === "reactivation" || eventType === "manual_override") && toPlan !== "starter") {
         if (referralStatus === "pending") {
-          const bonusAmount = commissionRule.onboardingBonusNgn;
+          const bonusAmount = toPlan === "enterprise" ? 5000 : 1500;
           const earningId = `earn-${Date.now()}-bonus`;
           
           await setDoc(doc(db, "agentEarnings", earningId), {
@@ -294,8 +325,8 @@ Provide the response as clean structured JSON.`;
         } else if (referralStatus === "converted") {
           // Case B: Subsequent recurring subscription payment
           const planPrice = plansPrices[toPlan] || 0;
-          if (planPrice > 0) {
-            const residualAmount = Math.floor(planPrice * (commissionRule.recurringResidualPercent / 100));
+          if (planPrice > 0 || toPlan === "pro" || toPlan === "professional") {
+            const residualAmount = toPlan === "enterprise" ? 1000 : 500;
             const earningId = `earn-${Date.now()}-recurring`;
 
             await setDoc(doc(db, "agentEarnings", earningId), {
@@ -327,7 +358,7 @@ Provide the response as clean structured JSON.`;
           const daysDiff = (cancelledTime - convertedTime) / (1000 * 60 * 60 * 24);
 
           if (daysDiff <= commissionRule.clawbackWindowDays) {
-            const bonusAmount = commissionRule.onboardingBonusNgn;
+            const bonusAmount = toPlan === "enterprise" ? 5000 : 1500;
             const earningId = `earn-${Date.now()}-clawback`;
 
             await setDoc(doc(db, "agentEarnings", earningId), {

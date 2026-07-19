@@ -31,7 +31,7 @@ function AppLayout() {
   const { isDemo } = useDemo();
   const { user, profile, loading: authLoading } = useAuth();
   const { settings, loading: settingsLoading, setupStore } = useSystemSettings();
-  const { role, isOwner, isAdmin, isSuperAdmin } = useRole();
+  const { role, isOwner, isAdmin, isSuperAdmin, permissions } = useRole();
   const navigate = useNavigate();
   const location = useLocation();
   const [helpOpen, setHelpOpen] = useState(false);
@@ -213,9 +213,10 @@ function AppLayout() {
   useEffect(() => {
     if ((isDemo || user) && !canAccessRoute(location.pathname, role, isSuperAdmin)) {
       toast.error("You don't have permission to access that page.");
-      navigate({ to: "/app/dashboard" });
+      const defaultDest = permissions?.canViewDashboard ? "/app/dashboard" : "/app/sales";
+      navigate({ to: defaultDest });
     }
-  }, [location.pathname, role, navigate, isDemo, user, isSuperAdmin]);
+  }, [location.pathname, role, navigate, isDemo, user, isSuperAdmin, permissions]);
 
   // Auth/Demo guard — redirect to landing if not in demo AND not logged in
   useEffect(() => {

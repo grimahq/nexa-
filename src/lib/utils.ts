@@ -42,10 +42,10 @@ export function getStorefrontUrl(
       base = `${publicOrigin}/store/${storeSlug}${path ? `/${path}` : ""}`;
     }
   } else {
-    // In production, we host on nexastoreos.com with wildcard subdomains
-    // e.g. hassan-bala.nexastoreos.com
+    // In production, we host on a custom domain with wildcard subdomains (defaults to nexastoreos.com)
+    const productionDomain = import.meta.env.VITE_STORE_DOMAIN || "nexastoreos.com";
     const cleanPath = path ? (path.startsWith("/") ? path : `/${path}`) : "";
-    base = `https://${storeSlug}.nexastoreos.com${cleanPath}`;
+    base = `https://${storeSlug}.${productionDomain}${cleanPath}`;
   }
 
   // Append query params if any

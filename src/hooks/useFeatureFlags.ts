@@ -10,7 +10,7 @@ export interface ResolvedFeatureFlags extends FeatureFlags {
 }
 
 export function useFeatureFlags(): { flags: ResolvedFeatureFlags } {
-  const { settings } = useSystemSettings();
-  const flags = useMemo(() => resolveFeatureFlagsSync(settings), [settings]);
+  const { settings, plans } = useSystemSettings();
+  const flags = useMemo(() => resolveFeatureFlagsSync(settings, plans), [settings, plans]);
   return useMemo(() => ({ flags }), [flags]);
 }

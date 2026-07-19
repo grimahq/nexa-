@@ -584,6 +584,7 @@ export function SalesGrid() {
                       setPriceOverrides(new Map());
                     }}
                     onNext={() => setStep("checkout")}
+                    onboarding={onboarding}
                     packagingFee={packagingFee}
                     estimatedReadyTime={estimatedReadyTime}
                     pricingMode={onboarding?.pricingMode || "single"}
@@ -621,6 +622,7 @@ export function SalesGrid() {
                     setPriceOverrides(new Map());
                   }}
                   onNext={() => setStep("checkout")}
+                  onboarding={onboarding}
                   packagingFee={packagingFee}
                   estimatedReadyTime={estimatedReadyTime}
                   pricingMode={onboarding?.pricingMode || "single"}

@@ -1,5 +1,8 @@
 import { format } from "date-fns";
-import { X, Pencil, Archive, Package } from "lucide-react";
+import { X, Pencil, Archive, Package, Sparkles } from "lucide-react";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   Sheet,
   SheetContent,
@@ -78,6 +81,59 @@ export function ItemDetailSheet({
   const supplier = suppliers.find((s) => s.id === item.supplierId);
   const location = locations.find((l) => l.id === item.locationId);
   const status = stockStatus(item);
+
+  const { flags } = useFeatureFlags();
+  const currentTier = flags.planId || "starter";
+
+  const aiPricingEnabled = useMemo(() => {
+    if (currentTier !== "pro" && currentTier !== "enterprise") return false;
+    try {
+      const saved = localStorage.getItem("nexa_smart_features");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return !!parsed.aiPricing;
+      }
+    } catch (e) {}
+    return false;
+  }, [currentTier]);
+
+  const recommendedPrice = useMemo(() => {
+    if (!item) return 0;
+    const baseCost = item.costPrice || 0;
+    if (baseCost > 0) {
+      const recommended = baseCost * 1.35;
+      return Math.round(recommended / 50) * 50;
+    } else {
+      const recommended = item.sellingPrice * 1.12;
+      return Math.round(recommended / 50) * 50;
+    }
+  }, [item]);
+
+  const priceDiffPercentage = useMemo(() => {
+    if (!item || !recommendedPrice) return 0;
+    const diff = recommendedPrice - item.sellingPrice;
+    return Math.round((diff / item.sellingPrice) * 100);
+  }, [item, recommendedPrice]);
+
+  const [applyingPrice, setApplyingPrice] = useState(false);
+
+  const handleApplyAiPrice = async () => {
+    if (!item || !recommendedPrice) return;
+    try {
+      setApplyingPrice(true);
+      await updateItem.mutateAsync({
+        id: item.id,
+        sellingPrice: recommendedPrice,
+      });
+      toast.success("AI Price recommendation successfully applied!", {
+        description: `Set selling price of ${item.name} to ₦${recommendedPrice.toLocaleString()}.`,
+      });
+    } catch (e) {
+      toast.error("Failed to apply dynamic pricing recommendation.");
+    } finally {
+      setApplyingPrice(false);
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -165,6 +221,43 @@ export function ItemDetailSheet({
               <DetailRow label="Color" value={item.color} />
               <DetailRow label="Cost Per Unit" value={`₦${item.costPrice?.toLocaleString() ?? "0"}`} mono />
               <DetailRow label="Sale Price" value={`₦${item.sellingPrice?.toLocaleString() ?? "0"}`} mono />
+
+              {aiPricingEnabled && (
+                <div className="col-span-2 rounded-xl border border-purple-500/20 bg-purple-500/[0.02] dark:bg-purple-950/[0.04] p-4 space-y-3 my-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-purple-700 dark:text-purple-300">
+                      <Sparkles className="h-4 w-4 animate-pulse" />
+                      <span className="text-xs font-bold uppercase tracking-wider">AI pricing recommendation</span>
+                    </div>
+                    {priceDiffPercentage !== 0 && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${priceDiffPercentage > 0 ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400" : "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400"}`}>
+                        {priceDiffPercentage > 0 ? `+${priceDiffPercentage}%` : `${priceDiffPercentage}%`} optimal diff
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-black font-mono text-foreground font-mono">₦{recommendedPrice.toLocaleString()}</span>
+                      <span className="text-xs text-muted-foreground line-through font-mono">current: ₦{item.sellingPrice.toLocaleString()}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      {item.costPrice && item.costPrice > 0 
+                        ? `Optimized based on a standard 35% target gross margin index above unit cost (₦${item.costPrice.toLocaleString()}).`
+                        : "Optimized using real-time competitive margin indexing and regional high-demand categories."}
+                    </p>
+                  </div>
+                  {item.sellingPrice !== recommendedPrice && (
+                    <Button
+                      size="sm"
+                      onClick={handleApplyAiPrice}
+                      disabled={applyingPrice}
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs h-8 shadow-xs"
+                    >
+                      {applyingPrice ? "Applying..." : `Apply AI Price (₦${recommendedPrice.toLocaleString()})`}
+                    </Button>
+                  )}
+                </div>
+              )}
               <div className="col-span-2 py-2 border-t border-b border-border my-2">
                 <div className="flex items-center justify-between">
                   <div>

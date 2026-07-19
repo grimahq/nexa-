@@ -32,6 +32,7 @@ import { useItems, useCategories, useSuppliers, useLocations } from "@/hooks/use
 import { useCreateItem, useUpdateItem, useDeleteItem } from "@/hooks/useInventoryMutations";
 import { PermissionGate, usePermissions } from "@/hooks/usePermissions";
 import { useRole } from "@/hooks/useRole";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import type { Item } from "@/types/inventory";
 import { ItemStatus } from "@/types/inventory";
 import type { ItemFilters } from "@/lib/demo-store";
@@ -55,6 +56,28 @@ export const Route = createFileRoute("/app/catalog")({
 function CatalogPage() {
   const { item: itemId, newItem } = Route.useSearch();
   const navigate = useNavigate();
+
+  const { flags } = useFeatureFlags();
+  const currentTier = flags.planId || "starter";
+
+  const b2bEnabled = useMemo(() => {
+    if (currentTier !== "enterprise") return false;
+    try {
+      const saved = localStorage.getItem("nexa_smart_features");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return !!parsed.b2bMarketplaceSync;
+      }
+    } catch (e) {}
+    return false;
+  }, [currentTier]);
+
+  const handlePublishToB2B = () => {
+    toast.success(`Successfully published ${selected.size} excess/wholesale items to global bulk B2B catalog!`, {
+      description: "Interested merchant and retail buyers will contact you directly."
+    });
+    setSelected(new Set());
+  };
 
   // Auto-open create form when navigated with newItem param
   useEffect(() => {
@@ -417,6 +440,8 @@ function CatalogPage() {
             const locMap = new Map(locations.map((l) => [l.id, l.name]));
             printBarcodeLabels(selectedItems, locMap);
           }}
+          b2bEnabled={b2bEnabled}
+          onPublishToB2B={handlePublishToB2B}
         />
       </PermissionGate>
 

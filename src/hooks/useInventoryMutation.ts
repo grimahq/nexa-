@@ -56,10 +56,49 @@ export function useInventoryMutation() {
   };
 
   const addSale = async (sale: SaleTransaction) => {
+    let salesNotificationsEnabled = true;
+    try {
+      const saved = localStorage.getItem("nexa_smart_features");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.salesNotifications === false) {
+          salesNotificationsEnabled = false;
+        }
+      }
+    } catch (e) {}
+
     if (isDemo && demoStore) {
       demoStore.addSale(sale);
+      if (salesNotificationsEnabled) {
+        demoStore.addNotification({
+          id: `notif-sale-${sale.id}-${Date.now()}`,
+          type: "po_reminder",
+          title: "New POS Sale Logged",
+          message: `Processed successful transaction of ₦${sale.totalNgn.toLocaleString()} to ${sale.customerName}.`,
+          isRead: false,
+          link: "/app/sales-history",
+          createdAt: new Date().toISOString()
+        });
+      }
       bumpVersion();
       return;
+    }
+
+    // In non-demo, let's trigger the notification record if enabled
+    if (salesNotificationsEnabled) {
+      try {
+        await addDoc(collection(db, "notifications"), {
+          storeId: profile?.storeId || null,
+          type: "po_reminder",
+          title: "New POS Sale Logged",
+          message: `Processed successful transaction of ₦${sale.totalNgn.toLocaleString()} to ${sale.customerName}.`,
+          isRead: false,
+          link: "/app/sales-history",
+          createdAt: new Date().toISOString()
+        });
+      } catch (e) {
+        console.error("Failed to add sales notification", e);
+      }
     }
 
     const isOffline = typeof window !== "undefined" && (localStorage.getItem("nexa_force_offline") === "true" || isFirebaseOffline);

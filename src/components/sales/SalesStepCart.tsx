@@ -22,6 +22,12 @@ export interface CartItem {
   configStr?: string;
 }
 
+export interface OnboardingInfo {
+  businessType?: string | null;
+  pricingMode?: "single" | "tiered";
+  storeSlug?: string;
+}
+
 interface SalesStepCartProps {
   items: CartItem[];
   onAdd: (id: string, qty?: number, unitId?: string, configStr?: string) => void;
@@ -35,6 +41,7 @@ interface SalesStepCartProps {
   onChangeTier?: (tier: "retail" | "wholesale" | "distributor") => void;
   priceOverrides?: Map<string, number>;
   onOverridePrice?: (uniqueKey: string, newPrice: number | undefined) => void;
+  onboarding?: OnboardingInfo;
 }
 
 export function SalesStepCart({
@@ -50,6 +57,7 @@ export function SalesStepCart({
   onChangeTier,
   priceOverrides,
   onOverridePrice,
+  onboarding,
 }: SalesStepCartProps) {
   const total = items.reduce((s, ci) => s + (ci.calculatedUnitPrice ?? ci.item.sellingPrice) * USD_TO_NGN * ci.quantity, 0) + packagingFee;
 
@@ -165,7 +173,7 @@ export function SalesStepCart({
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{ci.item.name}</p>
+                  <p className="text-sm font-extrabold text-foreground truncate">{ci.item.name}</p>
                   {ci.configStr && (() => {
                     try {
                       const config = JSON.parse(ci.configStr);
@@ -199,8 +207,8 @@ export function SalesStepCart({
                   
                   {/* Price input & Unit selector row */}
                   <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                    <div className="flex items-center gap-1 bg-muted/30 dark:bg-muted/10 p-0.5 rounded border border-border/50">
-                      <span className="text-[10px] font-mono text-muted-foreground/70 uppercase px-1">₦</span>
+                    <div className="flex items-center gap-1.5 bg-slate-200 dark:bg-slate-800 p-0.5 rounded-lg border-2 border-slate-500 dark:border-slate-600 shadow-sm">
+                      <span className="text-xs font-black text-slate-900 dark:text-slate-100 px-1">₦</span>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -221,7 +229,7 @@ export function SalesStepCart({
                             }
                           }
                         }}
-                        className="w-20 h-5 text-xs font-bold font-mono bg-background hover:bg-muted/40 rounded border border-border/50 text-slate-800 dark:text-slate-100 text-center focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
+                        className="w-24 h-7 text-xs font-black font-mono bg-white dark:bg-slate-950 rounded border border-slate-400 dark:border-slate-700 text-slate-900 dark:text-slate-50 text-center focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner"
                       />
                     </div>
                     
@@ -248,7 +256,7 @@ export function SalesStepCart({
                           onRemove(ci.item.id, ci.selectedUnit, ci.configStr);
                           onAdd(ci.item.id, newQty, newUnit, ci.configStr);
                         }}
-                        className="h-5 px-1 text-[9px] uppercase font-extrabold bg-muted border border-muted-foreground/30 rounded outline-none focus:ring-1 focus:ring-primary text-slate-700 dark:text-slate-300"
+                        className="h-5 px-1.5 text-[9px] uppercase font-extrabold bg-muted border border-muted-foreground/30 rounded outline-none focus:ring-1 focus:ring-primary text-foreground"
                       >
                         <option value={ci.item.unit}>{ci.item.unit}</option>
                         {ci.item.unitConversions.map(c => (
@@ -338,7 +346,7 @@ export function SalesStepCart({
                   })()}
                 </div>
 
-                <p className="min-w-20 text-right text-sm font-bold font-mono text-slate-900 dark:text-slate-100">{fmtNgn(unitPrice, ci.quantity)}</p>
+                <p className="min-w-20 text-right text-base font-black font-mono text-foreground">{fmtNgn(unitPrice, ci.quantity)}</p>
               </div>
             </div>
           );
@@ -360,7 +368,7 @@ export function SalesStepCart({
           </div>
         )}
 
-        {estimatedReadyTime > 0 && (
+        {estimatedReadyTime > 0 && onboarding?.businessType === "restaurant" && (
           <div className="flex items-center justify-between text-xs text-amber-600 dark:text-amber-400 font-bold border-b border-border/40 pb-2">
             <span>Expected Cooking Ready Time</span>
             <span>~{estimatedReadyTime} minutes</span>

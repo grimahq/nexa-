@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import { Store, Save, ShieldAlert, Mail, FileText, MapPin, Trash2, Plus, Building2, ExternalLink, Copy } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Store, Save, ShieldAlert, Mail, FileText, MapPin, Trash2, Plus, Building2, ExternalLink, Copy, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "@tanstack/react-router";
 import { useDemo } from "@/hooks/useDemo";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
@@ -85,6 +86,18 @@ export function StoreSettings() {
 
   const totalRevenue = sales.reduce((sum, s) => sum + (s.totalNgn || 0), 0);
   const branches = locations.filter(l => l.parentId === null && l.type === "warehouse");
+
+  const weeklyEmailDigestEnabled = useMemo(() => {
+    if (flags.planId === "starter") return false;
+    try {
+      const saved = localStorage.getItem("nexa_smart_features");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return !!parsed.weeklyEmailDigest;
+      }
+    } catch (e) {}
+    return false;
+  }, [flags.planId]);
 
   const handleCopyUrl = () => {
     const storeIdStr = profile?.storeId || "demo-store";
@@ -499,48 +512,70 @@ export function StoreSettings() {
               <h3 className="text-sm font-bold flex items-center gap-1.5"><FileText className="h-4 w-4 text-blue-500" />Automated PDF Business Reports</h3>
               <p className="text-xs text-muted-foreground">Receive regular branded email PDF summaries of your sales, stock, and business analytics.</p>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="report-frequency" className="flex items-center gap-1">
-                  Report Frequency
-                  {flags.planId === "starter" && (
-                    <span className="text-[10px] bg-sky-500/10 text-sky-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ml-1">🔒 PRO+ GATED DAILY</span>
-                  )}
-                </Label>
-                <select
-                  id="report-frequency"
-                  value={reportFrequency}
-                  onChange={(e) => setReportFrequency(e.target.value as "daily" | "weekly" | "monthly" | "off")}
-                  className="w-full h-10 px-3 py-2 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                >
-                  <option value="off">Disabled (No reports)</option>
-                  <option value="monthly">Monthly Summary</option>
-                  <option value="weekly">Weekly Summary</option>
-                  <option value="daily font-semibold">Daily Summary (Professional / Enterprise)</option>
-                </select>
+
+            {!weeklyEmailDigestEnabled ? (
+              <div className="bg-purple-500/[0.01] border border-purple-500/10 rounded-xl p-6 text-center space-y-3">
+                <Mail className="h-8 w-8 text-purple-500/80 mx-auto" />
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-foreground">Email Digest Smart Feature Required</h4>
+                  <p className="text-[11px] text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                    {flags.planId === "starter" 
+                      ? "Automated PDF digests are available on Professional and Enterprise plans. Please upgrade your plan." 
+                      : "Please activate 'Automated Daily Email Digest' in your Smart Features console to configure report schedules."}
+                  </p>
+                </div>
+                {flags.planId !== "starter" && (
+                  <Button size="sm" variant="outline" className="text-xs border-purple-500/20 text-purple-700 dark:text-purple-300 hover:bg-purple-500/5 h-8 font-semibold" asChild>
+                    <Link to="/app/settings">Activate Smart Feature</Link>
+                  </Button>
+                )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="recipient-email" className="flex items-center gap-1"><Mail className="h-3.5 w-3.5 text-muted-foreground" /> Recipient Email</Label>
-                <Input
-                  id="recipient-email"
-                  type="email"
-                  value={recipientEmail}
-                  onChange={(e) => setRecipientEmail(e.target.value)}
-                  placeholder="recipient@example.com"
-                />
-              </div>
-            </div>
-            
-            {flags.planId === "starter" && reportFrequency === "daily" && (
-              <p className="text-xs text-sky-600 font-medium flex items-center gap-1.5 mt-1 bg-sky-500/5 p-3 rounded-lg border border-sky-500/10">
-                <ShieldAlert className="h-4 w-4" /> <span><strong>Gated:</strong> Daily report frequency is a premium feature. Please upgrade your current Starter Plan to Professional or Enterprise to unlock daily automated reports.</span>
-              </p>
-            )}
-            
-            {reportFrequency !== "off" && (
-              <p className="text-xs text-muted-foreground bg-muted/40 p-3 rounded-lg border border-border">
-                ✨ Reports are generated automatically and sent from <strong>nexatechnologies.dev@gmail.com</strong> with your store branding at the top and a secure animated-GIF logo signature.
-              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="report-frequency" className="flex items-center gap-1">
+                      Report Frequency
+                      {flags.planId === "starter" && (
+                        <span className="text-[10px] bg-sky-500/10 text-sky-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ml-1">🔒 PRO+ GATED DAILY</span>
+                      )}
+                    </Label>
+                    <select
+                      id="report-frequency"
+                      value={reportFrequency}
+                      onChange={(e) => setReportFrequency(e.target.value as "daily" | "weekly" | "monthly" | "off")}
+                      className="w-full h-10 px-3 py-2 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    >
+                      <option value="off">Disabled (No reports)</option>
+                      <option value="monthly">Monthly Summary</option>
+                      <option value="weekly">Weekly Summary</option>
+                      <option value="daily font-semibold">Daily Summary (Professional / Enterprise)</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="recipient-email" className="flex items-center gap-1"><Mail className="h-3.5 w-3.5 text-muted-foreground" /> Recipient Email</Label>
+                    <Input
+                      id="recipient-email"
+                      type="email"
+                      value={recipientEmail}
+                      onChange={(e) => setRecipientEmail(e.target.value)}
+                      placeholder="recipient@example.com"
+                    />
+                  </div>
+                </div>
+                
+                {flags.planId === "starter" && reportFrequency === "daily" && (
+                  <p className="text-xs text-sky-600 font-medium flex items-center gap-1.5 mt-1 bg-sky-500/5 p-3 rounded-lg border border-sky-500/10">
+                    <ShieldAlert className="h-4 w-4" /> <span><strong>Gated:</strong> Daily report frequency is a premium feature. Please upgrade your current Starter Plan to Professional or Enterprise to unlock daily automated reports.</span>
+                  </p>
+                )}
+                
+                {reportFrequency !== "off" && (
+                  <p className="text-xs text-muted-foreground bg-muted/40 p-3 rounded-lg border border-border">
+                    ✨ Reports are generated automatically and sent from <strong>nexatechnologies.dev@gmail.com</strong> with your store branding at the top and a secure animated-GIF logo signature.
+                  </p>
+                )}
+              </>
             )}
           </div>
 

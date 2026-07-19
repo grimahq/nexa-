@@ -32,7 +32,7 @@ export interface DemoUser {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "manager";
+  role: "admin" | "manager" | "cashier";
   status: "active" | "inactive" | "pending";
   joinedAt: string;
   tempPassword?: string;

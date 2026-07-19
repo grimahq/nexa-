@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Palette, Upload, Save, QrCode, Download, Printer, Copy, Check, ExternalLink } from "lucide-react";
+import { Palette, Upload, Save, QrCode, Download, Printer, Copy, Check, ExternalLink, Trash2 } from "lucide-react";
 import { getPublicUrl, getStorefrontUrl } from "@/lib/utils";
 import { NexaLogo } from "@/components/shared/NexaLogo";
 import { Button } from "@/components/ui/button";
@@ -29,11 +29,94 @@ export function StoreBranding() {
   const [selectedColor, setSelectedColor] = useState(activeSettings.brandColor ?? "#0d9488");
   const [logoUrl, setLogoUrl] = useState(activeSettings.logoUrl ?? "");
   const [copied, setCopied] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   useEffect(() => {
     setSelectedColor(activeSettings.brandColor ?? "#0d9488");
     setLogoUrl(activeSettings.logoUrl ?? "");
   }, [activeSettings]);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processFile(file);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processFile(file);
+  };
+
+  const processFile = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file (JPG or PNG).");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File is too large. Max size is 5MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Resize using a canvas to keep base64 extremely lightweight
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 256;
+        const MAX_HEIGHT = 256;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          setLogoUrl(dataUrl);
+          toast.success("Logo uploaded and optimized!");
+        } else {
+          setLogoUrl(event.target?.result as string);
+          toast.success("Logo uploaded!");
+        }
+      };
+      img.onerror = () => {
+        toast.error("Failed to load image file.");
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSave = async () => {
     const data = { brandColor: selectedColor, logoUrl: logoUrl.trim() };
@@ -123,11 +206,15 @@ export function StoreBranding() {
       ctx.fillStyle = "#94a3b8"; // Slate 400
       ctx.textAlign = "center";
       ctx.font = "bold 14px sans-serif";
-      ctx.fillText("POWERED BY", 400, 955);
+      ctx.fillText("POWERED BY", 400, 940);
 
       ctx.fillStyle = "#1A3FBF"; // Deep Royal Blue
       ctx.font = "900 26px sans-serif";
-      ctx.fillText("NexaStoreOS", 400, 995);
+      ctx.fillText("NexaStoreOS", 400, 980);
+
+      ctx.fillStyle = "#2563EB"; // Cobalt Blue
+      ctx.font = "bold 15px sans-serif";
+      ctx.fillText("Click to create your store: www.nexastoreos.com", 400, 1025);
 
       const pngFile = canvas.toDataURL("image/png");
       const downloadLink = document.createElement("a");
@@ -275,9 +362,9 @@ export function StoreBranding() {
                     <text x="137" y="26" fill="#475569" font-family="Montserrat, Poppins, sans-serif" font-weight="700" font-size="19px" letter-spacing="-0.5px">OS</text>
                   </svg>
                 </div>
-                <div style="font-size: 10px; font-weight: 600; color: #2563EB; margin-top: 4px;">
-                  Get NexaStoreOS for your shop &middot; www.nexaos.com
-                </div>
+                <a href="${import.meta.env.VITE_LANDING_URL || "https://nexastoreos.com"}" target="_blank" style="font-size: 11px; font-weight: 700; color: #2563EB; text-decoration: none; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dbeafe; padding: 4px 8px; border-radius: 6px; background-color: #eff6ff; font-family: system-ui, -apple-system, sans-serif;">
+                  <span>Click to create your store 🚀</span>
+                </a>
               </div>
             </div>
           </div>
@@ -341,20 +428,61 @@ export function StoreBranding() {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Logo URL</Label>
-            <div className="relative">
-              <Upload className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                placeholder="https://example.com/logo.png"
-                className="pl-10"
-              />
-            </div>
-            {logoUrl && (
-              <div className="flex items-center gap-3 rounded-lg border border-border p-3 bg-muted/20">
-                <img src={logoUrl} alt="Logo preview" className="h-12 w-12 rounded object-contain" onError={(e) => (e.currentTarget.style.display = "none")} />
-                <span className="text-xs text-muted-foreground">Logo preview</span>
+            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Store Logo</Label>
+            
+            {logoUrl ? (
+              <div className="flex flex-col sm:flex-row items-center gap-4 rounded-xl border border-dashed border-border p-4 bg-muted/20">
+                <div className="relative group">
+                  <img 
+                    src={logoUrl} 
+                    alt="Logo preview" 
+                    className="h-20 w-20 rounded-lg object-contain bg-white border border-border shadow-sm p-1" 
+                    onError={(e) => (e.currentTarget.style.display = "none")} 
+                  />
+                </div>
+                <div className="flex-1 text-center sm:text-left">
+                  <p className="text-xs font-semibold">Logo uploaded successfully</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Optimized for high performance on both receipts and customer screens.</p>
+                  <div className="flex items-center justify-center sm:justify-start gap-2 mt-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setLogoUrl("")}
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" /> Remove Logo
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div 
+                className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 transition-all duration-200 text-center ${
+                  dragActive 
+                    ? "border-primary bg-primary/5 scale-[0.99]" 
+                    : "border-muted-foreground/20 hover:border-muted-foreground/40 bg-muted/5"
+                }`}
+                onDragOver={handleDrag}
+                onDragLeave={handleDrag}
+                onDrop={handleDrop}
+              >
+                <input
+                  id="logo-upload"
+                  type="file"
+                  accept="image/jpeg,image/png,image/jpg"
+                  onChange={handleFileChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-3">
+                  <Upload className="h-5 w-5" />
+                </div>
+                <p className="text-xs font-semibold text-foreground">
+                  Drag & drop your store logo, or <span className="text-primary hover:underline">browse</span>
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Supports JPG, JPEG, or PNG. Auto-optimized for instant loading.
+                </p>
               </div>
             )}
           </div>
@@ -434,6 +562,14 @@ export function StoreBranding() {
                   className="hover:opacity-80 transition-opacity"
                 >
                   <NexaLogo variant="full" height={16} className="text-foreground shrink-0" />
+                </a>
+                <a 
+                  href={`${import.meta.env.VITE_LANDING_URL || "https://nexastoreos.com"}/?utm_source=qr_flyer_preview_cta&utm_medium=merchant_settings&utm_campaign=${encodeURIComponent(storeSlug)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[9px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md mt-1 hover:brightness-110 transition-all animate-pulse"
+                >
+                  Click to create your store 🚀
                 </a>
               </div>
             </div>

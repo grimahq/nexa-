@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
-import { Plus, MoreHorizontal, Users, Search, ShieldCheck, Shield, User, CheckCircle2, Copy, Key, MapPin, BarChart3, History } from "lucide-react";
+import { Plus, MoreHorizontal, Users, Search, ShieldCheck, Shield, User, CheckCircle2, Copy, Key, MapPin, BarChart3, History, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { useDemo } from "@/hooks/useDemo";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,8 @@ import { cn, getPublicUrl } from "@/lib/utils";
 import type { DemoUser } from "@/lib/demo-store";
 
 type RoleType = DemoUser["role"];
-const ROLE_LABELS: Record<RoleType, string> = { admin: "Admin", manager: "Inventory Manager", requestor: "Requestor" };
-const ROLE_COLORS: Record<RoleType, string> = { admin: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200", manager: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200", requestor: "bg-muted text-muted-foreground" };
+const ROLE_LABELS: Record<RoleType | "requestor", string> = { admin: "Admin", manager: "Inventory Manager", cashier: "Cashier (Sales Only)", requestor: "Requestor" };
+const ROLE_COLORS: Record<RoleType | "requestor", string> = { admin: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200", manager: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200", cashier: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", requestor: "bg-muted text-muted-foreground" };
 const CURRENT_USER_ID = "user-01"; // Alice is the logged-in admin in demo
 
 import { useUsers, type AppUser } from "@/hooks/useUsers";
@@ -726,6 +726,7 @@ Make sure to change your password under settings once logged in.`;
                     <SelectContent>
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="manager">Inventory Manager</SelectItem>
+                      <SelectItem value="cashier">Cashier (Sales Only)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -756,6 +757,7 @@ Make sure to change your password under settings once logged in.`;
                       <SelectContent>
                         <SelectItem value="admin">Admin</SelectItem>
                         <SelectItem value="manager">Inventory Manager</SelectItem>
+                        <SelectItem value="cashier">Cashier (Sales Only)</SelectItem>
                       </SelectContent>
                     </Select>
                     
@@ -1135,6 +1137,9 @@ function RoleDropdown({ user, currentUserId, adminCount, isLastAdmin, onChangeRo
         </SelectItem>
         <SelectItem value="manager">
           <div className="flex items-center gap-1.5"><Shield className="h-3.5 w-3.5" />Inventory Manager</div>
+        </SelectItem>
+        <SelectItem value="cashier">
+          <div className="flex items-center gap-1.5"><ShoppingCart className="h-3.5 w-3.5" />Cashier (Sales Only)</div>
         </SelectItem>
       </SelectContent>
     </Select>
