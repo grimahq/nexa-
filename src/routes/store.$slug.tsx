@@ -313,9 +313,21 @@ function PublicStorefront() {
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border px-4 py-4">
         <div className="mx-auto max-w-4xl flex items-center justify-between">
            <div className="flex items-center gap-2">
-             <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center text-white font-bold shadow-lg shadow-primary/20">
-               {onboarding.storeName?.[0] || "N"}
-             </div>
+             {onboarding.logoUrl ? (
+               <img 
+                 src={onboarding.logoUrl} 
+                 alt={onboarding.storeName || "Store logo"} 
+                 className="h-10 w-10 object-contain rounded-xl bg-white border border-border shadow-md p-1"
+                 referrerPolicy="no-referrer"
+                 onError={(e) => {
+                   e.currentTarget.style.display = "none";
+                 }}
+               />
+             ) : (
+               <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center text-white font-bold shadow-lg shadow-primary/20">
+                 {onboarding.storeName?.[0] || "N"}
+               </div>
+             )}
              <div>
                <h1 className="font-bold text-base leading-none">{onboarding.storeName}</h1>
                <p className="text-[9px] text-muted-foreground mt-1 uppercase tracking-widest font-bold">Verified Merchant</p>

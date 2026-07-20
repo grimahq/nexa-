@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useDemo } from "@/hooks/useDemo";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { useItems } from "@/hooks/useInventoryData";
 import { Item } from "@/types/inventory";
 import { NexaLogo } from "@/components/shared/NexaLogo";
@@ -47,7 +48,9 @@ const STORE_TOUR_STEPS: TourStep[] = [
 ];
 
 function StoreLayout() {
-  const { onboarding } = useDemo();
+  const { isDemo, onboarding: demoOnboarding } = useDemo();
+  const { settings: liveSettings } = useSystemSettings();
+  const onboarding = isDemo ? demoOnboarding : liveSettings;
   const { data: items } = useItems({ status: "active" });
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
@@ -276,9 +279,21 @@ function StoreLayout() {
       <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/store" className="flex items-center gap-2" data-tour="store-header">
-            <div className="bg-primary rounded-lg p-1.5">
-              <Package className="h-5 w-5 text-primary-foreground" />
-            </div>
+            {onboarding.logoUrl ? (
+              <img 
+                src={onboarding.logoUrl} 
+                alt={onboarding.storeName || "Store logo"} 
+                className="h-8 w-8 object-contain rounded-md"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            ) : (
+              <div className="bg-primary rounded-lg p-1.5">
+                <Package className="h-5 w-5 text-primary-foreground" />
+              </div>
+            )}
             <span className="font-bold text-xl tracking-tight">
               {onboarding.storeName || "My Store"}
             </span>
