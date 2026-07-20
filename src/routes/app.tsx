@@ -20,6 +20,7 @@ import { db, handleFirestoreError, OperationType } from "@/lib/firebase";
 import { doc, updateDoc, writeBatch, collection, onSnapshot } from "firebase/firestore";
 import { ShieldAlert } from "lucide-react";
 import { useNotifications } from "@/hooks/useNotifications";
+import { PushNotificationPrompt } from "@/components/notifications/PushNotificationPrompt";
 
 export const Route = createFileRoute("/app")({
   component: AppLayout,
@@ -39,6 +40,17 @@ function AppLayout() {
   const [memberOnboarding, setMemberOnboarding] = useState(false);
   const [lockedFeatures, setLockedFeatures] = useState<string[]>([]);
   const { data: notifications } = useNotifications();
+
+  // Initialize dark mode on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    const isDark = savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
 
   // Listen to feature locks in real-time
   useEffect(() => {
@@ -93,6 +105,18 @@ function AppLayout() {
             onClick: () => navigate({ to: n.link })
           } : undefined
         });
+
+        // Fire a real browser native Push Notification if authorized
+        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+          try {
+            new Notification(n.title, {
+              body: n.message,
+              icon: "/nexastoreos-logo.svg"
+            });
+          } catch (e) {
+            console.error("Failed to trigger native push notification", e);
+          }
+        }
       }
     });
   }, [notifications, navigate]);
@@ -315,6 +339,7 @@ function AppLayout() {
         </div>
       </div>
       <BottomNav />
+      <PushNotificationPrompt />
       <ShortcutsHelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
     </div>
   );

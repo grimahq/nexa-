@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Html5Qrcode } from "html5-qrcode";
 import { 
   Camera, 
   QrCode, 
@@ -80,6 +81,72 @@ export function QuickEntryModal({ open, onOpenChange }: QuickEntryModalProps) {
   const [barcodeInput, setBarcodeInput] = useState("");
   const [isScanningActive, setIsScanningActive] = useState(false);
   const [scanFlash, setScanFlash] = useState(false);
+  
+  const html5QrcodeRef = useRef<Html5Qrcode | null>(null);
+
+  const startCameraScan = async () => {
+    try {
+      setIsScanningActive(true);
+      setTimeout(async () => {
+        try {
+          const html5QrCode = new Html5Qrcode("catalog-camera-reader");
+          html5QrcodeRef.current = html5QrCode;
+          
+          await html5QrCode.start(
+            { facingMode: "environment" },
+            {
+              fps: 15,
+              qrbox: (width, height) => {
+                const size = Math.min(width, height) * 0.75;
+                return { width: size, height: size };
+              },
+            },
+            async (decodedText) => {
+              if (html5QrcodeRef.current && html5QrcodeRef.current.isScanning) {
+                await html5QrcodeRef.current.stop();
+              }
+              setIsScanningActive(false);
+              setBarcodeInput(decodedText);
+              await handleManualLookup(decodedText);
+            },
+            () => {
+              // Ignore frame errors
+            }
+          );
+        } catch (err) {
+          console.error("Failed to start catalog camera scan:", err);
+          setIsScanningActive(false);
+        }
+      }, 400);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const stopCameraScan = async () => {
+    try {
+      if (html5QrcodeRef.current && html5QrcodeRef.current.isScanning) {
+        await html5QrcodeRef.current.stop();
+      }
+    } catch (e) {
+      console.warn("Stop scanner error:", e);
+    } finally {
+      setIsScanningActive(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      startCameraScan();
+    } else {
+      stopCameraScan();
+    }
+    return () => {
+      if (html5QrcodeRef.current && html5QrcodeRef.current.isScanning) {
+        html5QrcodeRef.current.stop().catch(e => console.warn("Cleanup error:", e));
+      }
+    };
+  }, [open]);
   
   // Results view states
   const [lookupResult, setLookupResult] = useState<typeof PRE_POPULATED_BARCODES[0] | null>(null);
@@ -460,22 +527,29 @@ export function QuickEntryModal({ open, onOpenChange }: QuickEntryModalProps) {
                 )}
 
                 {/* Corner bracket overlay styles */}
-                <div className="absolute top-4 left-4 h-5 w-5 border-t-2 border-l-2 border-neutral-600 rounded-tl-md" />
-                <div className="absolute top-4 right-4 h-5 w-5 border-t-2 border-r-2 border-neutral-600 rounded-tr-md" />
-                <div className="absolute bottom-4 left-4 h-5 w-5 border-b-2 border-l-2 border-neutral-600 rounded-bl-md" />
-                <div className="absolute bottom-4 right-4 h-5 w-5 border-b-2 border-r-2 border-neutral-600 rounded-br-md" />
+                <div className="absolute top-4 left-4 h-5 w-5 border-t-2 border-l-2 border-neutral-600 rounded-tl-md z-10" />
+                <div className="absolute top-4 right-4 h-5 w-5 border-t-2 border-r-2 border-neutral-600 rounded-tr-md z-10" />
+                <div className="absolute bottom-4 left-4 h-5 w-5 border-b-2 border-l-2 border-neutral-600 rounded-bl-md z-10" />
+                <div className="absolute bottom-4 right-4 h-5 w-5 border-b-2 border-r-2 border-neutral-600 rounded-br-md z-10" />
 
-                {/* Scan Status icon */}
-                <div className={`p-4 rounded-full mb-3 transition-colors ${isScanningActive ? "bg-emerald-500/10 text-emerald-400 animate-pulse" : "bg-neutral-900 text-neutral-500"}`}>
-                  <Camera className="h-8 w-8" />
-                </div>
+                {/* Live Camera Feed */}
+                {isScanningActive ? (
+                  <div id="catalog-camera-reader" className="absolute inset-0 w-full h-full rounded-2xl overflow-hidden bg-black [&>video]:object-cover [&>video]:w-full [&>video]:h-full z-0" />
+                ) : (
+                  <>
+                    {/* Scan Status icon */}
+                    <div className="p-4 rounded-full mb-3 bg-neutral-900 text-neutral-500">
+                      <Camera className="h-8 w-8" />
+                    </div>
 
-                <p className="text-sm font-bold text-neutral-200">
-                  {isScanningActive ? "Scanning barcode..." : "Camera ready — point card at barcode"}
-                </p>
-                <p className="text-xs text-neutral-500 mt-1 max-w-xs text-center px-4">
-                  Using manufacturer codes allows matching with pre-loaded name, photo, and category data.
-                </p>
+                    <p className="text-sm font-bold text-neutral-200">
+                      Camera ready — point card at barcode
+                    </p>
+                    <p className="text-xs text-neutral-500 mt-1 max-w-xs text-center px-4">
+                      Using manufacturer codes allows matching with pre-loaded name, photo, and category data.
+                    </p>
+                  </>
+                )}
               </div>
 
               {/* Manual Barcode input text */}

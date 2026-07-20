@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { ScanBarcode, X } from "lucide-react";
+import { Html5Qrcode } from "html5-qrcode";
 import {
   Sheet,
   SheetContent,
@@ -41,12 +42,77 @@ export function QuickEntryMode({ open, onOpenChange }: QuickEntryModeProps) {
   const { data: items } = useItems();
   const createMovement = useCreateMovement();
 
-  // Auto-focus input when opened or after action
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const html5QrcodeRef = useRef<Html5Qrcode | null>(null);
+
+  const stopScanning = useCallback(async () => {
+    try {
+      if (html5QrcodeRef.current && html5QrcodeRef.current.isScanning) {
+        await html5QrcodeRef.current.stop();
+      }
+    } catch (err) {
+      console.warn("Stop scanner warning:", err);
+    } finally {
+      setIsCameraActive(false);
+    }
+  }, []);
+
+  const startScanning = useCallback(() => {
+    setIsCameraActive(true);
+    setTimeout(async () => {
+      try {
+        const html5QrCode = new Html5Qrcode("movement-camera-reader");
+        html5QrcodeRef.current = html5QrCode;
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 15,
+            qrbox: (width, height) => {
+              const size = Math.min(width, height) * 0.75;
+              return { width: size, height: size };
+            },
+          },
+          (decodedText) => {
+            stopScanning();
+            setBarcodeInput(decodedText);
+            
+            const query = decodedText.trim();
+            const item = items?.find(
+              (i) => i.barcode?.toLowerCase() === query.toLowerCase() || i.sku.toLowerCase() === query.toLowerCase()
+            );
+
+            if (item) {
+              setFoundItem(item);
+              setNotFound(null);
+              toast.success(`Recognized: ${item.name}`);
+            } else {
+              setFoundItem(null);
+              setNotFound(query);
+              toast.info(`Scanned code "${query}" is not registered.`);
+            }
+          },
+          () => {}
+        );
+      } catch (err) {
+        console.error("Failed to start movement scanner:", err);
+        setIsCameraActive(false);
+      }
+    }, 400);
+  }, [items, stopScanning]);
+
+  // Monitor sheet open state and toggle scanning
   useEffect(() => {
     if (open) {
-      setTimeout(() => inputRef.current?.focus(), 100);
+      startScanning();
+    } else {
+      stopScanning();
     }
-  }, [open]);
+    return () => {
+      if (html5QrcodeRef.current && html5QrcodeRef.current.isScanning) {
+        html5QrcodeRef.current.stop().catch(e => console.warn("Cleanup error:", e));
+      }
+    };
+  }, [open, startScanning, stopScanning]);
 
   const resetForm = useCallback(() => {
     setFoundItem(null);
@@ -56,7 +122,15 @@ export function QuickEntryMode({ open, onOpenChange }: QuickEntryModeProps) {
     setNotes("");
     setBarcodeInput("");
     setTimeout(() => inputRef.current?.focus(), 50);
-  }, []);
+    startScanning();
+  }, [startScanning]);
+
+  // Auto-focus input when opened or after action if camera is not active
+  useEffect(() => {
+    if (open && !isCameraActive) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [open, isCameraActive]);
 
   const handleLookup = useCallback(() => {
     const query = barcodeInput.trim();
@@ -121,6 +195,19 @@ export function QuickEntryMode({ open, onOpenChange }: QuickEntryModeProps) {
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
+          {/* Live Camera Scanner Box */}
+          {!foundItem && !notFound && isCameraActive && (
+            <div className="relative h-44 rounded-xl border border-border overflow-hidden bg-black flex items-center justify-center">
+              <div id="movement-camera-reader" className="absolute inset-0 w-full h-full [&>video]:object-cover [&>video]:w-full [&>video]:h-full z-0" />
+              {/* Corner bracket overlay styles */}
+              <div className="absolute top-3 left-3 h-4 w-4 border-t border-l border-neutral-400 rounded-tl-sm z-10" />
+              <div className="absolute top-3 right-3 h-4 w-4 border-t border-r border-neutral-400 rounded-tr-sm z-10" />
+              <div className="absolute bottom-3 left-3 h-4 w-4 border-b border-l border-neutral-400 rounded-bl-sm z-10" />
+              <div className="absolute bottom-3 right-3 h-4 w-4 border-b border-r border-neutral-400 rounded-br-sm z-10" />
+              <div className="absolute left-0 right-0 h-0.5 bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)] z-10 animate-bounce" style={{ animationDuration: '3s' }} />
+            </div>
+          )}
+
           {/* Barcode input */}
           <div>
             <Label htmlFor="barcode-scan" className="text-sm font-medium">Barcode / SKU</Label>

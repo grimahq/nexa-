@@ -150,6 +150,14 @@ export function SalesQuickScanCheckout() {
     };
   }, []);
 
+  // Automatically start camera scanning on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      startScanning();
+    }, 400);
+    return () => clearTimeout(timer);
+  }, []);
+
   const startScanning = async () => {
     try {
       setIsCameraActive(true);

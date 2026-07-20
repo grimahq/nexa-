@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { createFileRoute, Link, useNavigate, useLocation } from "@tanstack/react-router";
-import { Package, CheckCircle2, AlertTriangle, XCircle, ChevronDown, DollarSign, Users, TrendingUp, ShoppingCart, TrendingDown, Receipt, Clock, Store, Plus, Send, ClipboardList, Settings as SettingsIcon, LayoutGrid, Search as SearchIcon, History, User, Sprout, Scissors } from "lucide-react";
+import { Package, CheckCircle2, AlertTriangle, XCircle, ChevronDown, DollarSign, Users, TrendingUp, ShoppingCart, TrendingDown, Receipt, Clock, Store, Plus, Send, ClipboardList, Settings as SettingsIcon, LayoutGrid, Search as SearchIcon, History, User, Sprout, Scissors, Sun, Moon } from "lucide-react";
 import { toast } from "sonner";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { NeedsAttention } from "@/components/dashboard/NeedsAttention";
@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-import { useStockSummary, useSales, useExpenses, useRefunds, useItems, useMovements, useSuppliers, useAllCompanyItems } from "@/hooks/useInventoryData";
+import { useStockSummary, useSales, useExpenses, useRefunds, useItems, useMovements, useSuppliers, useAllCompanyItems, useCustomers } from "@/hooks/useInventoryData";
 import { useUsers } from "@/hooks/useUsers";
 import { useAlertGenerator } from "@/hooks/useStockAlertGenerator";
 import { useDemo } from "@/hooks/useDemo";
@@ -80,6 +80,27 @@ export const Route = createFileRoute("/app/dashboard")({
 export function DashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [theme, setTheme] = useState<"light" | "dark font-sans animate-fade-in">(() => {
+    if (typeof window !== "undefined") {
+      return document.documentElement.classList.contains("dark") ? "dark" : "light";
+    }
+    return "light";
+  });
+
+  const toggleTheme = () => {
+    const nextTheme = theme === "light" ? "dark" : "light";
+    setTheme(nextTheme);
+    if (nextTheme === "dark") {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+      toast.success("Dark Mode enabled", { duration: 2000 });
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+      toast.success("Light Mode enabled", { duration: 2000 });
+    }
+  };
+
   const { data: summary } = useStockSummary();
   const { isDemo, onboarding: demoOnboarding } = useDemo();
   const { settings: liveSettings } = useSystemSettings();
@@ -96,8 +117,9 @@ export function DashboardPage() {
   const { data: refunds, isLoading: refundsLoading } = useRefunds();
   const { data: users, isLoading: usersLoading } = useUsers();
   const { data: allCompanyItems, isLoading: allCompanyItemsLoading } = useAllCompanyItems();
+  const { data: customers = [], isLoading: customersLoading } = useCustomers();
 
-  const isLoading = itemsLoading || movementsLoading || suppliersLoading || salesLoading || expensesLoading || refundsLoading || usersLoading || allCompanyItemsLoading;
+  const isLoading = itemsLoading || movementsLoading || suppliersLoading || salesLoading || expensesLoading || refundsLoading || usersLoading || allCompanyItemsLoading || customersLoading;
 
   const currentStore = stores.find(s => s.id === currentStoreId);
 
@@ -233,6 +255,7 @@ export function DashboardPage() {
   });
   const todayRevenue = todaySales.reduce((s, sale) => s + sale.totalNgn, 0);
   const uniqueCustomers = new Set(sales.filter((s) => s.customerPhone).map((s) => s.customerPhone)).size;
+  const totalOutstandingDebt = customers.reduce((s, c) => s + (c.debtBalance || 0), 0);
 
   // Expense & refund metrics
   const allExpenses = expenses;
@@ -286,6 +309,19 @@ export function DashboardPage() {
               Store Settings
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={toggleTheme}
+            className="h-9 w-9 rounded-lg border border-border bg-background shadow-xs hover:bg-muted transition-all"
+            title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+          >
+            {theme === "light" ? (
+              <Moon className="h-4.5 w-4.5 text-slate-700 dark:text-slate-300" />
+            ) : (
+              <Sun className="h-4.5 w-4.5 text-amber-500 animate-[spin_20s_linear_infinite]" />
+            )}
+          </Button>
         </div>
       </div>
 
@@ -418,22 +454,19 @@ export function DashboardPage() {
         {/* ... (repeat similar patterns for other roles if needed, but keeping it concise for now) */}
       </div>
 
-      {/* Main Stats (Secondary) */}
-      <div className="grid grid-cols-1 lg:grid-cols-1 gap-4">
-        {isAdmin && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" data-tour="metrics">
-            <button type="button" onClick={() => navigate({ to: "/app/sales-analytics" })} className="text-left group"><MetricCard label="Total Revenue" value={`${NAIRA}${totalRevenue.toLocaleString("en-NG")}`} accentColor="healthy" icon={DollarSign} /></button>
-            <button type="button" onClick={() => navigate({ to: "/app/sales-analytics" })} className="text-left group"><MetricCard label="Net Profit" value={`${NAIRA}${netProfit.toLocaleString("en-NG")}`} accentColor={netProfit >= 0 ? "healthy" : "danger"} icon={netProfit >= 0 ? TrendingUp : TrendingDown} /></button>
-            <button type="button" onClick={() => navigate({ to: "/app/expenses" })} className="text-left group"><MetricCard label="Expenses" value={`${NAIRA}${totalExpenses.toLocaleString("en-NG")}`} accentColor="warning" icon={Receipt} /></button>
-            <button type="button" onClick={() => navigate({ to: "/app/customers" })} className="text-left group"><MetricCard label="Customers" value={uniqueCustomers} accentColor="neutral" icon={Users} /></button>
-          </div>
-        )}
-      </div>
-
       {/* ─── Collapsible Sections for Details ─── */}
       <div className="space-y-3">
       {isAdmin && (
         <>
+          <AccordionSection id="metrics" title="Business Overview" openSection={openSection} onToggle={toggleSection} dataTour="metrics">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <button type="button" onClick={() => navigate({ to: "/app/sales-analytics" })} className="text-left group"><MetricCard label="Total Revenue" value={`${NAIRA}${totalRevenue.toLocaleString("en-NG")}`} accentColor="healthy" icon={DollarSign} /></button>
+              <button type="button" onClick={() => navigate({ to: "/app/sales-analytics" })} className="text-left group"><MetricCard label="Net Profit" value={`${NAIRA}${netProfit.toLocaleString("en-NG")}`} accentColor={netProfit >= 0 ? "healthy" : "danger"} icon={netProfit >= 0 ? TrendingUp : TrendingDown} /></button>
+              <button type="button" onClick={() => navigate({ to: "/app/expenses" })} className="text-left group"><MetricCard label="Expenses" value={`${NAIRA}${totalExpenses.toLocaleString("en-NG")}`} accentColor="warning" icon={Receipt} /></button>
+              <button type="button" onClick={() => navigate({ to: "/app/customers" })} className="text-left group"><MetricCard label="Outstanding Debt" value={`${NAIRA}${totalOutstandingDebt.toLocaleString("en-NG")}`} accentColor="danger" icon={AlertTriangle} /></button>
+            </div>
+          </AccordionSection>
+
           <AccordionSection id="valuation" title="Net Assets & Multi-Branch Valuation" openSection={openSection} onToggle={toggleSection}>
             <div className="space-y-6">
               {/* Brand Summary Cards */}
