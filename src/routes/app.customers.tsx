@@ -108,8 +108,8 @@ function CustomersPage() {
     const debtMap = new Map<string, number>();
     const credits = isDemo && demoStore ? demoStore.getCreditCustomers() : (creditsList ?? []);
     for (const cc of credits) {
-      if (cc.balanceNgn > 0) {
-        debtMap.set(cc.customerPhone, cc.balanceNgn);
+      if (cc.customerPhone && cc.balanceNgn > 0) {
+        debtMap.set(cc.customerPhone.trim(), cc.balanceNgn);
       }
     }
 
@@ -118,9 +118,11 @@ function CustomersPage() {
       const phone = sale.customerPhone?.trim();
       if (!phone) continue;
       const existing = map.get(phone);
+      const debt = debtMap.get(phone) || 0;
       if (existing) {
         existing.totalSpent += sale.totalNgn;
         existing.transactionCount++;
+        existing.debtBalance = debt;
         if (sale.createdAt > existing.lastPurchase) {
           existing.lastPurchase = sale.createdAt;
           if (sale.customerName) existing.name = sale.customerName;
@@ -132,21 +134,21 @@ function CustomersPage() {
           totalSpent: sale.totalNgn,
           transactionCount: 1,
           lastPurchase: sale.createdAt,
-          debtBalance: 0,
+          debtBalance: debt,
         });
       }
     }
     
     // Also include credit customers who might not have had recent sales but have debts
     for (const cc of credits) {
-      if (cc.balanceNgn > 0) {
+      if (cc.customerPhone && cc.balanceNgn > 0) {
         const phone = cc.customerPhone.trim();
         const existing = map.get(phone);
         if (existing) {
           existing.debtBalance = cc.balanceNgn;
         } else {
           map.set(phone, {
-            name: cc.customerName,
+            name: cc.customerName || "Unknown",
             phone,
             totalSpent: 0,
             transactionCount: 0,

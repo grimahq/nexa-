@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-import { useStockSummary, useSales, useExpenses, useRefunds, useItems, useMovements, useSuppliers, useAllCompanyItems, useCustomers } from "@/hooks/useInventoryData";
+import { useStockSummary, useSales, useExpenses, useRefunds, useItems, useMovements, useSuppliers, useAllCompanyItems, useCustomers, useCredits } from "@/hooks/useInventoryData";
 import { useUsers } from "@/hooks/useUsers";
 import { useAlertGenerator } from "@/hooks/useStockAlertGenerator";
 import { useDemo } from "@/hooks/useDemo";
@@ -118,8 +118,9 @@ export function DashboardPage() {
   const { data: users, isLoading: usersLoading } = useUsers();
   const { data: allCompanyItems, isLoading: allCompanyItemsLoading } = useAllCompanyItems();
   const { data: customers = [], isLoading: customersLoading } = useCustomers();
+  const { data: creditsList = [], isLoading: creditsLoading } = useCredits();
 
-  const isLoading = itemsLoading || movementsLoading || suppliersLoading || salesLoading || expensesLoading || refundsLoading || usersLoading || allCompanyItemsLoading || customersLoading;
+  const isLoading = itemsLoading || movementsLoading || suppliersLoading || salesLoading || expensesLoading || refundsLoading || usersLoading || allCompanyItemsLoading || customersLoading || creditsLoading;
 
   const currentStore = stores.find(s => s.id === currentStoreId);
 
@@ -255,7 +256,7 @@ export function DashboardPage() {
   });
   const todayRevenue = todaySales.reduce((s, sale) => s + sale.totalNgn, 0);
   const uniqueCustomers = new Set(sales.filter((s) => s.customerPhone).map((s) => s.customerPhone)).size;
-  const totalOutstandingDebt = customers.reduce((s, c) => s + (c.debtBalance || 0), 0);
+  const totalOutstandingDebt = creditsList.reduce((s, c) => s + (c.balanceNgn || 0), 0);
 
   // Expense & refund metrics
   const allExpenses = expenses;

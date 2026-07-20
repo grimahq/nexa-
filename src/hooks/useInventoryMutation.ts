@@ -15,10 +15,13 @@ import type { Item, SaleTransaction } from "@/types/inventory";
 import type { CreditTransaction } from "@/types/finance";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "./useRole";
 
 export function useInventoryMutation() {
   const { isDemo, demoStore, bumpVersion } = useDemo();
   const { profile } = useAuth();
+  const { currentStoreId } = useRole();
+  const activeStoreId = currentStoreId || profile?.storeId;
 
   const createItem = async (item: Item) => {
     if (isDemo && demoStore) {
@@ -30,7 +33,7 @@ export function useInventoryMutation() {
       const { id, ...data } = item;
       await setDoc(doc(db, "items", id), {
         ...data,
-        storeId: profile?.storeId,
+        storeId: activeStoreId,
         updatedAt: serverTimestamp(),
         createdAt: item.createdAt || serverTimestamp()
       });
@@ -90,7 +93,7 @@ export function useInventoryMutation() {
     if (salesNotificationsEnabled) {
       try {
         await addDoc(collection(db, "notifications"), {
-          storeId: profile?.storeId || null,
+          storeId: activeStoreId || null,
           type: "po_reminder",
           title: "New POS Sale Logged",
           message: `Processed successful transaction of ₦${sale.totalNgn.toLocaleString()} to ${sale.customerName}.`,
@@ -111,7 +114,7 @@ export function useInventoryMutation() {
         const cleanSale = JSON.parse(JSON.stringify(sale));
         await setDoc(saleRef, {
           ...cleanSale,
-          storeId: profile?.storeId,
+          storeId: activeStoreId,
           createdAt: serverTimestamp()
         });
 
@@ -134,7 +137,7 @@ export function useInventoryMutation() {
               reference: sale.id,
               notes: `Sold via ${sale.source === "social" ? "Storefront" : "POS"} (Offline)`,
               performedBy: profile?.name || "System",
-              storeId: profile?.storeId || null,
+              storeId: activeStoreId || null,
               createdAt: serverTimestamp()
             });
           })
@@ -157,7 +160,7 @@ export function useInventoryMutation() {
         const cleanSale = JSON.parse(JSON.stringify(sale));
         transaction.set(saleRef, {
           ...cleanSale,
-          storeId: profile?.storeId,
+          storeId: activeStoreId,
           createdAt: serverTimestamp()
         });
 
@@ -185,7 +188,7 @@ export function useInventoryMutation() {
               reference: sale.id,
               notes: `Sold via ${sale.source === "social" ? "Storefront" : "POS"}`,
               performedBy: profile?.name || "System",
-              storeId: profile?.storeId || null,
+              storeId: activeStoreId || null,
               createdAt: serverTimestamp()
             });
           }
@@ -207,7 +210,7 @@ export function useInventoryMutation() {
           const cleanSale = JSON.parse(JSON.stringify(sale));
           await setDoc(saleRef, {
             ...cleanSale,
-            storeId: profile?.storeId,
+            storeId: activeStoreId,
             createdAt: serverTimestamp()
           });
 
@@ -230,7 +233,7 @@ export function useInventoryMutation() {
                 reference: sale.id,
                 notes: `Sold via ${sale.source === "social" ? "Storefront" : "POS"} (Offline Fallback)`,
                 performedBy: profile?.name || "System",
-                storeId: profile?.storeId || null,
+                storeId: activeStoreId || null,
                 createdAt: serverTimestamp()
               });
             })
@@ -275,7 +278,7 @@ export function useInventoryMutation() {
           customerPhone: phone,
           balanceNgn: nextBalance,
           transactions,
-          storeId: profile?.storeId,
+          storeId: activeStoreId,
           updatedAt: serverTimestamp()
         });
       });
