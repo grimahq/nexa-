@@ -6,6 +6,7 @@ import { useDemo } from "@/hooks/useDemo";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useAuth } from "@/contexts/AuthContext";
+import { CURRENCIES, useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +23,7 @@ export function StoreSettings() {
   const { settings: liveSettings, updateSettings } = useSystemSettings();
   const { flags } = useFeatureFlags();
   const { profile } = useAuth();
+  const { formatCurrency } = useCurrency();
 
   const { data: sales } = useSales();
   const { data: items } = useItems();
@@ -41,6 +43,7 @@ export function StoreSettings() {
   const [moniepointKey, setMoniepointKey] = useState(activeSettings.moniepointKey || "");
   const [storeSlug, setStoreSlug] = useState(activeSettings.storeSlug || "");
   const [pricingMode, setPricingMode] = useState<"single" | "tiered">(activeSettings.pricingMode || "single");
+  const [currency, setCurrency] = useState(activeSettings.currency || "NGN");
 
   // New Storefront & Branch Management local state
   const [publicStorefrontEnabled, setPublicStorefrontEnabled] = useState<boolean>(
@@ -66,6 +69,7 @@ export function StoreSettings() {
     setMoniepointKey(activeSettings.moniepointKey || "");
     setStoreSlug(activeSettings.storeSlug || "");
     setPricingMode(activeSettings.pricingMode || "single");
+    setCurrency(activeSettings.currency || "NGN");
     setReportFrequency(activeSettings.reportPreferences?.frequency || "off");
     setRecipientEmail(activeSettings.reportPreferences?.recipientEmail || "");
     setPublicStorefrontEnabled((activeSettings as Record<string, unknown>).publicStorefrontEnabled as boolean || false);
@@ -79,6 +83,7 @@ export function StoreSettings() {
     activeSettings.moniepointKey,
     activeSettings.storeSlug,
     activeSettings.pricingMode,
+    activeSettings.currency,
     activeSettings.reportPreferences?.frequency,
     activeSettings.reportPreferences?.recipientEmail,
     (activeSettings as Record<string, unknown>).publicStorefrontEnabled
@@ -95,7 +100,9 @@ export function StoreSettings() {
         const parsed = JSON.parse(saved);
         return !!parsed.weeklyEmailDigest;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error(e);
+    }
     return false;
   }, [flags.planId]);
 
@@ -182,6 +189,7 @@ export function StoreSettings() {
       moniepointKey: moniepointKey.trim(),
       storeSlug: storeSlug.trim(),
       pricingMode: pricingMode,
+      currency: currency,
       reportPreferences: {
         frequency: reportFrequency,
         recipientEmail: recipientEmail.trim(),
@@ -254,7 +262,7 @@ export function StoreSettings() {
           <Card className="bg-emerald-950/20 border-emerald-500/20 shadow-sm">
             <CardHeader className="pb-2">
               <CardDescription className="text-xs uppercase font-semibold tracking-wider text-muted-foreground">Total Revenue</CardDescription>
-              <CardTitle className="text-2xl font-bold font-mono text-emerald-500">₦{totalRevenue.toLocaleString()}</CardTitle>
+              <CardTitle className="text-2xl font-bold font-mono text-emerald-500">{formatCurrency(totalRevenue)}</CardTitle>
             </CardHeader>
           </Card>
           <Card className="bg-blue-950/20 border-blue-500/20 shadow-sm">
@@ -434,7 +442,7 @@ export function StoreSettings() {
             <Label htmlFor="store-description">Detailed Description of Store</Label>
             <Textarea id="store-description" value={storeDescription} onChange={(e) => setStoreDescription(e.target.value)} placeholder="Describe your store, specializing branches, trading hours, general notes..." rows={3} />
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="tax-rate">Tax Rate (%)</Label>
               <Input id="tax-rate" type="number" min="0" max="100" step="0.5" value={taxRate} onChange={(e) => setTaxRate(e.target.value)} />
@@ -442,6 +450,21 @@ export function StoreSettings() {
             <div className="space-y-2">
               <Label htmlFor="receipt-footer">Receipt Footer Text</Label>
               <Input id="receipt-footer" value={receiptFooter} onChange={(e) => setReceiptFooter(e.target.value)} placeholder="Thank you for your patronage!" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="store-currency">Store Currency</Label>
+              <select
+                id="store-currency"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="w-full h-10 px-3 py-2 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                {CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

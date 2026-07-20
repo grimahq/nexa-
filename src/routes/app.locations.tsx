@@ -48,7 +48,9 @@ function LocationsPage() {
         const parsed = JSON.parse(saved);
         return !!parsed.multiBranchSync;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error(e);
+    }
     return false;
   }, [currentTier]);
 

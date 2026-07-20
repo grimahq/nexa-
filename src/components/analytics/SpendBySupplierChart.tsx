@@ -5,18 +5,16 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { DollarSign } from "lucide-react";
 import type { PurchaseOrder, Supplier } from "@/types/inventory";
 import { OrderStatus } from "@/types/inventory";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface Props {
   suppliers: Supplier[];
   purchaseOrders: PurchaseOrder[];
 }
 
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
-}
-
 export function SpendBySupplierChart({ suppliers, purchaseOrders }: Props) {
   const navigate = useNavigate();
+  const { formatCurrency } = useCurrency();
 
   const data = useMemo(() => {
     const receivedPOs = purchaseOrders.filter(

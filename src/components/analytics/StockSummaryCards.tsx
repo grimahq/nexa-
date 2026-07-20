@@ -1,13 +1,15 @@
 import { useMemo } from "react";
-import { DollarSign, Package, BarChart3, AlertTriangle } from "lucide-react";
+import { Coins, Package, BarChart3, AlertTriangle } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import type { Item } from "@/types/inventory";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface StockSummaryCardsProps {
   items: Item[];
 }
 
 export function StockSummaryCards({ items }: StockSummaryCardsProps) {
+  const { formatCurrency } = useCurrency();
   const metrics = useMemo(() => {
     const totalValue = items.reduce((sum, i) => sum + i.currentStock * i.costPrice, 0);
     const totalSkus = items.length;
@@ -22,9 +24,9 @@ export function StockSummaryCards({ items }: StockSummaryCardsProps) {
         <div className="absolute left-2 top-2 bottom-2 w-[3px] rounded-full bg-primary" />
         <p className="text-sm text-muted-foreground">Total Inventory Value</p>
         <div className="mt-1 flex items-baseline gap-2">
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
+          <Coins className="h-4 w-4 text-muted-foreground animate-pulse" />
           <span className="font-mono text-2xl font-bold text-foreground">
-            {metrics.totalValue.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}
+            {formatCurrency(metrics.totalValue)}
           </span>
         </div>
       </div>

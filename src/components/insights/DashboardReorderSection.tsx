@@ -29,7 +29,9 @@ export function DashboardReorderSection({ items, movements, suppliers }: Dashboa
         const parsed = JSON.parse(saved);
         return !!parsed.autoReorder;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error(e);
+    }
     return false;
   }, [currentTier]);
 

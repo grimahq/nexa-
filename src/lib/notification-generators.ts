@@ -18,7 +18,9 @@ export function generateStockAlerts(store: DemoStore): void {
         lowStockAlertsEnabled = false;
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error(e);
+  }
 
   if (!lowStockAlertsEnabled) return;
 

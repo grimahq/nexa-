@@ -3,6 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recha
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Layers } from "lucide-react";
 import type { Item, Category } from "@/types/inventory";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface Props {
   items: Item[];
@@ -20,11 +21,8 @@ const COLORS = [
   "hsl(270 50% 55%)",
 ];
 
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
-}
-
 export function CostByCategoryChart({ items, categories }: Props) {
+  const { formatCurrency } = useCurrency();
   const { data, total } = useMemo(() => {
     const costMap = new Map<string, number>();
     items.forEach((item) => {

@@ -6,17 +6,15 @@ import { Button } from "@/components/ui/button";
 import { format, startOfMonth } from "date-fns";
 import type { PurchaseOrder } from "@/types/inventory";
 import { OrderStatus } from "@/types/inventory";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface Props {
   purchaseOrders: PurchaseOrder[];
 }
 
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
-}
-
 export function CostTrendChart({ purchaseOrders }: Props) {
   const [cumulative, setCumulative] = useState(false);
+  const { formatCurrency } = useCurrency();
 
   const data = useMemo(() => {
     const receivedPOs = purchaseOrders.filter(

@@ -74,14 +74,6 @@ export function ItemDetailSheet({
 }: ItemDetailSheetProps) {
   const { data: allMovements } = useMovements();
   const updateItem = useUpdateItem();
-
-  if (!item) return null;
-
-  const category = categories.find((c) => c.id === item.categoryId);
-  const supplier = suppliers.find((s) => s.id === item.supplierId);
-  const location = locations.find((l) => l.id === item.locationId);
-  const status = stockStatus(item);
-
   const { flags } = useFeatureFlags();
   const currentTier = flags.planId || "starter";
 
@@ -93,7 +85,9 @@ export function ItemDetailSheet({
         const parsed = JSON.parse(saved);
         return !!parsed.aiPricing;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error(e);
+    }
     return false;
   }, [currentTier]);
 
@@ -116,6 +110,13 @@ export function ItemDetailSheet({
   }, [item, recommendedPrice]);
 
   const [applyingPrice, setApplyingPrice] = useState(false);
+
+  if (!item) return null;
+
+  const category = categories.find((c) => c.id === item.categoryId);
+  const supplier = suppliers.find((s) => s.id === item.supplierId);
+  const location = locations.find((l) => l.id === item.locationId);
+  const status = stockStatus(item);
 
   const handleApplyAiPrice = async () => {
     if (!item || !recommendedPrice) return;

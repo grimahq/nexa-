@@ -65,7 +65,9 @@ export function useInventoryMutation() {
           salesNotificationsEnabled = false;
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error(e);
+    }
 
     if (isDemo && demoStore) {
       demoStore.addSale(sale);

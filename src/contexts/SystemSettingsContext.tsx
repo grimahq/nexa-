@@ -42,6 +42,7 @@ export interface StoreSettings {
   reportPreferences?: ReportPreferences;
   subscriptionTier?: string;
   subscriptionStatus?: string;
+  currency?: string;
 }
 
 const DEFAULT_SETTINGS: StoreSettings = {
@@ -56,6 +57,7 @@ const DEFAULT_SETTINGS: StoreSettings = {
   categories: [],
   isOnboarded: false,
   pricingMode: "single",
+  currency: "NGN",
   reportPreferences: {
     frequency: "off",
     recipientEmail: ""

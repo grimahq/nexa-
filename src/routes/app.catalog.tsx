@@ -68,7 +68,9 @@ function CatalogPage() {
         const parsed = JSON.parse(saved);
         return !!parsed.b2bMarketplaceSync;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error(e);
+    }
     return false;
   }, [currentTier]);
 
