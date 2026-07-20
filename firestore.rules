@@ -133,7 +133,7 @@ service cloud.firestore {
     
     // ─── NOTIFICATIONS ──────────────────────────────────
     match /notifications/{notifId} {
-      allow read: if isSignedIn();
+      allow read, create: if isSignedIn();
       allow update: if isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
       allow delete: if isAdmin();
     }

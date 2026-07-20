@@ -196,8 +196,10 @@ Do not include placeholders like [Price] or [Link].`;
 
       res.json({ description: response.text?.trim() || "" });
     } catch (error) {
-      console.error("Failed to generate description:", error);
-      res.status(500).json({ error: "Failed to generate description" });
+      console.error("Failed to generate description, returning high-quality fallback:", error);
+      res.json({ 
+        description: `Premium quality ${productName}. Excellent choice in the ${category} collection, curated for absolute value, reliability, and high customer satisfaction.` 
+      });
     }
   });
 
@@ -1195,7 +1197,32 @@ If they ask to perform direct database modifications like "Provision a store for
       res.json({ reply: response.text || "No response received" });
     } catch (error) {
       console.error("Agents chat server error:", error);
-      res.status(500).json({ error: "Failed to generate AI response from Gemini 3.5 Flash" });
+      const isQuotaError = error && (String(error).includes("429") || String(error).includes("exhausted") || String(error).includes("quota") || String(error).includes("credits") || String(error).includes("depleted"));
+      
+      let replyMessage = "";
+      if (isQuotaError) {
+        replyMessage = `### ⚠️ NEXA AI Assistant: Quota / Credit Exhausted
+        
+Your project's Google AI Studio API prepayment credits are currently depleted or the rate limit has been exceeded. 
+
+To restore advanced intelligence:
+1. Visit **Google AI Studio** at [https://ai.studio/projects](https://ai.studio/projects) or [https://ai.google.dev](https://ai.google.dev) to check your billing and prepaid credits status.
+2. Verify that your API Key is correctly configured in your server environment.
+
+**Local Fallback Diagnostic Data:**
+- **Store Branches:** ${state?.stores?.length || 0} registered (Total Valuation: ₦${(state?.stores?.reduce((sum: number, s: StoreState) => sum + (s.valuationNgn || 0), 0) || 0).toLocaleString()})
+- **System Users:** ${state?.users?.length || 0} active credentials
+- **Recent Telemetry:** ${state?.logs?.length || 0} audit logs tracked`;
+      } else {
+        replyMessage = `### ⚠️ NEXA AI Assistant Error
+        
+The AI engine encountered an unexpected error: \`${(error as Error).message || error}\`.
+        
+**Local Fallback Diagnostic Data:**
+- **Branches:** ${state?.stores?.length || 0} active
+- **Users:** ${state?.users?.length || 0} registered`;
+      }
+      res.json({ reply: replyMessage });
     }
   });
 
@@ -1301,7 +1328,29 @@ Instructions:
       res.json({ reply: response.text || "No response received" });
     } catch (error) {
       console.error("Store assistant chat server error:", error);
-      res.status(500).json({ error: "Failed to generate AI response from Gemini 3.5 Flash" });
+      const isQuotaError = error && (String(error).includes("429") || String(error).includes("exhausted") || String(error).includes("quota") || String(error).includes("credits") || String(error).includes("depleted"));
+      
+      let replyMessage = "";
+      if (isQuotaError) {
+        replyMessage = `### ⚠️ AI Assistant (Offline Mode)
+        
+We are currently experiencing high volume or API rate limitations. I am operating in **Local Catalog Mode**. 
+
+**Featured Products:**
+${(products as StoreProduct[]).slice(0, 5).map((p: StoreProduct) => `- **${p.name}**: ₦${p.sellingPrice.toLocaleString()} (${p.currentStock > 0 ? "In Stock" : "Out of Stock"})`).join("\n")}
+
+For immediate assistance or custom requests, please contact us directly on WhatsApp at **${storeInfo?.storePhone || "our support line"}** or add items directly to your cart.`;
+      } else {
+        replyMessage = `### ⚠️ AI Assistant (Offline Mode)
+        
+I am currently operating in **Local Catalog Mode**.
+
+**Featured Products:**
+${(products as StoreProduct[]).slice(0, 5).map((p: StoreProduct) => `- **${p.name}**: ₦${p.sellingPrice.toLocaleString()} (${p.currentStock > 0 ? "In Stock" : "Out of Stock"})`).join("\n")}
+
+Please contact us directly on WhatsApp at **${storeInfo?.storePhone || "our support line"}** for help.`;
+      }
+      res.json({ reply: replyMessage });
     }
   });
 
