@@ -636,6 +636,9 @@ function LandingPage() {
     brandColor: string;
     electronicsMainType?: "devices" | "accessories" | "both";
     initialItems?: Array<{ name: string; price: string; stock: string; unit: string; categoryId?: string }>;
+    country?: string;
+    state?: string;
+    lga?: string;
   }) => {
     if (isOnboardingDemo) {
       enterDemoMode({ 
@@ -648,6 +651,9 @@ function LandingPage() {
         receiptFooter: "Thank you for your patronage!", 
         taxRate: 0,
         electronicsMainType: data.electronicsMainType,
+        country: data.country || "Nigeria",
+        state: data.state || "",
+        lga: data.lga || "",
         initialItems: data.initialItems?.map(item => ({
           name: item.name,
           price: item.price,

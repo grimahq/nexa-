@@ -81,9 +81,9 @@ export function PurchaseOrdersTable({ purchaseOrders, suppliers, onRowClick }: P
                   </div>
                 </CardHeader>
                 <CardContent className="px-4 pb-3 space-y-1 text-sm">
-                  <div className="flex justify-between"><span className="text-muted-foreground">Supplier</span><span className="truncate ml-2">{supplierMap.get(po.supplierId) ?? "Unknown"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Supplier</span><span className="truncate ml-2">{po.supplierId && po.supplierId !== "none" ? (supplierMap.get(po.supplierId) ?? "Unknown") : "None"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Items</span><span className="font-mono">{po.items.length}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-mono font-medium">${po.totalCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-mono font-medium">₦{po.totalCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Created</span><span>{format(new Date(po.createdAt), "MMM d, yyyy")}</span></div>
                 </CardContent>
               </Card>
@@ -116,10 +116,10 @@ export function PurchaseOrdersTable({ purchaseOrders, suppliers, onRowClick }: P
               return (
                 <TableRow key={po.id} className="cursor-pointer hover:bg-muted/50" onClick={() => onRowClick(po)}>
                   <TableCell className="font-mono text-sm font-medium">{po.orderNumber}</TableCell>
-                  <TableCell>{supplierMap.get(po.supplierId) ?? "Unknown"}</TableCell>
+                  <TableCell>{po.supplierId && po.supplierId !== "none" ? (supplierMap.get(po.supplierId) ?? "Unknown") : "None"}</TableCell>
                   <TableCell><Badge variant={statusMeta.variant} className={STATUS_CLASS[po.status]}>{statusMeta.label}</Badge></TableCell>
                   <TableCell className="text-center font-mono text-sm">{po.items.length}</TableCell>
-                  <TableCell className="text-right font-mono text-sm font-medium">${po.totalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell className="text-right font-mono text-sm font-medium">₦{po.totalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{po.expectedDelivery ? format(new Date(po.expectedDelivery), "MMM d, yyyy") : "—"}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{format(new Date(po.createdAt), "MMM d, yyyy")}</TableCell>
                 </TableRow>

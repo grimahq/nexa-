@@ -15,9 +15,12 @@ export interface OnboardingSelection {
   logoUrl?: string;
   initialItems?: Array<{ name: string; price: string; stock: string; unit: string; categoryId?: string }>;
   currency?: string;
+  country?: string;
+  state?: string;
+  lga?: string;
 }
 
-const DEFAULT_ONBOARDING: OnboardingSelection = { businessType: null, categories: [], storeName: "My Store", storePhone: "", storeAddress: "", receiptFooter: "Thank you for your patronage!", taxRate: 0, brandColor: "#0d9488", logoUrl: "", currency: "NGN" };
+const DEFAULT_ONBOARDING: OnboardingSelection = { businessType: null, categories: [], storeName: "My Store", storePhone: "", storeAddress: "", receiptFooter: "Thank you for your patronage!", taxRate: 0, brandColor: "#0d9488", logoUrl: "", currency: "NGN", country: "Nigeria", state: "", lga: "" };
 
 export interface DemoContextValue {
   isDemo: boolean;

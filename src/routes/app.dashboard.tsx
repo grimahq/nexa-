@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useLocation } from "@tanstack/react-router";
 import { Package, CheckCircle2, AlertTriangle, XCircle, ChevronDown, DollarSign, Users, TrendingUp, ShoppingCart, TrendingDown, Receipt, Clock, Store, Plus, Send, ClipboardList, Settings as SettingsIcon, LayoutGrid, Search as SearchIcon, History, User, Sprout, Scissors } from "lucide-react";
 import { toast } from "sonner";
 import { MetricCard } from "@/components/dashboard/MetricCard";
@@ -79,6 +79,7 @@ export const Route = createFileRoute("/app/dashboard")({
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { data: summary } = useStockSummary();
   const { isDemo, onboarding: demoOnboarding } = useDemo();
   const { settings: liveSettings } = useSystemSettings();
@@ -192,17 +193,20 @@ export function DashboardPage() {
       return;
     }
     
-    // Start tour if newly onboarded or explicitly triggered via settings
+    // Start tour if newly onboarded, explicitly triggered via settings, or never completed before
+    if (tour.isActive) return;
+
     const justOnboarded = sessionStorage.getItem("stackwise-just-onboarded") === "true";
     const settingsTrigger = sessionStorage.getItem("stackwise-trigger-tour") === "true";
+    const neverCompleted = !tour.hasCompleted;
     
-    if (justOnboarded || settingsTrigger) {
+    if (justOnboarded || settingsTrigger || neverCompleted) {
       sessionStorage.removeItem("stackwise-just-onboarded");
       sessionStorage.removeItem("stackwise-trigger-tour");
       const timer = setTimeout(() => startTour(true), 500);
       return () => clearTimeout(timer);
     }
-  }, [startTour, navigate]);
+  }, [startTour, navigate, location.pathname, tour.hasCompleted, tour.isActive]);
 
   // Synchronize active tour target element and open the appropriate Accordion section
   useEffect(() => {

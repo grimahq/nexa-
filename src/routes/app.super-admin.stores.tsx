@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Edit2, Eye, Trash2, Building2 } from "lucide-react";
+import { Plus, Search, Edit2, Eye, Trash2, Building2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { db } from "@/lib/firebase";
@@ -24,6 +24,14 @@ const SECTOR_LABELS: Record<string, string> = {
   general: "General Retail",
 };
 
+const NIGERIAN_STATES = [
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", 
+  "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT - Abuja", "Gombe", 
+  "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", 
+  "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", 
+  "Taraba", "Yobe", "Zamfara"
+];
+
 function SuperAdminStores() {
   const { superStores, setSuperStores, superUsers, setSuperUsers, currentStoreId, setCurrentStoreId, logs, setLogs } = useSuperAdminContext();
   const [search, setSearch] = useState("");
@@ -40,10 +48,13 @@ function SuperAdminStores() {
 
   // Form states
   const [name, setName] = useState("");
-  const [sector, setSector] = useState<"agriculture" | "pharmacy" | "restaurant" | "general">("general");
+  const [sector, setSector] = useState<string>("general");
   const [manager, setManager] = useState("");
   const [managerEmail, setManagerEmail] = useState("");
   const [valuation, setValuation] = useState("500000");
+  const [storeCountry, setStoreCountry] = useState("Nigeria");
+  const [storeState, setStoreState] = useState("");
+  const [storeLga, setStoreLga] = useState("");
 
   const filteredStores = useMemo(() => {
     return superStores.filter(
@@ -76,6 +87,9 @@ function SuperAdminStores() {
         healthScore: 100,
         alerts: 0,
         status: "active",
+        country: storeCountry,
+        state: storeState,
+        lga: storeLga,
       };
 
       const newUser = {
@@ -108,6 +122,9 @@ function SuperAdminStores() {
       setManager("");
       setManagerEmail("");
       setValuation("500000");
+      setStoreCountry("Nigeria");
+      setStoreState("");
+      setStoreLga("");
       return;
     }
 
@@ -124,6 +141,9 @@ function SuperAdminStores() {
         status: "active",
         isOnboarded: true,
         createdAt: new Date().toISOString(),
+        country: storeCountry,
+        state: storeState,
+        lga: storeLga,
       });
 
       // Create linked owner profile
@@ -157,6 +177,9 @@ function SuperAdminStores() {
       setManager("");
       setManagerEmail("");
       setValuation("500000");
+      setStoreCountry("Nigeria");
+      setStoreState("");
+      setStoreLga("");
     } catch (err) {
       console.error("Failed to provision storefront:", err);
       toast.error("Failed to provision storefront in database.");
@@ -170,6 +193,9 @@ function SuperAdminStores() {
     setManager(store.manager);
     setManagerEmail(store.managerEmail);
     setValuation(store.valuationNgn.toString());
+    setStoreCountry(store.country || "Nigeria");
+    setStoreState(store.state || "");
+    setStoreLga(store.lga || "");
     setIsEditOpen(true);
   };
 
@@ -186,7 +212,10 @@ function SuperAdminStores() {
         sector,
         manager,
         managerEmail,
-        valuationNgn: updatedValuation
+        valuationNgn: updatedValuation,
+        country: storeCountry,
+        state: storeState,
+        lga: storeLga,
       } : s));
 
       const newLog = {
@@ -212,6 +241,9 @@ function SuperAdminStores() {
         ownerName: manager,
         ownerEmail: managerEmail,
         valuationNgn: updatedValuation,
+        country: storeCountry,
+        state: storeState,
+        lga: storeLga,
       });
 
       const newLogId = `log-${Date.now()}`;
@@ -373,6 +405,12 @@ function SuperAdminStores() {
                         </Badge>
                       )}
                     </div>
+                    {(store.state || store.country) && (
+                      <div className="text-[10px] text-muted-foreground font-medium flex items-center gap-1 mt-0.5">
+                        <MapPin className="h-2.5 w-2.5 text-rose-500 shrink-0" />
+                        <span>{store.lga ? `${store.lga}, ` : ""}{store.state ? `${store.state}, ` : ""}{store.country}</span>
+                      </div>
+                    )}
                   </td>
                   <td className="p-3">
                     <Badge variant="secondary" className="font-semibold text-[10px] uppercase">
@@ -446,10 +484,12 @@ function SuperAdminStores() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="store-sector" className="text-xs font-semibold">Vertical Sector Mode</Label>
-              <select id="store-sector" value={sector} onChange={e => setSector(e.target.value as "agriculture" | "pharmacy" | "restaurant" | "general")} className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none">
+              <select id="store-sector" value={sector} onChange={e => setSector(e.target.value)} className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none">
                 <option value="agriculture">Agribusiness / Agri-supply</option>
                 <option value="pharmacy">Pharmacy / Healthcare Retail</option>
                 <option value="restaurant">Food & Restaurant Service</option>
+                <option value="electronics">Phones & Accessories</option>
+                <option value="retail">Retail / POS</option>
                 <option value="general">General Retail Store</option>
               </select>
             </div>
@@ -461,9 +501,46 @@ function SuperAdminStores() {
               <Label htmlFor="store-email" className="text-xs font-semibold">Manager Email Context</Label>
               <Input id="store-email" type="email" value={managerEmail} onChange={e => setManagerEmail(e.target.value)} placeholder="e.g. manager@store.io" className="text-xs h-9" required />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="store-valuation" className="text-xs font-semibold">Initial Asset valuation (NGN)</Label>
-              <Input id="store-valuation" type="number" value={valuation} onChange={e => setValuation(e.target.value)} className="text-xs h-9" />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="store-country" className="text-xs font-semibold">Country</Label>
+                <select id="store-country" value={storeCountry} onChange={e => {
+                  setStoreCountry(e.target.value);
+                  if (e.target.value !== "Nigeria") {
+                    setStoreState("");
+                    setStoreLga("");
+                  }
+                }} className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none">
+                  <option value="Nigeria">Nigeria 🇳🇬</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              {storeCountry === "Nigeria" ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="store-state" className="text-xs font-semibold">State</Label>
+                  <select id="store-state" value={storeState} onChange={e => setStoreState(e.target.value)} className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none">
+                    <option value="">-- State --</option>
+                    {NIGERIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label htmlFor="store-state" className="text-xs font-semibold">State / Region</Label>
+                  <Input id="store-state" value={storeState} onChange={e => setStoreState(e.target.value)} placeholder="e.g. California" className="text-xs h-9" />
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="store-lga" className="text-xs font-semibold">
+                  {storeCountry === "Nigeria" ? "LGA (Local Govt)" : "County / District"}
+                </Label>
+                <Input id="store-lga" value={storeLga} onChange={e => setStoreLga(e.target.value)} placeholder={storeCountry === "Nigeria" ? "e.g. Ikeja" : "e.g. Orange County"} className="text-xs h-9" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="store-valuation" className="text-xs font-semibold">Asset valuation (NGN)</Label>
+                <Input id="store-valuation" type="number" value={valuation} onChange={e => setValuation(e.target.value)} className="text-xs h-9" />
+              </div>
             </div>
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)} className="text-xs h-9">Cancel</Button>
@@ -487,10 +564,12 @@ function SuperAdminStores() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="edit-sector" className="text-xs font-semibold">Vertical Sector Mode</Label>
-              <select id="edit-sector" value={sector} onChange={e => setSector(e.target.value as "agriculture" | "pharmacy" | "restaurant" | "general")} className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none">
+              <select id="edit-sector" value={sector} onChange={e => setSector(e.target.value)} className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none">
                 <option value="agriculture">Agribusiness / Agri-supply</option>
                 <option value="pharmacy">Pharmacy / Healthcare Retail</option>
                 <option value="restaurant">Food & Restaurant Service</option>
+                <option value="electronics">Phones & Accessories</option>
+                <option value="retail">Retail / POS</option>
                 <option value="general">General Retail Store</option>
               </select>
             </div>
@@ -502,9 +581,46 @@ function SuperAdminStores() {
               <Label htmlFor="edit-email" className="text-xs font-semibold">Manager Email Context</Label>
               <Input id="edit-email" type="email" value={managerEmail} onChange={e => setManagerEmail(e.target.value)} className="text-xs h-9" required />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-valuation" className="text-xs font-semibold">Inventory Valuation (NGN)</Label>
-              <Input id="edit-valuation" type="number" value={valuation} onChange={e => setValuation(e.target.value)} className="text-xs h-9" />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-country" className="text-xs font-semibold">Country</Label>
+                <select id="edit-country" value={storeCountry} onChange={e => {
+                  setStoreCountry(e.target.value);
+                  if (e.target.value !== "Nigeria") {
+                    setStoreState("");
+                    setStoreLga("");
+                  }
+                }} className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none">
+                  <option value="Nigeria">Nigeria 🇳🇬</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              {storeCountry === "Nigeria" ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-state" className="text-xs font-semibold">State</Label>
+                  <select id="edit-state" value={storeState} onChange={e => setStoreState(e.target.value)} className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none">
+                    <option value="">-- State --</option>
+                    {NIGERIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-state" className="text-xs font-semibold">State / Region</Label>
+                  <Input id="edit-state" value={storeState} onChange={e => setStoreState(e.target.value)} placeholder="e.g. California" className="text-xs h-9" />
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-lga" className="text-xs font-semibold">
+                  {storeCountry === "Nigeria" ? "LGA (Local Govt)" : "County / District"}
+                </Label>
+                <Input id="edit-lga" value={storeLga} onChange={e => setStoreLga(e.target.value)} placeholder={storeCountry === "Nigeria" ? "e.g. Ikeja" : "e.g. Orange County"} className="text-xs h-9" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-valuation" className="text-xs font-semibold">Inventory Valuation (NGN)</Label>
+                <Input id="edit-valuation" type="number" value={valuation} onChange={e => setValuation(e.target.value)} className="text-xs h-9" />
+              </div>
             </div>
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} className="text-xs h-9">Cancel</Button>
@@ -557,6 +673,24 @@ function SuperAdminStores() {
                 <div>
                   <span className="text-muted-foreground block font-medium">Health Score</span>
                   <span className="font-semibold font-mono">{viewingStore.healthScore}%</span>
+                </div>
+              </div>
+
+              <div className="space-y-2 border border-muted-foreground/10 rounded-md p-3 bg-muted/20">
+                <h4 className="font-semibold text-foreground border-b border-muted-foreground/10 pb-1">Geographic Location</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <span className="text-muted-foreground block">Country</span>
+                    <span className="font-medium">{viewingStore.country || "Nigeria"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">State</span>
+                    <span className="font-medium">{viewingStore.state || "N/A"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">LGA</span>
+                    <span className="font-medium">{viewingStore.lga || "N/A"}</span>
+                  </div>
                 </div>
               </div>
 

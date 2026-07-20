@@ -139,6 +139,9 @@ function AppLayout() {
     storeSlug?: string;
     electronicsMainType?: "devices" | "accessories" | "both";
     initialItems?: PendingProduct[];
+    country?: string;
+    state?: string;
+    lga?: string;
   }) => {
     try {
       await setupStore({
@@ -149,6 +152,9 @@ function AppLayout() {
         moniepointKey: data.moniepointKey,
         storeSlug: data.storeSlug,
         electronicsMainType: data.electronicsMainType,
+        country: data.country || "Nigeria",
+        state: data.state || "",
+        lga: data.lga || "",
         isOnboarded: true
       });
 

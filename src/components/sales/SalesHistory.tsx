@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { format, isWithinInterval, startOfDay, endOfDay, subDays } from "date-fns";
-import { CalendarIcon, Receipt, TrendingUp, Printer, MessageCircle, RotateCcw, User, Clock, CreditCard, Banknote, Smartphone, Globe, Monitor } from "lucide-react";
+import { CalendarIcon, Receipt, TrendingUp, Printer, MessageCircle, RotateCcw, User, Clock, CreditCard, Banknote, Smartphone, Globe, Monitor, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -66,6 +66,212 @@ export function SalesHistoryPage() {
     window.open(url, "_blank");
   };
 
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPDF = async () => {
+    if (filtered.length === 0) {
+      toast.error("No transactions to export.");
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const { jsPDF } = await import("jspdf");
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      
+      const pageWidth = doc.internal.pageSize.width;
+      const pageHeight = doc.internal.pageSize.height;
+      const margin = 15;
+      const contentWidth = pageWidth - 2 * margin;
+      
+      let y = 20;
+      
+      // --- HEADER ---
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(20);
+      doc.setTextColor(31, 41, 55); // text-gray-800
+      doc.text(storeName.toUpperCase(), margin, y);
+      
+      y += 8;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(107, 114, 128); // text-gray-500
+      doc.text("SALES AUDIT REPORT", margin, y);
+      
+      // Right-aligned header metadata
+      doc.setFontSize(9);
+      const dateStr = `Generated: ${format(new Date(), "dd MMM yyyy, HH:mm")}`;
+      const periodStr = `Period: ${from ? format(from, "dd MMM yyyy") : "Inception"} - ${to ? format(to, "dd MMM yyyy") : "Present"}`;
+      doc.text(dateStr, pageWidth - margin - doc.getTextWidth(dateStr), 20);
+      doc.text(periodStr, pageWidth - margin - doc.getTextWidth(periodStr), 25);
+      
+      y += 6;
+      // Horizontal Line
+      doc.setDrawColor(229, 231, 235); // gray-200
+      doc.setLineWidth(0.5);
+      doc.line(margin, y, pageWidth - margin, y);
+      
+      y += 12;
+      
+      // --- KPI SUMMARY ---
+      doc.setFillColor(249, 250, 251); // gray-50
+      doc.rect(margin, y, contentWidth, 24, "F");
+      doc.setDrawColor(243, 244, 246); // gray-100
+      doc.rect(margin, y, contentWidth, 24, "S");
+      
+      // Total Revenue
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(13, 148, 136); // teal-600
+      const revStr = fmtNgn(totalRevenue);
+      doc.text(revStr, margin + 10, y + 15);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(107, 114, 128);
+      doc.text("TOTAL REVENUE", margin + 10, y + 8);
+      
+      // Total Transactions
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(31, 41, 55);
+      doc.text(totalTransactions.toString(), margin + 70, y + 15);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(107, 114, 128);
+      doc.text("TRANSACTIONS", margin + 70, y + 8);
+      
+      // Total Items Sold
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(31, 41, 55);
+      doc.text(totalItems.toString(), margin + 125, y + 15);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(107, 114, 128);
+      doc.text("ITEMS SOLD", margin + 125, y + 8);
+      
+      y += 34;
+      
+      // --- TABLE SECTION ---
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(31, 41, 55);
+      doc.text("TRANSACTION LEDGER", margin, y);
+      
+      y += 6;
+      
+      // Table Header
+      doc.setFillColor(243, 244, 246); // gray-100
+      doc.rect(margin, y, contentWidth, 8, "F");
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(75, 85, 99); // gray-600
+      
+      doc.text("Date/Time", margin + 4, y + 5.5);
+      doc.text("Source", margin + 35, y + 5.5);
+      doc.text("Customer", margin + 55, y + 5.5);
+      doc.text("Payment", margin + 105, y + 5.5);
+      doc.text("Qty", margin + 135, y + 5.5);
+      const totalHeaderWidth = doc.getTextWidth("Total");
+      doc.text("Total", pageWidth - margin - 4 - totalHeaderWidth, y + 5.5);
+      
+      y += 8;
+      
+      // Rows
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(55, 65, 81); // gray-700
+      
+      filtered.forEach((sale, index) => {
+        // Page break check
+        if (y > pageHeight - 20) {
+          doc.addPage();
+          y = 20;
+          
+          // Re-draw table header on new page
+          doc.setFillColor(243, 244, 246);
+          doc.rect(margin, y, contentWidth, 8, "F");
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(75, 85, 99);
+          doc.text("Date/Time", margin + 4, y + 5.5);
+          doc.text("Source", margin + 35, y + 5.5);
+          doc.text("Customer", margin + 55, y + 5.5);
+          doc.text("Payment", margin + 105, y + 5.5);
+          doc.text("Qty", margin + 135, y + 5.5);
+          doc.text("Total", pageWidth - margin - 4 - totalHeaderWidth, y + 5.5);
+          
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(55, 65, 81);
+          y += 8;
+        }
+        
+        // Alternating row background
+        if (index % 2 === 1) {
+          doc.setFillColor(254, 254, 254);
+        } else {
+          doc.setFillColor(249, 250, 251); // gray-50
+        }
+        doc.rect(margin, y, contentWidth, 7, "F");
+        
+        // Draw values
+        const dateStr = format(new Date(sale.createdAt), "dd MMM, HH:mm");
+        const sourceStr = sale.source === "social" ? "STORE" : "POS";
+        const customerStr = sale.customerName || "Walk-in";
+        const paymentStr = (sale as SaleWithPayment).paymentMethod || "cash";
+        const qtyStr = sale.items.reduce((s, li) => s + li.quantity, 0).toString();
+        const totalStr = fmtNgn(sale.totalNgn);
+        
+        doc.text(dateStr, margin + 4, y + 4.5);
+        doc.text(sourceStr, margin + 35, y + 4.5);
+        
+        // Truncate customer name if too long
+        let custTrunc = customerStr;
+        if (doc.getTextWidth(custTrunc) > 45) {
+          custTrunc = customerStr.substring(0, 20) + "...";
+        }
+        doc.text(custTrunc, margin + 55, y + 4.5);
+        
+        doc.text(paymentStr.toUpperCase(), margin + 105, y + 4.5);
+        doc.text(qtyStr, margin + 135, y + 4.5);
+        
+        const priceWidth = doc.getTextWidth(totalStr);
+        doc.text(totalStr, pageWidth - margin - 4 - priceWidth, y + 4.5);
+        
+        y += 7;
+      });
+      
+      // Footer/Sign-off on last page
+      if (y > pageHeight - 35) {
+        doc.addPage();
+        y = 20;
+      }
+      
+      y += 10;
+      doc.setDrawColor(229, 231, 235);
+      doc.line(margin, y, pageWidth - margin, y);
+      
+      y += 6;
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(8);
+      doc.setTextColor(156, 163, 175); // gray-400
+      doc.text("This report is digitally generated by Stackwise. Confirmed and certified for audit.", margin, y);
+      
+      doc.setFont("helvetica", "normal");
+      const pageCount = doc.internal.pages.length - 1;
+      doc.text(`Page 1 of ${pageCount}`, pageWidth - margin - 15, y);
+      
+      // Save
+      const cleanStoreName = storeName.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+      doc.save(`sales-audit-${cleanStoreName}-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      toast.success("Sales Audit PDF exported successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate PDF");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-[1200px] space-y-6">
       {/* Header with date and user */}
@@ -109,16 +315,28 @@ export function SalesHistoryPage() {
       </div>
 
       {/* Date filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <DatePicker label="From" date={from} onSelect={setFrom} />
-        <DatePicker label="To" date={to} onSelect={setTo} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <DatePicker label="From" date={from} onSelect={setFrom} />
+          <DatePicker label="To" date={to} onSelect={setTo} />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setFrom(undefined); setTo(undefined); }}
+            className="text-xs text-muted-foreground"
+          >
+            Clear dates
+          </Button>
+        </div>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          onClick={() => { setFrom(undefined); setTo(undefined); }}
-          className="text-xs text-muted-foreground"
+          onClick={handleExportPDF}
+          disabled={isExporting}
+          className="gap-1.5 border-teal-600/30 text-teal-700 hover:bg-teal-50"
         >
-          Clear dates
+          <FileText className="h-4 w-4" />
+          {isExporting ? "Exporting PDF..." : "Export Audit PDF"}
         </Button>
       </div>
 

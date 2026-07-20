@@ -47,7 +47,7 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 };
 
 const schema = z.object({
-  supplierId: z.string().min(1, "Supplier is required"),
+  supplierId: z.string().optional(),
   expectedDelivery: z.string().min(1, "Expected delivery date is required"),
   notes: z.string(),
 });
@@ -92,7 +92,7 @@ export function PurchaseOrderFormSheet({
     if (open) {
       if (purchaseOrder) {
         form.reset({
-          supplierId: purchaseOrder.supplierId,
+          supplierId: purchaseOrder.supplierId || "none",
           expectedDelivery: purchaseOrder.expectedDelivery?.slice(0, 10) ?? "",
           notes: purchaseOrder.notes ?? "",
         });
@@ -105,7 +105,7 @@ export function PurchaseOrderFormSheet({
           })),
         );
       } else {
-        form.reset({ supplierId: "", expectedDelivery: "", notes: "" });
+        form.reset({ supplierId: "none", expectedDelivery: "", notes: "" });
         setLineItems([]);
       }
       setLineError("");
@@ -134,13 +134,15 @@ export function PurchaseOrderFormSheet({
     }));
     const totalCost = poItems.reduce((s, i) => s + i.quantityOrdered * i.unitCost, 0);
 
+    const finalSupplierId = (values.supplierId === "none" || !values.supplierId) ? "" : values.supplierId;
+
     if (isEdit && purchaseOrder) {
       poItems.forEach((p) => (p.purchaseOrderId = purchaseOrder.id));
       updatePO.mutate(
         {
           id: purchaseOrder.id,
           updates: {
-            supplierId: values.supplierId,
+            supplierId: finalSupplierId,
             expectedDelivery: new Date(values.expectedDelivery).toISOString(),
             notes: values.notes,
             items: poItems,
@@ -161,7 +163,7 @@ export function PurchaseOrderFormSheet({
       const newPO: PurchaseOrder = {
         id,
         orderNumber,
-        supplierId: values.supplierId,
+        supplierId: finalSupplierId,
         status: OrderStatus.Draft,
         items: poItems,
         totalCost,
@@ -204,7 +206,7 @@ export function PurchaseOrderFormSheet({
               name="supplierId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Supplier *</FormLabel>
+                  <FormLabel>Supplier (Optional)</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
                       <SelectTrigger>
@@ -212,6 +214,7 @@ export function PurchaseOrderFormSheet({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value="none">None / No Supplier</SelectItem>
                       {suppliers.filter((s) => s.isActive).map((s) => (
                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                       ))}

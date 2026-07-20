@@ -65,6 +65,7 @@ function StoreLayout() {
   const { startTour } = tour;
 
   useEffect(() => {
+    if (tour.isActive) return;
     const triggerStoreTour = sessionStorage.getItem("stackwise-trigger-store-tour") === "true";
     const neverCompleted = !tour.hasCompleted;
 
@@ -73,7 +74,7 @@ function StoreLayout() {
       const timer = setTimeout(() => startTour(true), 1200);
       return () => clearTimeout(timer);
     }
-  }, [startTour, tour.hasCompleted]);
+  }, [startTour, tour.hasCompleted, tour.isActive]);
 
   // Support Chat State
   const [isChatOpen, setIsChatOpen] = useState(false);

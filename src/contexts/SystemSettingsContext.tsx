@@ -43,6 +43,9 @@ export interface StoreSettings {
   subscriptionTier?: string;
   subscriptionStatus?: string;
   currency?: string;
+  country?: string;
+  state?: string;
+  lga?: string;
 }
 
 const DEFAULT_SETTINGS: StoreSettings = {
@@ -61,7 +64,10 @@ const DEFAULT_SETTINGS: StoreSettings = {
   reportPreferences: {
     frequency: "off",
     recipientEmail: ""
-  }
+  },
+  country: "Nigeria",
+  state: "",
+  lga: ""
 };
 
 interface SystemSettingsContextValue {

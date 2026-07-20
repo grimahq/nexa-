@@ -142,7 +142,7 @@ export function LineItemsEditor({ items, lineItems, onChange, error }: LineItems
                 <Label className="mb-1 block text-xs text-muted-foreground">Total</Label>
               )}
               <span className="flex h-8 items-center text-xs font-mono font-medium text-foreground">
-                ${lineTotal.toFixed(2)}
+                ₦{lineTotal.toFixed(2)}
               </span>
             </div>
 
@@ -173,7 +173,7 @@ export function LineItemsEditor({ items, lineItems, onChange, error }: LineItems
           <span className="text-sm font-medium text-foreground">
             Total:{" "}
             <span className="font-mono text-base">
-              ${runningTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ₦{runningTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </span>
         </div>

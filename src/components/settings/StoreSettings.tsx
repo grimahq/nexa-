@@ -18,6 +18,14 @@ import { useLocations, useSales, useItems } from "@/hooks/useInventoryData";
 import { useCreateLocation, useDeleteLocation } from "@/hooks/useInventoryMutations";
 import { cn } from "@/lib/utils";
 
+const NIGERIAN_STATES = [
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", 
+  "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT - Abuja", "Gombe", 
+  "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", 
+  "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", 
+  "Taraba", "Yobe", "Zamfara"
+];
+
 export function StoreSettings() {
   const { isDemo, onboarding: demoOnboarding, updateOnboarding, demoStore } = useDemo();
   const { settings: liveSettings, updateSettings } = useSystemSettings();
@@ -44,6 +52,9 @@ export function StoreSettings() {
   const [storeSlug, setStoreSlug] = useState(activeSettings.storeSlug || "");
   const [pricingMode, setPricingMode] = useState<"single" | "tiered">(activeSettings.pricingMode || "single");
   const [currency, setCurrency] = useState(activeSettings.currency || "NGN");
+  const [country, setCountry] = useState(activeSettings.country || "Nigeria");
+  const [state, setState] = useState(activeSettings.state || "");
+  const [lga, setLga] = useState(activeSettings.lga || "");
 
   // New Storefront & Branch Management local state
   const [publicStorefrontEnabled, setPublicStorefrontEnabled] = useState<boolean>(
@@ -70,6 +81,9 @@ export function StoreSettings() {
     setStoreSlug(activeSettings.storeSlug || "");
     setPricingMode(activeSettings.pricingMode || "single");
     setCurrency(activeSettings.currency || "NGN");
+    setCountry(activeSettings.country || "Nigeria");
+    setState(activeSettings.state || "");
+    setLga(activeSettings.lga || "");
     setReportFrequency(activeSettings.reportPreferences?.frequency || "off");
     setRecipientEmail(activeSettings.reportPreferences?.recipientEmail || "");
     setPublicStorefrontEnabled((activeSettings as Record<string, unknown>).publicStorefrontEnabled as boolean || false);
@@ -84,6 +98,9 @@ export function StoreSettings() {
     activeSettings.storeSlug,
     activeSettings.pricingMode,
     activeSettings.currency,
+    activeSettings.country,
+    activeSettings.state,
+    activeSettings.lga,
     activeSettings.reportPreferences?.frequency,
     activeSettings.reportPreferences?.recipientEmail,
     (activeSettings as Record<string, unknown>).publicStorefrontEnabled
@@ -194,7 +211,10 @@ export function StoreSettings() {
         frequency: reportFrequency,
         recipientEmail: recipientEmail.trim(),
         lastSentAt: activeSettings.reportPreferences?.lastSentAt || ""
-      }
+      },
+      country: country,
+      state: state,
+      lga: lga,
     };
 
     try {
@@ -437,6 +457,63 @@ export function StoreSettings() {
           <div className="space-y-2">
             <Label htmlFor="store-address">Address</Label>
             <Textarea id="store-address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main Street, Lagos" rows={2} />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="store-country">Country</Label>
+              <select
+                id="store-country"
+                value={country}
+                onChange={(e) => {
+                  setCountry(e.target.value);
+                  if (e.target.value !== "Nigeria") {
+                    setState("");
+                    setLga("");
+                  }
+                }}
+                className="w-full h-10 px-3 py-2 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                <option value="Nigeria">Nigeria 🇳🇬</option>
+                <option value="Other">Other Country</option>
+              </select>
+            </div>
+            {country === "Nigeria" ? (
+              <div className="space-y-2">
+                <Label htmlFor="store-state">State</Label>
+                <select
+                  id="store-state"
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  className="w-full h-10 px-3 py-2 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <option value="">-- Select State --</option>
+                  {NIGERIAN_STATES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="store-state">State / Region</Label>
+                <Input
+                  id="store-state"
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  placeholder="e.g. California"
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="store-lga">
+                {country === "Nigeria" ? "LGA (Local Govt)" : "County / District"}
+              </Label>
+              <Input
+                id="store-lga"
+                value={lga}
+                onChange={(e) => setLga(e.target.value)}
+                placeholder={country === "Nigeria" ? "e.g. Ikeja" : "e.g. Orange County"}
+              />
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="store-description">Detailed Description of Store</Label>

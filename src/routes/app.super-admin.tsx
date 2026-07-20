@@ -28,7 +28,7 @@ export const Route = createFileRoute("/app/super-admin")({
 export interface SuperStore {
   id: string;
   name: string;
-  sector: "agriculture" | "pharmacy" | "restaurant" | "general";
+  sector: string;
   manager: string;
   managerEmail: string;
   itemCount: number;
@@ -36,6 +36,9 @@ export interface SuperStore {
   healthScore: number;
   alerts: number;
   status: "active" | "maintenance" | "suspended";
+  country?: string;
+  state?: string;
+  lga?: string;
 }
 
 export interface SuperUser {
@@ -68,10 +71,10 @@ export interface SystemLog {
 }
 
 export const INITIAL_STORES: SuperStore[] = [
-  { id: "store-1", name: "Main Warehouse", sector: "agriculture", manager: "Sarah Manager", managerEmail: "sarah@stackwise.io", itemCount: 12, valuationNgn: 1245600, healthScore: 94, alerts: 2, status: "active" },
-  { id: "store-2", name: "Ikeja Branch", sector: "pharmacy", manager: "Mike Head", managerEmail: "mike@stackwise.io", itemCount: 8, valuationNgn: 850000, healthScore: 82, alerts: 1, status: "active" },
-  { id: "store-3", name: "Lekki Outlet", sector: "restaurant", manager: "Emma Manager", managerEmail: "emma@stackwise.io", itemCount: 15, valuationNgn: 3540000, healthScore: 100, alerts: 0, status: "active" },
-  { id: "store-4", name: "Abuja Distribution Hub", sector: "general", manager: "John Admin", managerEmail: "john@stackwise.io", itemCount: 5, valuationNgn: 485200, healthScore: 70, alerts: 4, status: "active" },
+  { id: "store-1", name: "Main Warehouse", sector: "agriculture", manager: "Sarah Manager", managerEmail: "sarah@stackwise.io", itemCount: 12, valuationNgn: 1245600, healthScore: 94, alerts: 2, status: "active", country: "Nigeria", state: "Lagos", lga: "Ikeja" },
+  { id: "store-2", name: "Ikeja Branch", sector: "pharmacy", manager: "Mike Head", managerEmail: "mike@stackwise.io", itemCount: 8, valuationNgn: 850000, healthScore: 82, alerts: 1, status: "active", country: "Nigeria", state: "Lagos", lga: "Ikeja" },
+  { id: "store-3", name: "Lekki Outlet", sector: "restaurant", manager: "Emma Manager", managerEmail: "emma@stackwise.io", itemCount: 15, valuationNgn: 3540000, healthScore: 100, alerts: 0, status: "active", country: "Nigeria", state: "Lagos", lga: "Eti-Osa" },
+  { id: "store-4", name: "Abuja Distribution Hub", sector: "general", manager: "John Admin", managerEmail: "john@stackwise.io", itemCount: 5, valuationNgn: 485200, healthScore: 70, alerts: 4, status: "active", country: "Nigeria", state: "FCT - Abuja", lga: "AMAC" },
 ];
 
 export const INITIAL_USERS: SuperUser[] = [
@@ -167,6 +170,9 @@ export function SuperAdminLayout() {
               status: s.status,
               isOnboarded: true,
               createdAt: new Date().toISOString(),
+              country: s.country,
+              state: s.state,
+              lga: s.lga,
             });
           }
         } catch (err) {
@@ -189,6 +195,9 @@ export function SuperAdminLayout() {
           healthScore: data.healthScore !== undefined ? data.healthScore : 100,
           alerts: data.alerts || 0,
           status: (data.status || "active") as SuperStore["status"],
+          country: data.country || "Nigeria",
+          state: data.state || "",
+          lga: data.lga || "",
         });
       });
       setSuperStores(list);

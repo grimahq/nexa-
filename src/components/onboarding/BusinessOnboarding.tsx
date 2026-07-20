@@ -168,6 +168,14 @@ const ENTRY_METHODS = [
   }
 ];
 
+const NIGERIAN_STATES = [
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", 
+  "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT - Abuja", "Gombe", 
+  "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", 
+  "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", 
+  "Taraba", "Yobe", "Zamfara"
+];
+
 interface BusinessOnboardingProps {
   onComplete: (data: {
     businessType: string;
@@ -178,6 +186,9 @@ interface BusinessOnboardingProps {
     storeSlug?: string;
     electronicsMainType?: "devices" | "accessories" | "both";
     initialItems?: PendingProduct[];
+    country?: string;
+    state?: string;
+    lga?: string;
   }) => void;
   onSkip: () => void;
 }
@@ -189,6 +200,9 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
   const [storeSlug, setStoreSlug] = useState("");
   const [brandColor, setBrandColor] = useState("#0d9488");
   const [selectedBusiness, setSelectedBusiness] = useState<string | null>(null);
+  const [country, setCountry] = useState("Nigeria");
+  const [state, setState] = useState("");
+  const [lga, setLga] = useState("");
 
   useEffect(() => {
     const intended = sessionStorage.getItem("nexa_intended_business");
@@ -266,7 +280,10 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
           .map(p => ({
             ...p,
             categoryId: p.categoryId || bulkEntryCategories[0]?.id || "misc"
-          }))
+          })),
+        country,
+        state,
+        lga
       });
     }
   };
@@ -317,17 +334,81 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
                 <p className="mt-1 text-sm text-muted-foreground">This will appear on receipts and invoices.</p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="store-name" className="text-sm font-medium">Store / Business Name</Label>
-                <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="store-name" className="text-sm font-medium">Store / Business Name</Label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="store-name"
+                      value={storeName}
+                      onChange={(e) => setStoreName(e.target.value)}
+                      placeholder="e.g. Adebayo Electronics"
+                      className="pl-10 h-12 text-base"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="store-country" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Country</Label>
+                    <select
+                      id="store-country"
+                      value={country}
+                      onChange={(e) => {
+                        setCountry(e.target.value);
+                        if (e.target.value !== "Nigeria") {
+                          setState("");
+                          setLga("");
+                        }
+                      }}
+                      className="w-full h-11 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none"
+                    >
+                      <option value="Nigeria">Nigeria 🇳🇬</option>
+                      <option value="Other">Other Country</option>
+                    </select>
+                  </div>
+
+                  {country === "Nigeria" ? (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="store-state" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">State</Label>
+                      <select
+                        id="store-state"
+                        value={state}
+                        onChange={(e) => setState(e.target.value)}
+                        className="w-full h-11 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none"
+                      >
+                        <option value="">-- Select State --</option>
+                        {NIGERIAN_STATES.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="store-state" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">State / Region</Label>
+                      <Input
+                        id="store-state"
+                        value={state}
+                        onChange={(e) => setState(e.target.value)}
+                        placeholder="e.g. California"
+                        className="h-11 text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="store-lga" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    {country === "Nigeria" ? "LGA (Local Government Area)" : "County / Local District"}
+                  </Label>
                   <Input
-                    id="store-name"
-                    value={storeName}
-                    onChange={(e) => setStoreName(e.target.value)}
-                    placeholder="e.g. Adebayo Electronics"
-                    className="pl-10 h-12 text-base"
-                    autoFocus
+                    id="store-lga"
+                    value={lga}
+                    onChange={(e) => setLga(e.target.value)}
+                    placeholder={country === "Nigeria" ? "e.g. Ikeja" : "e.g. Santa Clara County"}
+                    className="h-11 text-sm"
                   />
                 </div>
               </div>

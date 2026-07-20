@@ -75,9 +75,9 @@ export function POPrintView({ purchaseOrder, supplier, items }: POPrintViewProps
                 <td className="py-1.5 font-mono text-xs">{item?.sku ?? "—"}</td>
                 <td className="py-1.5 text-right font-mono">{li.quantityOrdered}</td>
                 <td className="py-1.5 text-right font-mono">{li.quantityReceived}</td>
-                <td className="py-1.5 text-right font-mono">${li.unitCost.toFixed(2)}</td>
+                <td className="py-1.5 text-right font-mono">₦{li.unitCost.toFixed(2)}</td>
                 <td className="py-1.5 text-right font-mono font-medium">
-                  ${(li.quantityOrdered * li.unitCost).toFixed(2)}
+                  ₦{(li.quantityOrdered * li.unitCost).toFixed(2)}
                 </td>
               </tr>
             );
@@ -87,7 +87,7 @@ export function POPrintView({ purchaseOrder, supplier, items }: POPrintViewProps
           <tr className="border-t-2 border-black">
             <td colSpan={5} className="py-2 text-right font-semibold">Total</td>
             <td className="py-2 text-right font-mono font-bold">
-              ${purchaseOrder.totalCost.toLocaleString("en-US", {
+              ₦{purchaseOrder.totalCost.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}

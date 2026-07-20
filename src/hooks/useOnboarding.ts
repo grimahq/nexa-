@@ -15,6 +15,19 @@ export function useOnboarding(tourId: string) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isActive, setIsActive] = useState(false);
 
+  // Sync state across instances/windows
+  useEffect(() => {
+    const sync = () => {
+      setHasCompleted(localStorage.getItem(key) === "true");
+    };
+    window.addEventListener("onboarding-sync", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("onboarding-sync", sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, [key]);
+
   const startTour = useCallback((force = false) => {
     if (!hasCompleted || force) {
       setCurrentStep(0);
@@ -26,12 +39,14 @@ export function useOnboarding(tourId: string) {
     localStorage.setItem(key, "true");
     setHasCompleted(true);
     setIsActive(false);
+    window.dispatchEvent(new Event("onboarding-sync"));
   }, [key]);
 
   const completeTour = useCallback(() => {
     localStorage.setItem(key, "true");
     setHasCompleted(true);
     setIsActive(false);
+    window.dispatchEvent(new Event("onboarding-sync"));
   }, [key]);
 
   const next = useCallback(() => setCurrentStep((s) => s + 1), []);
@@ -42,6 +57,7 @@ export function useOnboarding(tourId: string) {
     setHasCompleted(false);
     setIsActive(false);
     setCurrentStep(0);
+    window.dispatchEvent(new Event("onboarding-sync"));
   }, [key]);
 
   return { hasCompleted, currentStep, isActive, startTour, skipTour, completeTour, next, back, resetTour };
