@@ -237,6 +237,83 @@ export const getItemsForSector = (sector: string): Item[] => {
         { ...item(9, "Agbada Set", "traditional", "sup-tx-01", "loc-tx-01", 12, 3, 35000, 65000, "pcs", "count", "🧥") },
         { ...item(10, "Vibrant Ankara Print", "prints", "sup-tx-01", "loc-tx-01", 100, 10, 4500, 8500, "bundle", "count", "🎨") },
       ];
+    case "boutique":
+      return [
+        {
+          ...item(1, "Premium Leather Shoes", "shoes", "sup-bt-01", "loc-bt-01", 30, 5, 22000, 32000, "pair", "count", "👞"),
+          color: "Brown, Black",
+          sizes: "42, 43, 44",
+          enableColours: true,
+          enableSizes: true,
+          fineTunedVariants: {
+            "Brown - 42": { price: 32000, stock: 5 },
+            "Brown - 43": { price: 32000, stock: 5 },
+            "Brown - 44": { price: 32000, stock: 5 },
+            "Black - 42": { price: 32000, stock: 5 },
+            "Black - 43": { price: 32000, stock: 5 },
+            "Black - 44": { price: 32000, stock: 5 }
+          }
+        },
+        {
+          ...item(2, "High-Waist Denim Jeans", "bottoms", "sup-bt-01", "loc-bt-01", 50, 5, 11000, 16500, "pcs", "count", "👖"),
+          color: "Light Blue, Dark Blue",
+          sizes: "30, 32, 34",
+          enableColours: true,
+          enableSizes: true,
+          fineTunedVariants: {
+            "Light Blue - 30": { price: 16500, stock: 10 },
+            "Light Blue - 32": { price: 16500, stock: 10 },
+            "Light Blue - 34": { price: 16500, stock: 10 },
+            "Dark Blue - 30": { price: 16500, stock: 10 },
+            "Dark Blue - 32": { price: 16500, stock: 10 },
+            "Dark Blue - 34": { price: 16500, stock: 10 }
+          }
+        },
+        {
+          ...item(3, "Cotton V-Neck T-Shirt", "tops", "sup-bt-01", "loc-bt-01", 100, 10, 4800, 7500, "pcs", "count", "👕"),
+          color: "White, Black, Red",
+          sizes: "M, L, XL",
+          enableColours: true,
+          enableSizes: true,
+          fineTunedVariants: {
+            "White - M": { price: 7500, stock: 15 },
+            "White - L": { price: 7500, stock: 15 },
+            "White - XL": { price: 7500, stock: 10 },
+            "Black - M": { price: 7500, stock: 15 },
+            "Black - L": { price: 7500, stock: 15 },
+            "Black - XL": { price: 7500, stock: 10 },
+            "Red - M": { price: 7500, stock: 8 },
+            "Red - L": { price: 7500, stock: 8 },
+            "Red - XL": { price: 7500, stock: 4 }
+          }
+        },
+        {
+          ...item(4, "Floral Summer Dress", "dresses", "sup-bt-01", "loc-bt-01", 45, 4, 10500, 15000, "pcs", "count", "👗"),
+          color: "Yellow, Pink",
+          sizes: "S, M, L",
+          enableColours: true,
+          enableSizes: true,
+          fineTunedVariants: {
+            "Yellow - S": { price: 15000, stock: 8 },
+            "Yellow - M": { price: 15000, stock: 10 },
+            "Yellow - L": { price: 15000, stock: 7 },
+            "Pink - S": { price: 15000, stock: 8 },
+            "Pink - M": { price: 15000, stock: 7 },
+            "Pink - L": { price: 15000, stock: 5 }
+          }
+        },
+        {
+          ...item(5, "Designer Handbag", "accessories", "sup-bt-01", "loc-bt-01", 20, 2, 28000, 45000, "pcs", "count", "👜"),
+          color: "Beige, Black",
+          sizes: "",
+          enableColours: true,
+          enableSizes: false,
+          fineTunedVariants: {
+            "Beige": { price: 45000, stock: 10 },
+            "Black": { price: 45000, stock: 10 }
+          }
+        }
+      ];
     case "wholesale":
       return [
         { ...item(1, "Pasta (Carton of 20)", "fmcg", "sup-ws-01", "loc-ws-01", 200, 20, 8500, 11500, "carton", "count", "📦") },

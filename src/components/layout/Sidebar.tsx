@@ -87,6 +87,7 @@ const navGroups: NavGroup[] = [
     items: [
       { label: "Analytics", href: "/app/analytics", icon: BarChart3 },
       { label: "AI insights", href: "/app/ai-insights", icon: Sparkles },
+      { label: "AI Assistant", href: "/app/ai-assistant", icon: Bot },
     ],
   },
   {
@@ -105,9 +106,11 @@ const standaloneLinks: (NavItem & { permKey?: keyof RolePermissions })[] = [
 
 interface SidebarProps {
   onNavigate?: () => void;
+  isMinimized?: boolean;
+  onToggleMinimize?: () => void;
 }
 
-export function Sidebar({ onNavigate }: SidebarProps) {
+export function Sidebar({ onNavigate, isMinimized = false, onToggleMinimize }: SidebarProps) {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const { permissions, stores, currentStoreId, isSuperAdmin } = useRole();
@@ -168,6 +171,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       items: [
         { label: "Analytics", href: "/app/analytics", icon: BarChart3 },
         { label: "AI insights", href: "/app/ai-insights", icon: Sparkles },
+        { label: "AI Assistant", href: "/app/ai-assistant", icon: Bot },
       ],
     },
     {
@@ -207,72 +211,134 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
   return (
     <nav data-tour="sidebar" className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex h-14 items-center gap-2 px-5">
+      <div className={cn("flex h-14 items-center gap-2 border-b border-sidebar-border/40 shrink-0", isMinimized ? "justify-center px-2" : "px-5")}>
         <Package className="h-5 w-5 text-sidebar-primary" />
-        <span className="text-lg font-semibold tracking-tight text-sidebar-primary-foreground truncate">{storeName}</span>
+        {!isMinimized && (
+          <span className="text-sm font-bold tracking-tight text-sidebar-primary-foreground truncate">{storeName}</span>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-2">
-        {visibleGroups.map((group, idx) => {
-          const isCollapsed = collapsed[group.label] ?? false;
-          return (
-            <div key={group.label}>
-              {idx > 0 && <div className="mx-2 my-2 border-t border-sidebar-border" />}
-              <button
-                type="button"
-                onClick={() => toggleGroup(group.label)}
-                className="flex w-full items-center gap-1 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-sidebar-foreground/50 hover:text-sidebar-foreground/80 transition-colors"
-              >
-                <ChevronRight className={cn("h-3 w-3 transition-transform duration-150", !isCollapsed && "rotate-90")} />
-                {group.label}
-              </button>
-
-              {!isCollapsed && (
-                <div className="mt-0.5 space-y-0.5">
-                  {group.items.map((item) => (
-                    <Link
-                      key={item.href}
-                      to={item.href}
-                      onClick={onNavigate}
-                      className={cn(
-                        "flex items-center gap-3 rounded-md py-2.5 text-sm transition-all font-semibold",
-                        isActive(item.href)
-                          ? "bg-emerald-950/45 text-emerald-100 border-l-4 border-emerald-500 pl-2 shadow-sm font-bold"
-                          : "text-sidebar-foreground/85 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground pl-3",
-                      )}
-                    >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        <div className="mx-2 my-2 border-t border-sidebar-border" />
-        <div className="space-y-0.5">
-          {standaloneLinks
-            .filter((item) => !item.permKey || permissions[item.permKey])
-            .map((item) => (
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+        {isMinimized ? (
+          <div className="space-y-2.5">
+            {visibleGroups.flatMap(g => g.items).map((item) => (
               <Link
                 key={item.href}
                 to={item.href}
+                title={item.label}
                 onClick={onNavigate}
                 className={cn(
-                  "flex items-center gap-3 rounded-md py-2.5 text-sm transition-all font-semibold",
+                  "flex items-center justify-center rounded-md h-10 w-10 mx-auto transition-all duration-200",
                   isActive(item.href)
-                    ? "bg-emerald-950/45 text-emerald-100 border-l-4 border-emerald-500 pl-2 shadow-sm font-bold"
-                    : "text-sidebar-foreground/85 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground pl-3",
+                    ? "bg-emerald-950/45 text-emerald-100 border-l-4 border-emerald-500 shadow-sm"
+                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
                 )}
               >
-                <item.icon className="h-4 w-4 shrink-0" />
-                {item.label}
+                <item.icon className="h-4.5 w-4.5 shrink-0" />
               </Link>
             ))}
-        </div>
+            
+            <div className="border-t border-sidebar-border/40 my-3" />
+            
+            {standaloneLinks
+              .filter((item) => !item.permKey || permissions[item.permKey])
+              .map((item) => (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  title={item.label}
+                  onClick={onNavigate}
+                  className={cn(
+                    "flex items-center justify-center rounded-md h-10 w-10 mx-auto transition-all duration-200",
+                    isActive(item.href)
+                      ? "bg-emerald-950/45 text-emerald-100 border-l-4 border-emerald-500 shadow-sm"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
+                  )}
+                >
+                  <item.icon className="h-4.5 w-4.5 shrink-0" />
+                </Link>
+              ))}
+          </div>
+        ) : (
+          <>
+            {visibleGroups.map((group, idx) => {
+              const isCollapsed = collapsed[group.label] ?? false;
+              return (
+                <div key={group.label} className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.label)}
+                    className="flex w-full items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-sidebar-foreground/45 hover:text-sidebar-foreground/75 transition-colors"
+                  >
+                    <ChevronRight className={cn("h-3 w-3 transition-transform duration-150", !isCollapsed && "rotate-90")} />
+                    {group.label}
+                  </button>
+
+                  {!isCollapsed && (
+                    <div className="mt-0.5 space-y-0.5">
+                      {group.items.map((item) => (
+                        <Link
+                          key={item.href}
+                          to={item.href}
+                          onClick={onNavigate}
+                          className={cn(
+                            "flex items-center gap-3 rounded-md py-2 text-sm transition-all font-semibold",
+                            isActive(item.href)
+                              ? "bg-emerald-950/45 text-emerald-100 border-l-4 border-emerald-500 pl-2 shadow-sm font-bold animate-in fade-in duration-200"
+                              : "text-sidebar-foreground/85 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground pl-3",
+                          )}
+                        >
+                          <item.icon className="h-4 w-4 shrink-0" />
+                          {item.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            <div className="border-t border-sidebar-border/40 my-3" />
+            <div className="space-y-0.5">
+              {standaloneLinks
+                .filter((item) => !item.permKey || permissions[item.permKey])
+                .map((item) => (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center gap-3 rounded-md py-2 text-sm transition-all font-semibold",
+                      isActive(item.href)
+                        ? "bg-emerald-950/45 text-emerald-100 border-l-4 border-emerald-500 pl-2 shadow-sm font-bold"
+                        : "text-sidebar-foreground/85 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground pl-3",
+                    )}
+                  >
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    {item.label}
+                  </Link>
+                ))}
+            </div>
+          </>
+        )}
       </div>
+
+      {onToggleMinimize && (
+        <div className="p-2.5 border-t border-sidebar-border/40 shrink-0 bg-sidebar-accent/10">
+          <button
+            type="button"
+            onClick={onToggleMinimize}
+            className={cn(
+              "flex items-center gap-2 rounded-lg p-2 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all duration-200 w-full text-xs font-semibold",
+              isMinimized ? "justify-center" : ""
+            )}
+            title={isMinimized ? "Expand Sidebar" : "Minimize Sidebar"}
+          >
+            <ChevronRight className={cn("h-4 w-4 transition-transform duration-300", !isMinimized && "rotate-180")} />
+            {!isMinimized && <span>Minimize Sidebar</span>}
+          </button>
+        </div>
+      )}
     </nav>
   );
 }

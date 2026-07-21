@@ -5,11 +5,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { User, Mail, Shield, Calendar, Lock, KeyRound, Save } from "lucide-react";
+import { User, Mail, Shield, Calendar, Lock, KeyRound, Save, Zap, Sparkles, Layers } from "lucide-react";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
+import { PaymentDialog } from "./PaymentDialog";
 import { toast } from "sonner";
 
 export function ProfileSettings() {
   const { profile, updateProfileName, updateProfileDescription, sendPasswordReset, updateUserPassword } = useAuth();
+  const { settings, updateSettings } = useSystemSettings();
+  
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [targetTier, setTargetTier] = useState<"starter" | "professional" | "enterprise">("professional");
   
   const [name, setName] = useState("");
   const [isSavingName, setIsSavingName] = useState(false);
@@ -260,6 +266,135 @@ export function ProfileSettings() {
           </form>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-amber-500" /> Subscription & Billing
+          </CardTitle>
+          <CardDescription>
+            Migrate between subscription plans, update your billing profile, or unlock store features.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="p-5 rounded-xl border border-teal-500/10 bg-teal-50/10 dark:bg-teal-950/5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-3xs">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground font-semibold">Active Plan:</span>
+                <Badge className="bg-primary/15 text-primary border-none font-bold uppercase text-[10px] tracking-wider px-2 py-0.5">
+                  {settings?.subscriptionTier || "starter"}
+                </Badge>
+                <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase">Active</span>
+              </div>
+              <p className="text-sm font-bold text-foreground mt-2">
+                {settings?.subscriptionTier === "enterprise" 
+                  ? "Enterprise License Mode" 
+                  : settings?.subscriptionTier === "professional" 
+                    ? "Professional License Mode" 
+                    : "Starter License Mode"}
+              </p>
+              <p className="text-xs text-muted-foreground max-w-xl">
+                {settings?.subscriptionTier === "enterprise"
+                  ? "Enjoy unlimited branches, global B2B syndication, dynamic AI demand curves, and cohort customer analysis."
+                  : settings?.subscriptionTier === "professional"
+                    ? "Enjoy up to 3 branch locations, predictive replenishment suggestions, cross-branch pools, and email Movement summaries."
+                    : "Ideal for small standalone shops. Unlock premium operations by migrating to Professional or Enterprise."}
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-border space-y-3">
+            <h4 className="font-semibold text-sm">Available Migrations & Tier Actions</h4>
+            <p className="text-xs text-muted-foreground">Select a subscription plan below to migrate your business features immediately.</p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+              {/* Starter Column */}
+              <div className="p-4 rounded-lg border bg-card/40 flex flex-col justify-between space-y-3">
+                <div>
+                  <h5 className="font-bold text-xs flex items-center gap-1.5"><Layers className="h-4 w-4 text-slate-500" /> Starter Plan</h5>
+                  <p className="text-[10px] text-muted-foreground mt-1">Core operations features enabled for all stores.</p>
+                  <p className="text-xs font-extrabold mt-2 text-foreground">Free / $0</p>
+                </div>
+                {(settings?.subscriptionTier || "starter") === "starter" ? (
+                  <Button disabled size="sm" className="w-full text-xs font-semibold" variant="secondary">Currently Active</Button>
+                ) : (
+                  <Button 
+                    type="button" 
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        await updateSettings({ subscriptionTier: "starter", subscriptionStatus: "active" });
+                        toast.success("Downgraded to Starter Plan successfully.");
+                      } catch (err) {
+                        toast.error("Failed to downgrade plan.");
+                      }
+                    }}
+                    className="w-full text-xs font-semibold" 
+                    variant="outline"
+                  >
+                    Select Starter
+                  </Button>
+                )}
+              </div>
+
+              {/* Professional Column */}
+              <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-500/[0.01] flex flex-col justify-between space-y-3">
+                <div>
+                  <h5 className="font-bold text-xs flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-purple-500" /> Professional Plan</h5>
+                  <p className="text-[10px] text-muted-foreground mt-1">Scale operations with intelligent optimization models.</p>
+                  <p className="text-xs font-extrabold mt-2 text-foreground">₦150,000 / $150</p>
+                </div>
+                {(settings?.subscriptionTier || "starter") === "professional" ? (
+                  <Button disabled size="sm" className="w-full text-xs font-semibold" variant="secondary">Currently Active</Button>
+                ) : (
+                  <Button 
+                    type="button" 
+                    size="sm"
+                    onClick={() => {
+                      setTargetTier("professional");
+                      setPaymentOpen(true);
+                    }}
+                    className="w-full text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white"
+                  >
+                    Select Professional
+                  </Button>
+                )}
+              </div>
+
+              {/* Enterprise Column */}
+              <div className="p-4 rounded-lg border border-blue-500/20 bg-blue-500/[0.01] flex flex-col justify-between space-y-3">
+                <div>
+                  <h5 className="font-bold text-xs flex items-center gap-1.5"><Zap className="h-4 w-4 text-blue-500" /> Enterprise Plan</h5>
+                  <p className="text-[10px] text-muted-foreground mt-1">Automate and syndicate multi-channel pipelines seamlessly.</p>
+                  <p className="text-xs font-extrabold mt-2 text-foreground">₦450,000 / $450</p>
+                </div>
+                {(settings?.subscriptionTier || "starter") === "enterprise" ? (
+                  <Button disabled size="sm" className="w-full text-xs font-semibold" variant="secondary">Currently Active</Button>
+                ) : (
+                  <Button 
+                    type="button" 
+                    size="sm"
+                    onClick={() => {
+                      setTargetTier("enterprise");
+                      setPaymentOpen(true);
+                    }}
+                    className="w-full text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white"
+                  >
+                    Select Enterprise
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <PaymentDialog 
+        open={paymentOpen} 
+        onOpenChange={setPaymentOpen} 
+        targetTier={targetTier} 
+      />
     </div>
   );
 }

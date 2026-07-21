@@ -219,7 +219,7 @@ export function SalesStepBrowse({
       sum += price * USD_TO_NGN * qty;
     });
     return sum;
-  }, [cart, items]);
+  }, [cart, items, pricingMode, activeTier]);
 
   // Long-press support
   const longPressRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -471,7 +471,7 @@ export function SalesStepBrowse({
                       <div className="flex justify-between items-center w-full gap-4">
                         <span className="font-semibold block truncate max-w-[150px]">{i.name}</span>
                         <span className="text-[9px] text-muted-foreground shrink-0 font-mono">
-                          {isRestaurant ? "Restaurant" : `Stock: ${i.currentStock}`} · <strong>₦{(i.sellingPrice).toLocaleString()}</strong>
+                          {isRestaurant ? "Restaurant" : `Stock: ${i.currentStock}`} · <strong>₦{(resolvePrice(i, pricingMode, activeTier)).toLocaleString()}</strong>
                         </span>
                       </div>
                     </SelectItem>
@@ -591,7 +591,7 @@ export function SalesStepBrowse({
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-mono font-bold text-teal-700 dark:text-teal-400">₦{prod.sellingPrice.toLocaleString()}</p>
+                        <p className="font-mono font-bold text-teal-700 dark:text-teal-400">₦{resolvePrice(prod, pricingMode, activeTier).toLocaleString()}</p>
                         <span className="text-[8px] bg-teal-100/50 dark:bg-teal-900/30 text-teal-800 dark:text-teal-300 font-bold px-1.5 py-0.5 rounded-full">Add +</span>
                       </div>
                     </div>
@@ -695,7 +695,7 @@ export function SalesStepBrowse({
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-medium truncate max-w-24">{item.name}</p>
-                      <p className="text-[10px] text-muted-foreground font-mono">{formatNaira(item.sellingPrice)}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{formatNaira(resolvePrice(item, pricingMode, activeTier))}</p>
                     </div>
                   </button>
                 ))}
@@ -724,7 +724,7 @@ export function SalesStepBrowse({
       )}
 
       <div className="flex-1 overflow-y-auto px-4 pb-4">
-        <div className="grid grid-cols-2 gap-2.5 py-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 py-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((item) => {
             const currentUnit = selectedUnits[item.id] || item.unit;
             const compositeKey = `${item.id}:${currentUnit}`;
@@ -733,13 +733,13 @@ export function SalesStepBrowse({
             const isAnimating = animatingItems.has(item.id);
 
             // Price calculation for unit
-            let displayPrice = item.sellingPrice;
+            let displayPrice = resolvePrice(item, pricingMode, activeTier);
             if (currentUnit !== item.unit && item.unitConversions) {
               const conv = item.unitConversions.find(c => c.unitId === currentUnit);
               if (conv) {
                 displayPrice = conv.priceNgn !== undefined 
                   ? conv.priceNgn / USD_TO_NGN 
-                  : item.sellingPrice * conv.multiplier;
+                  : resolvePrice(item, pricingMode, activeTier) * conv.multiplier;
               }
             }
 
@@ -761,12 +761,12 @@ export function SalesStepBrowse({
               const inlineSubtotal = (() => {
                 let subtotal = 0;
                 const baseQty = inlineQtyState[item.unit] ?? 0;
-                subtotal += baseQty * item.sellingPrice;
+                subtotal += baseQty * resolvePrice(item, pricingMode, activeTier);
                 item.unitConversions?.forEach(conv => {
                   const qty = inlineQtyState[conv.unitId] ?? 0;
                   const price = conv.priceNgn !== undefined 
                     ? conv.priceNgn / USD_TO_NGN 
-                    : item.sellingPrice * conv.multiplier;
+                    : resolvePrice(item, pricingMode, activeTier) * conv.multiplier;
                   subtotal += qty * price;
                 });
                 return subtotal;
@@ -844,7 +844,7 @@ export function SalesStepBrowse({
                       {(() => {
                         const unitId = item.unit;
                         const localQty = inlineQtyState[unitId] ?? 0;
-                        const unitPrice = item.sellingPrice;
+                        const unitPrice = resolvePrice(item, pricingMode, activeTier);
                         const maxAllowed = getAvailableForUnitInInlineMode(item, unitId, inlineQtyState);
                         const step = SUPPORTED_UNITS.find(u => u.id === unitId)?.step || 1;
                         const canIncrement = localQty + step <= maxAllowed;
@@ -921,7 +921,7 @@ export function SalesStepBrowse({
                         const localQty = inlineQtyState[unitId] ?? 0;
                         const unitPrice = conv.priceNgn !== undefined 
                           ? conv.priceNgn / USD_TO_NGN 
-                          : item.sellingPrice * conv.multiplier;
+                          : resolvePrice(item, pricingMode, activeTier) * conv.multiplier;
                         const maxAllowed = getAvailableForUnitInInlineMode(item, unitId, inlineQtyState);
                         const step = SUPPORTED_UNITS.find(u => u.id === unitId)?.step || 1;
                         const canIncrement = localQty + step <= maxAllowed;

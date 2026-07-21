@@ -45,7 +45,12 @@ const ROLE_LABELS: Record<string, string> = {
   manager: "Manager",
 };
 
-export function Header() {
+export interface HeaderProps {
+  isSidebarMinimized?: boolean;
+  onToggleSidebar?: () => void;
+}
+
+export function Header({ isSidebarMinimized, onToggleSidebar }: HeaderProps) {
   const isOffline = useFirebaseOffline();
   const [offlineInfoOpen, setOfflineInfoOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -90,6 +95,19 @@ export function Header() {
       <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open menu">
         <Menu className="h-5 w-5" />
       </Button>
+
+      {onToggleSidebar && (
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="hidden lg:flex" 
+          onClick={onToggleSidebar} 
+          title={isSidebarMinimized ? "Maximize Sidebar" : "Minimize Sidebar"}
+          aria-label={isSidebarMinimized ? "Expand sidebar" : "Minimize sidebar"}
+        >
+          <Menu className="h-5 w-5 text-muted-foreground hover:text-primary transition-colors" />
+        </Button>
+      )}
 
       <button data-tour="search" type="button" onClick={() => setPaletteOpen(true)} className="flex h-9 flex-1 items-center gap-2 rounded-md border border-input bg-white px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 md:max-w-sm">
         <Search className="h-4 w-4 shrink-0" />

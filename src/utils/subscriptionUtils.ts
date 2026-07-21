@@ -13,7 +13,8 @@ export const DEFAULT_PLANS: SubscriptionPlan[] = [
       pricingMode: false,
       crossBranchVisibility: false,
       b2bMarketplace: false,
-      maxBranches: 1
+      maxBranches: 1,
+      aiAssistant: false
     }
   },
   {
@@ -27,7 +28,8 @@ export const DEFAULT_PLANS: SubscriptionPlan[] = [
       pricingMode: true,
       crossBranchVisibility: true,
       b2bMarketplace: false,
-      maxBranches: 3
+      maxBranches: 3,
+      aiAssistant: false
     }
   },
   {
@@ -41,7 +43,8 @@ export const DEFAULT_PLANS: SubscriptionPlan[] = [
       pricingMode: true,
       crossBranchVisibility: true,
       b2bMarketplace: true,
-      maxBranches: 10
+      maxBranches: 10,
+      aiAssistant: true
     }
   }
 ];
@@ -106,6 +109,7 @@ export async function resolveFeatureFlags(
       crossBranchVisibility: false,
       b2bMarketplace: false,
       maxBranches: 1,
+      aiAssistant: false,
       planName: "Starter Plan",
       planId: "starter",
       status: "trialing"

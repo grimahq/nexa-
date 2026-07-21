@@ -1420,6 +1420,694 @@ Please contact us directly on WhatsApp at **${storeInfo?.storePhone || "our supp
     }
   });
 
+  // ─── NEXAOS ENTERPRISE AI BUSINESS ASSISTANT ENDPOINTS ───
+
+  // Helper to ensure config is seeded
+  const ensureAiConfig = async (db: import("firebase/firestore").Firestore) => {
+    const { doc, getDoc, setDoc } = await import("firebase/firestore");
+    const configRef = doc(db, "aiAssistantConfig", "default");
+    const snap = await getDoc(configRef);
+    if (!snap.exists()) {
+      await setDoc(configRef, {
+        creditsIncluded: {
+          starter: 0,
+          professional: 0,
+          enterprise: 100
+        },
+        topUpPriceNgn: 5000,
+        topUpCredits: 50
+      });
+    }
+    return snap.exists() ? snap.data() : {
+      creditsIncluded: { starter: 0, professional: 0, enterprise: 100 },
+      topUpPriceNgn: 5000,
+      topUpCredits: 50
+    };
+  };
+
+  // Helper to seed monthly credit ledger
+  const getOrCreateLedger = async (db: import("firebase/firestore").Firestore, storeId: string, period: string, tier: string) => {
+    const { doc, getDoc, setDoc } = await import("firebase/firestore");
+    const config = await ensureAiConfig(db);
+    const ledgerRef = doc(db, "aiCreditLedger", `${storeId}_${period}`);
+    const snap = await getDoc(ledgerRef);
+    if (!snap.exists()) {
+      const creditsIncluded = config.creditsIncluded[tier] ?? (tier === "enterprise" ? 100 : 0);
+      const newLedger = {
+        storeId,
+        period,
+        creditsIncluded,
+        creditsUsed: 0,
+        creditsPurchased: 0,
+        lastUpdated: new Date().toISOString()
+      };
+      await setDoc(ledgerRef, newLedger);
+      return newLedger;
+    }
+    return snap.data();
+  };
+
+  // Endpoint to get AI Assistant Config
+  app.get("/api/ai-assistant/config", async (req, res) => {
+    try {
+      const db = await getServerDb();
+      const config = await ensureAiConfig(db);
+      res.json(config);
+    } catch (err: unknown) {
+      console.error("[AI Config Error]:", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Endpoint to get credits ledger
+  app.get("/api/ai-assistant/credits/:storeId", async (req, res) => {
+    const { storeId } = req.params;
+    if (!storeId) {
+      return res.status(400).json({ error: "storeId is required" });
+    }
+    try {
+      const db = await getServerDb();
+      const { doc, getDoc } = await import("firebase/firestore");
+
+      // Get store tier
+      const storeSnap = await getDoc(doc(db, "stores", storeId));
+      const storeData = storeSnap.exists() ? storeSnap.data() : null;
+      const tier = storeData?.subscriptionTier || "starter";
+
+      const period = new Date().toISOString().slice(0, 7);
+      const ledger = await getOrCreateLedger(db, storeId, period, tier);
+      res.json(ledger);
+    } catch (err: unknown) {
+      console.error("[AI Credits Error]:", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Endpoint to purchase credit top-ups
+  app.post("/api/ai-assistant/top-up", async (req, res) => {
+    const { storeId, topUpAmountNgn, paymentMethod } = req.body;
+    if (!storeId || !topUpAmountNgn) {
+      return res.status(400).json({ error: "storeId and topUpAmountNgn are required" });
+    }
+    try {
+      const db = await getServerDb();
+      const { doc, getDoc, updateDoc, setDoc } = await import("firebase/firestore");
+
+      const config = await ensureAiConfig(db);
+      const topUpPriceNgn = config.topUpPriceNgn || 5000;
+      const topUpCredits = config.topUpCredits || 50;
+
+      const creditsToPurchase = Math.floor((topUpAmountNgn / topUpPriceNgn) * topUpCredits);
+      if (creditsToPurchase <= 0) {
+        return res.status(400).json({ error: "Invalid top-up amount" });
+      }
+
+      const storeSnap = await getDoc(doc(db, "stores", storeId));
+      const tier = storeSnap.exists() ? (storeSnap.data()?.subscriptionTier || "starter") : "starter";
+
+      const period = new Date().toISOString().slice(0, 7);
+      await getOrCreateLedger(db, storeId, period, tier);
+
+      const ledgerRef = doc(db, "aiCreditLedger", `${storeId}_${period}`);
+      const ledgerSnap = await getDoc(ledgerRef);
+      const currentPurchased = ledgerSnap.exists() ? (ledgerSnap.data()?.creditsPurchased || 0) : 0;
+
+      const updatedPurchased = currentPurchased + creditsToPurchase;
+      await updateDoc(ledgerRef, {
+        creditsPurchased: updatedPurchased,
+        lastUpdated: new Date().toISOString()
+      });
+
+      // Optionally record as sub-billing log
+      const billId = `bill-${Date.now()}`;
+      await setDoc(doc(db, "subscriptionEvents", billId), {
+        id: billId,
+        storeId,
+        eventType: "top_up",
+        fromPlan: tier,
+        toPlan: tier,
+        actorId: "AI_ASSISTANT",
+        timestamp: new Date().toISOString(),
+        reason: `Purchased ${creditsToPurchase} AI Credits top-up via ${paymentMethod || "card"} for ₦${topUpAmountNgn.toLocaleString()}`
+      });
+
+      res.json({
+        success: true,
+        creditsPurchased: updatedPurchased,
+        creditsAdded: creditsToPurchase
+      });
+    } catch (err: unknown) {
+      console.error("[AI Top Up Error]:", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Endpoint to parse natural language/multimodal assistant request
+  app.post("/api/ai-assistant/request", async (req, res) => {
+    const {
+      storeId,
+      message,
+      transcribedText,
+      voiceBase64,
+      voiceMime,
+      photoBase64,
+      photoMime,
+      customApiKey
+    } = req.body;
+
+    if (!storeId) {
+      return res.status(400).json({ error: "storeId is required" });
+    }
+
+    try {
+      const db = await getServerDb();
+      const { doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc } = await import("firebase/firestore");
+
+      // 1. Resolve store and subscription pattern
+      const storeSnap = await getDoc(doc(db, "stores", storeId));
+      if (!storeSnap.exists()) {
+        return res.status(404).json({ error: "Store not found" });
+      }
+      const storeData = storeSnap.data();
+      const tier = storeData?.subscriptionTier || "starter";
+
+      // Enforce Enterprise tier gating!
+      if (tier !== "enterprise") {
+        return res.status(403).json({
+          error: "AI_ASSISTANT_LOCKED",
+          message: "The NEXAOS AI Assistant is exclusive to Enterprise tier subscribers."
+        });
+      }
+
+      // 2. Check BYOK vs. Credit Ledger depletion
+      const isBYOK = !!(customApiKey || storeData?.aiAssistantApiKey);
+      const period = new Date().toISOString().slice(0, 7);
+      const ledger = await getOrCreateLedger(db, storeId, period, tier);
+
+      if (!isBYOK) {
+        const totalCredits = (ledger.creditsIncluded || 0) + (ledger.creditsPurchased || 0);
+        const remaining = totalCredits - (ledger.creditsUsed || 0);
+        if (remaining <= 0) {
+          return res.status(403).json({
+            error: "AI_CREDITS_EXHAUSTED",
+            message: "You have exhausted your monthly AI Assistant credits. Please buy a top-up or use your custom API key."
+          });
+        }
+      }
+
+      // 3. Compile inventory context (products, categories, suppliers, locations)
+      const productsSnap = await getDocs(query(collection(db, "items"), where("storeId", "==", storeId)));
+      const categoriesSnap = await getDocs(query(collection(db, "categories"), where("storeId", "==", storeId)));
+      const suppliersSnap = await getDocs(query(collection(db, "suppliers"), where("storeId", "==", storeId)));
+      const locationsSnap = await getDocs(query(collection(db, "locations"), where("storeId", "==", storeId)));
+
+      const inventoryContext = {
+        products: productsSnap.docs.map(d => {
+          const data = d.data();
+          return { id: d.id, name: data.name, sku: data.sku, price: data.sellingPrice, stock: data.currentStock };
+        }),
+        categories: categoriesSnap.docs.map(d => ({ id: d.id, name: d.data().name })),
+        suppliers: suppliersSnap.docs.map(d => ({ id: d.id, name: d.data().name })),
+        locations: locationsSnap.docs.map(d => ({ id: d.id, name: d.data().name }))
+      };
+
+      // 4. Setup Gemini Client with appropriate Key
+      const keyToUse = customApiKey || storeData?.aiAssistantApiKey || process.env.GEMINI_API_KEY;
+      if (!keyToUse) {
+        return res.status(500).json({
+          error: "GEMINI_NOT_CONFIGURED",
+          message: "Gemini API service is currently unavailable. No API key configured."
+        });
+      }
+
+      const activeAi = new GoogleGenAI({
+        apiKey: keyToUse,
+        httpOptions: { headers: { "User-Agent": "aistudio-build" } }
+      });
+
+      // 5. Construct parts
+      const contentsParts: { text?: string; inlineData?: { mimeType: string; data: string } }[] = [];
+      
+      let textInput = message || "";
+      if (transcribedText) {
+        textInput += ` [Transcribed speech: ${transcribedText}]`;
+      }
+      if (textInput) {
+        contentsParts.push({ text: textInput });
+      }
+
+      if (voiceBase64) {
+        contentsParts.push({
+          inlineData: {
+            mimeType: voiceMime || "audio/mp3",
+            data: voiceBase64
+          }
+        });
+      }
+
+      if (photoBase64) {
+        contentsParts.push({
+          inlineData: {
+            mimeType: photoMime || "image/jpeg",
+            data: photoBase64
+          }
+        });
+      }
+
+      if (contentsParts.length === 0) {
+        return res.status(400).json({ error: "No query or multimodal inputs provided" });
+      }
+
+      // 6. Invoke Gemini parsing system
+      const systemInstruction = `You are the NEXAOS Enterprise AI Business Assistant, an expert agent that interprets natural language and multimodal commands (text, speech, photos) into structured operations for store inventory management.
+Your absolute highest directive is accuracy and preventing errors.
+
+You can interpret six core intents:
+1. "add_product": Create a new product.
+   - Extract productName, price, costPrice, categoryName, quantity, sku, description, unit.
+   - For photo-based creation: analyze the image to suggest name, category, and description. Leave price and quantity empty or 0 UNLESS the user explicitly stated them in text/speech. Suggest name/category as highly editable suggestions.
+   - Handle multi-variant creation if requested (extract variant list under "variants": [{"name": "M", "price": 100, "quantity": 10}]).
+
+2. "adjust_stock": Adjust stock of a product.
+   - Extract itemId (match to existing product IDs based on Name or SKU), itemName, adjustmentQuantity (can be positive received like +10, or negative sold/shipped like -5), reason.
+
+3. "record_sale": Log a retail transaction.
+   - Extract saleItems: array of matched items with itemId, name, quantity, price.
+   - Extract customerName, customerPhone, totalNgn.
+   - If a debt payment is logged (e.g., "record debt payment of ₦5,000 for John"), extract as isDebtSettlement = true and previousDebtPaidNgn = amount.
+
+4. "check_report": Retrieve/query analytics (read-only).
+   - Extract reportType ("sales", "stock", "expenses"), startDate, endDate.
+
+5. "price_update": Modify selling price.
+   - Extract priceItemId (matched product ID), priceItemName, oldPrice, newPrice.
+
+6. "reorder": Generate a procurement restock.
+   - Create a draft PO restock list under reorderItems: [{"itemId": "id", "name": "name", "quantity": 10}].
+   - Extract supplierId, supplierName.
+
+CONFIDENCE & CLARIFICATION RULES:
+- If the user query is ambiguous, missing vital values (like adjustment quantity for stock adjust), or you are unsure, you MUST set the intent to "clarify" and provide a warm, helpful clarifying question in "clarificationMessage".
+- If confidence score is below 0.75, set intent to "clarify" and ask the clarifying question. No credits are charged for clarification.
+- ALWAYS try to match the mentioned item to the products in the context. If you cannot find a match, set intent to "clarify" and ask them to clarify which item they mean.
+
+Here is the store context for matching:
+${JSON.stringify(inventoryContext, null, 2)}
+
+Provide the response as clean structured JSON.`;
+
+      const responseSchema = {
+        type: Type.OBJECT,
+        properties: {
+          confidence: { type: Type.NUMBER, description: "Confidence score between 0.0 and 1.0" },
+          intent: { type: Type.STRING, description: "One of: add_product, adjust_stock, record_sale, check_report, price_update, reorder, clarify" },
+          clarificationMessage: { type: Type.STRING, description: "If intent is clarify or confidence is low, ask the user to clarify." },
+          parameters: {
+            type: Type.OBJECT,
+            properties: {
+              // add_product
+              productName: { type: Type.STRING },
+              sku: { type: Type.STRING },
+              price: { type: Type.NUMBER },
+              costPrice: { type: Type.NUMBER },
+              categoryName: { type: Type.STRING },
+              quantity: { type: Type.NUMBER },
+              unit: { type: Type.STRING },
+              description: { type: Type.STRING },
+              variants: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    price: { type: Type.NUMBER },
+                    quantity: { type: Type.NUMBER }
+                  }
+                }
+              },
+              // adjust_stock
+              itemId: { type: Type.STRING },
+              itemName: { type: Type.STRING },
+              skuMatched: { type: Type.STRING },
+              adjustmentQuantity: { type: Type.NUMBER },
+              reason: { type: Type.STRING },
+              // record_sale
+              saleItems: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    itemId: { type: Type.STRING },
+                    name: { type: Type.STRING },
+                    quantity: { type: Type.NUMBER },
+                    price: { type: Type.NUMBER }
+                  }
+                }
+              },
+              customerName: { type: Type.STRING },
+              customerPhone: { type: Type.STRING },
+              isDebtSettlement: { type: Type.BOOLEAN },
+              previousDebtPaidNgn: { type: Type.NUMBER },
+              totalNgn: { type: Type.NUMBER },
+              // check_report
+              reportType: { type: Type.STRING },
+              startDate: { type: Type.STRING },
+              endDate: { type: Type.STRING },
+              // price_update
+              priceItemId: { type: Type.STRING },
+              priceItemName: { type: Type.STRING },
+              oldPrice: { type: Type.NUMBER },
+              newPrice: { type: Type.NUMBER },
+              // reorder
+              reorderItems: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    itemId: { type: Type.STRING },
+                    name: { type: Type.STRING },
+                    quantity: { type: Type.NUMBER }
+                  }
+                }
+              },
+              supplierId: { type: Type.STRING },
+              supplierName: { type: Type.STRING }
+            }
+          },
+          explanation: { type: Type.STRING, description: "A brief reason why you chose this intent" }
+        },
+        required: ["confidence", "intent", "explanation"]
+      };
+
+      // Call standard light model tier: gemini-3.5-flash
+      let resultModel = "gemini-3.5-flash";
+      const response = await activeAi.models.generateContent({
+        model: resultModel,
+        contents: contentsParts,
+        config: {
+          systemInstruction,
+          responseMimeType: "application/json",
+          responseSchema,
+          temperature: 0.1
+        }
+      });
+
+      let result = JSON.parse(response.text || "{}");
+
+      // Escalation Rule: If confidence is very low (< 0.5) and intent is clarify, try escalating to gemini-3.1-pro-preview to try and resolve!
+      if (result.confidence < 0.5 && result.intent === "clarify" && !isBYOK) {
+        console.log("Escalating query to gemini-3.1-pro-preview for advanced reasoning resolution...");
+        resultModel = "gemini-3.1-pro-preview";
+        try {
+          const escalatedResponse = await activeAi.models.generateContent({
+            model: resultModel,
+            contents: contentsParts,
+            config: {
+              systemInstruction,
+              responseMimeType: "application/json",
+              responseSchema,
+              temperature: 0.1
+            }
+          });
+          const escalatedResult = JSON.parse(escalatedResponse.text || "{}");
+          if (escalatedResult.confidence > result.confidence) {
+            result = escalatedResult;
+          }
+        } catch (escErr) {
+          console.warn("Failed to execute escalatory pro query, falling back to flash:", escErr);
+        }
+      }
+
+      // 7. Write Request Log
+      const requestId = `req-${Date.now()}`;
+      const isReadOnlyReport = result.intent === "check_report";
+      const isClarification = result.intent === "clarify";
+
+      // Charge on completion instantly for read-only reports! Mutating ones charge upon execute-intent confirmation.
+      const shouldChargeNow = isReadOnlyReport && !isBYOK;
+
+      const reqStatus = isClarification || isReadOnlyReport ? "completed" : "pending_confirmation";
+
+      await setDoc(doc(db, "aiAssistantRequests", requestId), {
+        requestId,
+        storeId,
+        intentType: result.intent,
+        inputType: voiceBase64 ? "voice" : (photoBase64 ? "photo" : "text"),
+        modelTierUsed: resultModel,
+        timestamp: new Date().toISOString(),
+        resultedInCreditCharge: shouldChargeNow,
+        status: reqStatus,
+        parameters: result.parameters || {},
+        explanation: result.explanation || "",
+        clarificationMessage: result.clarificationMessage || null,
+        rawInput: textInput || "Multimodal payload"
+      });
+
+      // Execute credit depletion if charged
+      if (shouldChargeNow) {
+        const ledgerRef = doc(db, "aiCreditLedger", `${storeId}_${period}`);
+        await updateDoc(ledgerRef, {
+          creditsUsed: (ledger.creditsUsed || 0) + 1,
+          lastUpdated: new Date().toISOString()
+        });
+      }
+
+      res.json({
+        requestId,
+        result,
+        modelTierUsed: resultModel,
+        creditsDeducted: shouldChargeNow ? 1 : 0
+      });
+    } catch (err: unknown) {
+      console.error("[AI Request Processing Error]:", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Endpoint to execute the mutating intent upon explicit user confirmation
+  app.post("/api/ai-assistant/execute-intent", async (req, res) => {
+    const { requestId, storeId } = req.body;
+    if (!requestId || !storeId) {
+      return res.status(400).json({ error: "requestId and storeId are required" });
+    }
+
+    try {
+      const db = await getServerDb();
+      const { doc, getDoc, updateDoc, setDoc } = await import("firebase/firestore");
+
+      // 1. Fetch AI assistant request details
+      const reqRef = doc(db, "aiAssistantRequests", requestId);
+      const reqSnap = await getDoc(reqRef);
+      if (!reqSnap.exists()) {
+        return res.status(404).json({ error: "AI Assistant Request not found" });
+      }
+
+      const requestData = reqSnap.data();
+      if (requestData.status === "completed") {
+        return res.status(400).json({ error: "This request has already been executed" });
+      }
+      if (requestData.status === "cancelled_by_user") {
+        return res.status(400).json({ error: "This request was cancelled by the user" });
+      }
+
+      const storeSnap = await getDoc(doc(db, "stores", storeId));
+      const storeData = storeSnap.exists() ? storeSnap.data() : null;
+      const tier = storeData?.subscriptionTier || "starter";
+
+      // 2. Check Credits (if not BYOK)
+      const isBYOK = !!(storeData?.aiAssistantApiKey);
+      const period = new Date().toISOString().slice(0, 7);
+      const ledger = await getOrCreateLedger(db, storeId, period, tier);
+
+      if (!isBYOK) {
+        const totalCredits = (ledger.creditsIncluded || 0) + (ledger.creditsPurchased || 0);
+        const remaining = totalCredits - (ledger.creditsUsed || 0);
+        if (remaining <= 0) {
+          return res.status(403).json({
+            error: "AI_CREDITS_EXHAUSTED",
+            message: "You have exhausted your monthly AI Assistant credits. Please buy a top-up to execute this action."
+          });
+        }
+      }
+
+      const params = requestData.parameters || {};
+      const intent = requestData.intentType;
+
+      // 3. Perform database write matching the intent type
+      if (intent === "add_product") {
+        const itemId = params.sku || `item-${Date.now()}`;
+        await setDoc(doc(db, "items", itemId), {
+          id: itemId,
+          storeId,
+          name: params.productName || "Unnamed AI Product",
+          sku: params.sku || `SKU-${Date.now()}`,
+          sellingPrice: Number(params.price) || 0,
+          costPrice: Number(params.costPrice) || 0,
+          categoryId: params.categoryName ? params.categoryName.toLowerCase().replace(/ /g, "_") : "general",
+          currentStock: Number(params.quantity) || 0,
+          description: params.description || "Created by AI Business Assistant",
+          unit: params.unit || "pcs",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+
+        // Auto-seed category if missing
+        if (params.categoryName) {
+          const catId = params.categoryName.toLowerCase().replace(/ /g, "_");
+          const catRef = doc(db, "categories", catId);
+          const catSnap = await getDoc(catRef);
+          if (!catSnap.exists()) {
+            await setDoc(catRef, {
+              id: catId,
+              storeId,
+              name: params.categoryName,
+              createdAt: new Date().toISOString()
+            });
+          }
+        }
+      } 
+      else if (intent === "adjust_stock") {
+        if (!params.itemId) {
+          return res.status(400).json({ error: "No itemId parsed for adjustment" });
+        }
+        const itemRef = doc(db, "items", params.itemId);
+        const itemSnap = await getDoc(itemRef);
+        if (itemSnap.exists()) {
+          const oldStock = Number(itemSnap.data().currentStock) || 0;
+          const delta = Number(params.adjustmentQuantity) || 0;
+          const newStock = Math.max(0, oldStock + delta);
+
+          await updateDoc(itemRef, {
+            currentStock: newStock,
+            updatedAt: new Date().toISOString()
+          });
+
+          // Log movement
+          const movId = `mov-${Date.now()}`;
+          await setDoc(doc(db, "movements", movId), {
+            id: movId,
+            storeId,
+            itemId: params.itemId,
+            type: delta > 0 ? "received" : "shipped",
+            quantity: Math.abs(delta),
+            reason: params.reason || "AI Assistant Adjustment",
+            createdAt: new Date().toISOString()
+          });
+        } else {
+          return res.status(404).json({ error: `Product ID ${params.itemId} not found` });
+        }
+      } 
+      else if (intent === "record_sale") {
+        const saleId = `sale-${Date.now()}`;
+        const saleItems = params.saleItems || [];
+
+        // Log Sale
+        await setDoc(doc(db, "sales", saleId), {
+          id: saleId,
+          storeId,
+          customerName: params.customerName || "Walk-in Customer",
+          customerPhone: params.customerPhone || "",
+          items: saleItems,
+          totalNgn: Number(params.totalNgn) || 0,
+          isDebtSettlement: !!params.isDebtSettlement,
+          previousDebtPaidNgn: Number(params.previousDebtPaidNgn) || 0,
+          createdBy: "AI_ASSISTANT",
+          createdAt: new Date().toISOString()
+        });
+
+        // Decrement items stocks
+        for (const sItem of saleItems) {
+          if (sItem.itemId) {
+            const itemRef = doc(db, "items", sItem.itemId);
+            const itemSnap = await getDoc(itemRef);
+            if (itemSnap.exists()) {
+              const oldStock = Number(itemSnap.data().currentStock) || 0;
+              await updateDoc(itemRef, {
+                currentStock: Math.max(0, oldStock - Number(sItem.quantity)),
+                updatedAt: new Date().toISOString()
+              });
+            }
+          }
+        }
+      } 
+      else if (intent === "price_update") {
+        if (!params.priceItemId) {
+          return res.status(400).json({ error: "No product ID parsed for price update" });
+        }
+        const itemRef = doc(db, "items", params.priceItemId);
+        const itemSnap = await getDoc(itemRef);
+        if (itemSnap.exists()) {
+          await updateDoc(itemRef, {
+            sellingPrice: Number(params.newPrice) || 0,
+            updatedAt: new Date().toISOString()
+          });
+        } else {
+          return res.status(404).json({ error: `Product ID ${params.priceItemId} not found` });
+        }
+      } 
+      else if (intent === "reorder") {
+        // Create draft procurement restock order
+        const poId = `po-${Date.now()}`;
+        await setDoc(doc(db, "purchaseOrders", poId), {
+          id: poId,
+          storeId,
+          supplierId: params.supplierId || "general_supplier",
+          status: "draft",
+          items: (params.reorderItems || []).map((ri: { itemId?: string; name?: string; quantity?: number }) => ({
+            itemId: ri.itemId,
+            name: ri.name,
+            quantity: Number(ri.quantity) || 10,
+            unitCost: 0 // Draft cost is set by the merchant during submission
+          })),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      // 4. Update request status to completed and record credit depletion
+      await updateDoc(reqRef, {
+        status: "completed",
+        resultedInCreditCharge: !isBYOK
+      });
+
+      if (!isBYOK) {
+        const ledgerRef = doc(db, "aiCreditLedger", `${storeId}_${period}`);
+        await updateDoc(ledgerRef, {
+          creditsUsed: (ledger.creditsUsed || 0) + 1,
+          lastUpdated: new Date().toISOString()
+        });
+      }
+
+      res.json({
+        success: true,
+        intentExecuted: intent,
+        creditsCharged: isBYOK ? 0 : 1
+      });
+    } catch (err: unknown) {
+      console.error("[AI Execute Error]:", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Endpoint to cancel/dismiss pending action
+  app.post("/api/ai-assistant/cancel-intent", async (req, res) => {
+    const { requestId } = req.body;
+    if (!requestId) {
+      return res.status(400).json({ error: "requestId is required" });
+    }
+    try {
+      const db = await getServerDb();
+      const { doc, updateDoc } = await import("firebase/firestore");
+      await updateDoc(doc(db, "aiAssistantRequests", requestId), {
+        status: "cancelled_by_user"
+      });
+      res.json({ success: true, message: "Action cancelled successfully" });
+    } catch (err: unknown) {
+      console.error("[AI Cancel Error]:", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   // Vite middleware or production build router serving
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

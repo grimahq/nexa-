@@ -2,9 +2,11 @@ import { createFileRoute, Outlet, useLocation, useNavigate } from "@tanstack/rea
 import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { cn } from "@/lib/utils";
 import { Header } from "@/components/layout/Header";
 import { DemoBanner } from "@/components/layout/DemoBanner";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { AIAssistantWidget } from "@/components/layout/AIAssistantWidget";
 import { ShortcutsHelpDialog } from "@/components/command/ShortcutsHelpDialog";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { useDemo } from "@/hooks/useDemo";
@@ -40,6 +42,18 @@ function AppLayout() {
   const [memberOnboarding, setMemberOnboarding] = useState(false);
   const [lockedFeatures, setLockedFeatures] = useState<string[]>([]);
   const { data: notifications } = useNotifications();
+
+  const [sidebarMinimized, setSidebarMinimized] = useState(() => {
+    return localStorage.getItem("nexa_sidebar_minimized") === "true";
+  });
+
+  const toggleSidebarMinimize = () => {
+    setSidebarMinimized(prev => {
+      const newVal = !prev;
+      localStorage.setItem("nexa_sidebar_minimized", String(newVal));
+      return newVal;
+    });
+  };
 
   // Initialize dark mode on mount
   useEffect(() => {
@@ -162,6 +176,9 @@ function AppLayout() {
     moniepointKey?: string;
     storeSlug?: string;
     electronicsMainType?: "devices" | "accessories" | "both";
+    textilePrimarilySellsBy?: "yard" | "roll" | "both";
+    textileSubcategories?: { id: string; label: string; emoji: string; supportedUnits?: string[] }[];
+    boutiqueSubcategories?: { id: string; label: string; emoji: string; supportedUnits?: string[] }[];
     initialItems?: PendingProduct[];
     country?: string;
     state?: string;
@@ -176,6 +193,9 @@ function AppLayout() {
         moniepointKey: data.moniepointKey,
         storeSlug: data.storeSlug,
         electronicsMainType: data.electronicsMainType,
+        textilePrimarilySellsBy: data.textilePrimarilySellsBy,
+        textileSubcategories: data.textileSubcategories,
+        boutiqueSubcategories: data.boutiqueSubcategories,
         country: data.country || "Nigeria",
         state: data.state || "",
         lga: data.lga || "",
@@ -187,6 +207,14 @@ function AppLayout() {
         const batch = writeBatch(db);
         data.initialItems.forEach(item => {
           const itemRef = doc(collection(db, "items"));
+          
+          let conversions = undefined;
+          if (data.businessType === "textile" && item.name.toLowerCase().includes("ankara")) {
+            conversions = [
+              { unitId: "roll", multiplier: 10, priceNgn: 35000 }
+            ];
+          }
+
           batch.set(itemRef, {
             id: itemRef.id,
             storeId: profile.storeId,
@@ -199,6 +227,12 @@ function AppLayout() {
             status: "active",
             reorderPoint: 5,
             categoryId: item.categoryId || (data.categories && data.categories[0]) || "misc",
+            unitConversions: conversions,
+            color: item.color || "",
+            sizes: item.sizes || "",
+            enableColours: item.enableColours || false,
+            enableSizes: item.enableSizes || false,
+            fineTunedVariants: item.fineTunedVariants || null,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           });
@@ -309,11 +343,14 @@ function AppLayout() {
       )}
       {isDemo && <DemoBanner />}
       <div className="flex flex-1 overflow-hidden">
-        <aside className="hidden w-[260px] shrink-0 lg:block">
-          <Sidebar />
+        <aside className={cn(
+          "hidden shrink-0 lg:block transition-all duration-300 ease-in-out border-r border-border",
+          sidebarMinimized ? "w-[72px]" : "w-[260px]"
+        )}>
+          <Sidebar isMinimized={sidebarMinimized} onToggleMinimize={toggleSidebarMinimize} />
         </aside>
         <div className="flex flex-1 flex-col overflow-hidden">
-          <Header />
+          <Header isSidebarMinimized={sidebarMinimized} onToggleSidebar={toggleSidebarMinimize} />
           <main className="flex-1 overflow-y-auto p-4 pb-20 lg:p-8 lg:pb-8">
             <AnimatePresence mode="wait">
               <PageTransition routeKey={location.pathname}>
@@ -339,6 +376,7 @@ function AppLayout() {
         </div>
       </div>
       <BottomNav />
+      <AIAssistantWidget />
       <PushNotificationPrompt />
       <ShortcutsHelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
     </div>

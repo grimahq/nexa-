@@ -120,7 +120,22 @@ export function VariantCustomizerDialog({
     onOpenChange(false);
   };
 
-  const currentBasePrice = isTieredMode ? (Number(retailPrice) || item.sellingPrice) : item.sellingPrice;
+  const getVariantPrice = () => {
+    if (item.fineTunedVariants) {
+      const parts: string[] = [];
+      if (colors.length > 0 && selectedColor) parts.push(selectedColor);
+      if (sizes.length > 0 && selectedSize) parts.push(selectedSize);
+      
+      const key = parts.join(" - ");
+      const match = item.fineTunedVariants[key];
+      if (match && typeof match.price === "number") {
+        return match.price;
+      }
+    }
+    return isTieredMode ? (Number(retailPrice) || item.sellingPrice) : item.sellingPrice;
+  };
+
+  const currentBasePrice = getVariantPrice();
   const formattedPrice = (currentBasePrice * qty).toLocaleString(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,

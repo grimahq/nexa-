@@ -3,6 +3,7 @@ export interface FeatureFlags {
   crossBranchVisibility: boolean; // true = visible across all branches
   b2bMarketplace: boolean; // true = B2B catalog active
   maxBranches: number; // e.g., 1, 3, 10
+  aiAssistant?: boolean; // true = Enterprise AI Assistant active
 }
 
 export interface SubscriptionPlan {

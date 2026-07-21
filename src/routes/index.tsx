@@ -635,7 +635,18 @@ function LandingPage() {
     storeName: string;
     brandColor: string;
     electronicsMainType?: "devices" | "accessories" | "both";
-    initialItems?: Array<{ name: string; price: string; stock: string; unit: string; categoryId?: string }>;
+    initialItems?: Array<{ 
+      name: string; 
+      price: string; 
+      stock: string; 
+      unit: string; 
+      categoryId?: string;
+      color?: string;
+      sizes?: string;
+      enableColours?: boolean;
+      enableSizes?: boolean;
+      fineTunedVariants?: Record<string, { price: number; stock: number }>;
+    }>;
     country?: string;
     state?: string;
     lga?: string;
@@ -659,7 +670,12 @@ function LandingPage() {
           price: item.price,
           stock: item.stock,
           unit: item.unit,
-          categoryId: item.categoryId
+          categoryId: item.categoryId,
+          color: item.color,
+          sizes: item.sizes,
+          enableColours: item.enableColours,
+          enableSizes: item.enableSizes,
+          fineTunedVariants: item.fineTunedVariants
         }))
       });
       localStorage.setItem("stackwise-onboarding-done", "true");

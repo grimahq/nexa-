@@ -9,17 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as StoreRouteImport } from './routes/store'
 import { Route as AppRouteImport } from './routes/app'
-import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as StoreIndexRouteImport } from './routes/store.index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
-import { Route as StoreCartRouteImport } from './routes/store.cart'
-import { Route as StoreSlugRouteImport } from './routes/store.$slug'
-import { Route as AppTrackerRouteImport } from './routes/app.tracker'
 import { Route as AppSuppliersRouteImport } from './routes/app.suppliers'
-import { Route as AppSuperAdminRouteImport } from './routes/app.super-admin'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppSalesHistoryRouteImport } from './routes/app.sales-history'
 import { Route as AppSalesAnalyticsRouteImport } from './routes/app.sales-analytics'
@@ -31,39 +24,15 @@ import { Route as AppMovementsRouteImport } from './routes/app.movements'
 import { Route as AppLocationsRouteImport } from './routes/app.locations'
 import { Route as AppHelpRouteImport } from './routes/app.help'
 import { Route as AppExpensesRouteImport } from './routes/app.expenses'
-import { Route as AppEcommerceRouteImport } from './routes/app.ecommerce'
 import { Route as AppDashboardRouteImport } from './routes/app.dashboard'
 import { Route as AppCustomersRouteImport } from './routes/app.customers'
 import { Route as AppCatalogRouteImport } from './routes/app.catalog'
 import { Route as AppAnalyticsRouteImport } from './routes/app.analytics'
 import { Route as AppAiInsightsRouteImport } from './routes/app.ai-insights'
-import { Route as AppAffiliatesRouteImport } from './routes/app.affiliates'
-import { Route as AppSuperAdminIndexRouteImport } from './routes/app.super-admin.index'
-import { Route as StoreProductProductIdRouteImport } from './routes/store.product.$productId'
-import { Route as AppSuperAdminUsersRouteImport } from './routes/app.super-admin.users'
-import { Route as AppSuperAdminUpdatesRouteImport } from './routes/app.super-admin.updates'
-import { Route as AppSuperAdminSubscriptionsRouteImport } from './routes/app.super-admin.subscriptions'
-import { Route as AppSuperAdminStoresRouteImport } from './routes/app.super-admin.stores'
-import { Route as AppSuperAdminRetentionRouteImport } from './routes/app.super-admin.retention'
-import { Route as AppSuperAdminLandingRouteImport } from './routes/app.super-admin.landing'
-import { Route as AppSuperAdminChatsRouteImport } from './routes/app.super-admin.chats'
-import { Route as AppSuperAdminAttributionRouteImport } from './routes/app.super-admin.attribution'
-import { Route as AppSuperAdminAgentsNetworkRouteImport } from './routes/app.super-admin.agents-network'
-import { Route as AppSuperAdminAgentsRouteImport } from './routes/app.super-admin.agents'
 
-const StoreRoute = StoreRouteImport.update({
-  id: '/store',
-  path: '/store',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AppRoute = AppRouteImport.update({
   id: '/app',
   path: '/app',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AgentsRoute = AgentsRouteImport.update({
-  id: '/agents',
-  path: '/agents',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -71,39 +40,14 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const StoreIndexRoute = StoreIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => StoreRoute,
-} as any)
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const StoreCartRoute = StoreCartRouteImport.update({
-  id: '/cart',
-  path: '/cart',
-  getParentRoute: () => StoreRoute,
-} as any)
-const StoreSlugRoute = StoreSlugRouteImport.update({
-  id: '/$slug',
-  path: '/$slug',
-  getParentRoute: () => StoreRoute,
-} as any)
-const AppTrackerRoute = AppTrackerRouteImport.update({
-  id: '/tracker',
-  path: '/tracker',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppSuppliersRoute = AppSuppliersRouteImport.update({
   id: '/suppliers',
   path: '/suppliers',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSuperAdminRoute = AppSuperAdminRouteImport.update({
-  id: '/super-admin',
-  path: '/super-admin',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
@@ -161,11 +105,6 @@ const AppExpensesRoute = AppExpensesRouteImport.update({
   path: '/expenses',
   getParentRoute: () => AppRoute,
 } as any)
-const AppEcommerceRoute = AppEcommerceRouteImport.update({
-  id: '/ecommerce',
-  path: '/ecommerce',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -191,87 +130,15 @@ const AppAiInsightsRoute = AppAiInsightsRouteImport.update({
   path: '/ai-insights',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAffiliatesRoute = AppAffiliatesRouteImport.update({
-  id: '/affiliates',
-  path: '/affiliates',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSuperAdminIndexRoute = AppSuperAdminIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppSuperAdminRoute,
-} as any)
-const StoreProductProductIdRoute = StoreProductProductIdRouteImport.update({
-  id: '/product/$productId',
-  path: '/product/$productId',
-  getParentRoute: () => StoreRoute,
-} as any)
-const AppSuperAdminUsersRoute = AppSuperAdminUsersRouteImport.update({
-  id: '/users',
-  path: '/users',
-  getParentRoute: () => AppSuperAdminRoute,
-} as any)
-const AppSuperAdminUpdatesRoute = AppSuperAdminUpdatesRouteImport.update({
-  id: '/updates',
-  path: '/updates',
-  getParentRoute: () => AppSuperAdminRoute,
-} as any)
-const AppSuperAdminSubscriptionsRoute =
-  AppSuperAdminSubscriptionsRouteImport.update({
-    id: '/subscriptions',
-    path: '/subscriptions',
-    getParentRoute: () => AppSuperAdminRoute,
-  } as any)
-const AppSuperAdminStoresRoute = AppSuperAdminStoresRouteImport.update({
-  id: '/stores',
-  path: '/stores',
-  getParentRoute: () => AppSuperAdminRoute,
-} as any)
-const AppSuperAdminRetentionRoute = AppSuperAdminRetentionRouteImport.update({
-  id: '/retention',
-  path: '/retention',
-  getParentRoute: () => AppSuperAdminRoute,
-} as any)
-const AppSuperAdminLandingRoute = AppSuperAdminLandingRouteImport.update({
-  id: '/landing',
-  path: '/landing',
-  getParentRoute: () => AppSuperAdminRoute,
-} as any)
-const AppSuperAdminChatsRoute = AppSuperAdminChatsRouteImport.update({
-  id: '/chats',
-  path: '/chats',
-  getParentRoute: () => AppSuperAdminRoute,
-} as any)
-const AppSuperAdminAttributionRoute =
-  AppSuperAdminAttributionRouteImport.update({
-    id: '/attribution',
-    path: '/attribution',
-    getParentRoute: () => AppSuperAdminRoute,
-  } as any)
-const AppSuperAdminAgentsNetworkRoute =
-  AppSuperAdminAgentsNetworkRouteImport.update({
-    id: '/agents-network',
-    path: '/agents-network',
-    getParentRoute: () => AppSuperAdminRoute,
-  } as any)
-const AppSuperAdminAgentsRoute = AppSuperAdminAgentsRouteImport.update({
-  id: '/agents',
-  path: '/agents',
-  getParentRoute: () => AppSuperAdminRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/agents': typeof AgentsRoute
   '/app': typeof AppRouteWithChildren
-  '/store': typeof StoreRouteWithChildren
-  '/app/affiliates': typeof AppAffiliatesRoute
   '/app/ai-insights': typeof AppAiInsightsRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/catalog': typeof AppCatalogRoute
   '/app/customers': typeof AppCustomersRoute
   '/app/dashboard': typeof AppDashboardRoute
-  '/app/ecommerce': typeof AppEcommerceRoute
   '/app/expenses': typeof AppExpensesRoute
   '/app/help': typeof AppHelpRoute
   '/app/locations': typeof AppLocationsRoute
@@ -283,36 +150,16 @@ export interface FileRoutesByFullPath {
   '/app/sales-analytics': typeof AppSalesAnalyticsRoute
   '/app/sales-history': typeof AppSalesHistoryRoute
   '/app/settings': typeof AppSettingsRoute
-  '/app/super-admin': typeof AppSuperAdminRouteWithChildren
   '/app/suppliers': typeof AppSuppliersRoute
-  '/app/tracker': typeof AppTrackerRoute
-  '/store/$slug': typeof StoreSlugRoute
-  '/store/cart': typeof StoreCartRoute
   '/app/': typeof AppIndexRoute
-  '/store/': typeof StoreIndexRoute
-  '/app/super-admin/agents': typeof AppSuperAdminAgentsRoute
-  '/app/super-admin/agents-network': typeof AppSuperAdminAgentsNetworkRoute
-  '/app/super-admin/attribution': typeof AppSuperAdminAttributionRoute
-  '/app/super-admin/chats': typeof AppSuperAdminChatsRoute
-  '/app/super-admin/landing': typeof AppSuperAdminLandingRoute
-  '/app/super-admin/retention': typeof AppSuperAdminRetentionRoute
-  '/app/super-admin/stores': typeof AppSuperAdminStoresRoute
-  '/app/super-admin/subscriptions': typeof AppSuperAdminSubscriptionsRoute
-  '/app/super-admin/updates': typeof AppSuperAdminUpdatesRoute
-  '/app/super-admin/users': typeof AppSuperAdminUsersRoute
-  '/store/product/$productId': typeof StoreProductProductIdRoute
-  '/app/super-admin/': typeof AppSuperAdminIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/agents': typeof AgentsRoute
-  '/app/affiliates': typeof AppAffiliatesRoute
   '/app/ai-insights': typeof AppAiInsightsRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/catalog': typeof AppCatalogRoute
   '/app/customers': typeof AppCustomersRoute
   '/app/dashboard': typeof AppDashboardRoute
-  '/app/ecommerce': typeof AppEcommerceRoute
   '/app/expenses': typeof AppExpensesRoute
   '/app/help': typeof AppHelpRoute
   '/app/locations': typeof AppLocationsRoute
@@ -325,37 +172,17 @@ export interface FileRoutesByTo {
   '/app/sales-history': typeof AppSalesHistoryRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/suppliers': typeof AppSuppliersRoute
-  '/app/tracker': typeof AppTrackerRoute
-  '/store/$slug': typeof StoreSlugRoute
-  '/store/cart': typeof StoreCartRoute
   '/app': typeof AppIndexRoute
-  '/store': typeof StoreIndexRoute
-  '/app/super-admin/agents': typeof AppSuperAdminAgentsRoute
-  '/app/super-admin/agents-network': typeof AppSuperAdminAgentsNetworkRoute
-  '/app/super-admin/attribution': typeof AppSuperAdminAttributionRoute
-  '/app/super-admin/chats': typeof AppSuperAdminChatsRoute
-  '/app/super-admin/landing': typeof AppSuperAdminLandingRoute
-  '/app/super-admin/retention': typeof AppSuperAdminRetentionRoute
-  '/app/super-admin/stores': typeof AppSuperAdminStoresRoute
-  '/app/super-admin/subscriptions': typeof AppSuperAdminSubscriptionsRoute
-  '/app/super-admin/updates': typeof AppSuperAdminUpdatesRoute
-  '/app/super-admin/users': typeof AppSuperAdminUsersRoute
-  '/store/product/$productId': typeof StoreProductProductIdRoute
-  '/app/super-admin': typeof AppSuperAdminIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/agents': typeof AgentsRoute
   '/app': typeof AppRouteWithChildren
-  '/store': typeof StoreRouteWithChildren
-  '/app/affiliates': typeof AppAffiliatesRoute
   '/app/ai-insights': typeof AppAiInsightsRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/catalog': typeof AppCatalogRoute
   '/app/customers': typeof AppCustomersRoute
   '/app/dashboard': typeof AppDashboardRoute
-  '/app/ecommerce': typeof AppEcommerceRoute
   '/app/expenses': typeof AppExpensesRoute
   '/app/help': typeof AppHelpRoute
   '/app/locations': typeof AppLocationsRoute
@@ -367,40 +194,19 @@ export interface FileRoutesById {
   '/app/sales-analytics': typeof AppSalesAnalyticsRoute
   '/app/sales-history': typeof AppSalesHistoryRoute
   '/app/settings': typeof AppSettingsRoute
-  '/app/super-admin': typeof AppSuperAdminRouteWithChildren
   '/app/suppliers': typeof AppSuppliersRoute
-  '/app/tracker': typeof AppTrackerRoute
-  '/store/$slug': typeof StoreSlugRoute
-  '/store/cart': typeof StoreCartRoute
   '/app/': typeof AppIndexRoute
-  '/store/': typeof StoreIndexRoute
-  '/app/super-admin/agents': typeof AppSuperAdminAgentsRoute
-  '/app/super-admin/agents-network': typeof AppSuperAdminAgentsNetworkRoute
-  '/app/super-admin/attribution': typeof AppSuperAdminAttributionRoute
-  '/app/super-admin/chats': typeof AppSuperAdminChatsRoute
-  '/app/super-admin/landing': typeof AppSuperAdminLandingRoute
-  '/app/super-admin/retention': typeof AppSuperAdminRetentionRoute
-  '/app/super-admin/stores': typeof AppSuperAdminStoresRoute
-  '/app/super-admin/subscriptions': typeof AppSuperAdminSubscriptionsRoute
-  '/app/super-admin/updates': typeof AppSuperAdminUpdatesRoute
-  '/app/super-admin/users': typeof AppSuperAdminUsersRoute
-  '/store/product/$productId': typeof StoreProductProductIdRoute
-  '/app/super-admin/': typeof AppSuperAdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/agents'
     | '/app'
-    | '/store'
-    | '/app/affiliates'
     | '/app/ai-insights'
     | '/app/analytics'
     | '/app/catalog'
     | '/app/customers'
     | '/app/dashboard'
-    | '/app/ecommerce'
     | '/app/expenses'
     | '/app/help'
     | '/app/locations'
@@ -412,36 +218,16 @@ export interface FileRouteTypes {
     | '/app/sales-analytics'
     | '/app/sales-history'
     | '/app/settings'
-    | '/app/super-admin'
     | '/app/suppliers'
-    | '/app/tracker'
-    | '/store/$slug'
-    | '/store/cart'
     | '/app/'
-    | '/store/'
-    | '/app/super-admin/agents'
-    | '/app/super-admin/agents-network'
-    | '/app/super-admin/attribution'
-    | '/app/super-admin/chats'
-    | '/app/super-admin/landing'
-    | '/app/super-admin/retention'
-    | '/app/super-admin/stores'
-    | '/app/super-admin/subscriptions'
-    | '/app/super-admin/updates'
-    | '/app/super-admin/users'
-    | '/store/product/$productId'
-    | '/app/super-admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/agents'
-    | '/app/affiliates'
     | '/app/ai-insights'
     | '/app/analytics'
     | '/app/catalog'
     | '/app/customers'
     | '/app/dashboard'
-    | '/app/ecommerce'
     | '/app/expenses'
     | '/app/help'
     | '/app/locations'
@@ -454,36 +240,16 @@ export interface FileRouteTypes {
     | '/app/sales-history'
     | '/app/settings'
     | '/app/suppliers'
-    | '/app/tracker'
-    | '/store/$slug'
-    | '/store/cart'
     | '/app'
-    | '/store'
-    | '/app/super-admin/agents'
-    | '/app/super-admin/agents-network'
-    | '/app/super-admin/attribution'
-    | '/app/super-admin/chats'
-    | '/app/super-admin/landing'
-    | '/app/super-admin/retention'
-    | '/app/super-admin/stores'
-    | '/app/super-admin/subscriptions'
-    | '/app/super-admin/updates'
-    | '/app/super-admin/users'
-    | '/store/product/$productId'
-    | '/app/super-admin'
   id:
     | '__root__'
     | '/'
-    | '/agents'
     | '/app'
-    | '/store'
-    | '/app/affiliates'
     | '/app/ai-insights'
     | '/app/analytics'
     | '/app/catalog'
     | '/app/customers'
     | '/app/dashboard'
-    | '/app/ecommerce'
     | '/app/expenses'
     | '/app/help'
     | '/app/locations'
@@ -495,55 +261,22 @@ export interface FileRouteTypes {
     | '/app/sales-analytics'
     | '/app/sales-history'
     | '/app/settings'
-    | '/app/super-admin'
     | '/app/suppliers'
-    | '/app/tracker'
-    | '/store/$slug'
-    | '/store/cart'
     | '/app/'
-    | '/store/'
-    | '/app/super-admin/agents'
-    | '/app/super-admin/agents-network'
-    | '/app/super-admin/attribution'
-    | '/app/super-admin/chats'
-    | '/app/super-admin/landing'
-    | '/app/super-admin/retention'
-    | '/app/super-admin/stores'
-    | '/app/super-admin/subscriptions'
-    | '/app/super-admin/updates'
-    | '/app/super-admin/users'
-    | '/store/product/$productId'
-    | '/app/super-admin/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AgentsRoute: typeof AgentsRoute
   AppRoute: typeof AppRouteWithChildren
-  StoreRoute: typeof StoreRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/store': {
-      id: '/store'
-      path: '/store'
-      fullPath: '/store'
-      preLoaderRoute: typeof StoreRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/app': {
       id: '/app'
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AppRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/agents': {
-      id: '/agents'
-      path: '/agents'
-      fullPath: '/agents'
-      preLoaderRoute: typeof AgentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -553,13 +286,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/store/': {
-      id: '/store/'
-      path: '/'
-      fullPath: '/store/'
-      preLoaderRoute: typeof StoreIndexRouteImport
-      parentRoute: typeof StoreRoute
-    }
     '/app/': {
       id: '/app/'
       path: '/'
@@ -567,39 +293,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/store/cart': {
-      id: '/store/cart'
-      path: '/cart'
-      fullPath: '/store/cart'
-      preLoaderRoute: typeof StoreCartRouteImport
-      parentRoute: typeof StoreRoute
-    }
-    '/store/$slug': {
-      id: '/store/$slug'
-      path: '/$slug'
-      fullPath: '/store/$slug'
-      preLoaderRoute: typeof StoreSlugRouteImport
-      parentRoute: typeof StoreRoute
-    }
-    '/app/tracker': {
-      id: '/app/tracker'
-      path: '/tracker'
-      fullPath: '/app/tracker'
-      preLoaderRoute: typeof AppTrackerRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/app/suppliers': {
       id: '/app/suppliers'
       path: '/suppliers'
       fullPath: '/app/suppliers'
       preLoaderRoute: typeof AppSuppliersRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/super-admin': {
-      id: '/app/super-admin'
-      path: '/super-admin'
-      fullPath: '/app/super-admin'
-      preLoaderRoute: typeof AppSuperAdminRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/settings': {
@@ -679,13 +377,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppExpensesRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/ecommerce': {
-      id: '/app/ecommerce'
-      path: '/ecommerce'
-      fullPath: '/app/ecommerce'
-      preLoaderRoute: typeof AppEcommerceRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/app/dashboard': {
       id: '/app/dashboard'
       path: '/dashboard'
@@ -721,140 +412,15 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAiInsightsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/affiliates': {
-      id: '/app/affiliates'
-      path: '/affiliates'
-      fullPath: '/app/affiliates'
-      preLoaderRoute: typeof AppAffiliatesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/super-admin/': {
-      id: '/app/super-admin/'
-      path: '/'
-      fullPath: '/app/super-admin/'
-      preLoaderRoute: typeof AppSuperAdminIndexRouteImport
-      parentRoute: typeof AppSuperAdminRoute
-    }
-    '/store/product/$productId': {
-      id: '/store/product/$productId'
-      path: '/product/$productId'
-      fullPath: '/store/product/$productId'
-      preLoaderRoute: typeof StoreProductProductIdRouteImport
-      parentRoute: typeof StoreRoute
-    }
-    '/app/super-admin/users': {
-      id: '/app/super-admin/users'
-      path: '/users'
-      fullPath: '/app/super-admin/users'
-      preLoaderRoute: typeof AppSuperAdminUsersRouteImport
-      parentRoute: typeof AppSuperAdminRoute
-    }
-    '/app/super-admin/updates': {
-      id: '/app/super-admin/updates'
-      path: '/updates'
-      fullPath: '/app/super-admin/updates'
-      preLoaderRoute: typeof AppSuperAdminUpdatesRouteImport
-      parentRoute: typeof AppSuperAdminRoute
-    }
-    '/app/super-admin/subscriptions': {
-      id: '/app/super-admin/subscriptions'
-      path: '/subscriptions'
-      fullPath: '/app/super-admin/subscriptions'
-      preLoaderRoute: typeof AppSuperAdminSubscriptionsRouteImport
-      parentRoute: typeof AppSuperAdminRoute
-    }
-    '/app/super-admin/stores': {
-      id: '/app/super-admin/stores'
-      path: '/stores'
-      fullPath: '/app/super-admin/stores'
-      preLoaderRoute: typeof AppSuperAdminStoresRouteImport
-      parentRoute: typeof AppSuperAdminRoute
-    }
-    '/app/super-admin/retention': {
-      id: '/app/super-admin/retention'
-      path: '/retention'
-      fullPath: '/app/super-admin/retention'
-      preLoaderRoute: typeof AppSuperAdminRetentionRouteImport
-      parentRoute: typeof AppSuperAdminRoute
-    }
-    '/app/super-admin/landing': {
-      id: '/app/super-admin/landing'
-      path: '/landing'
-      fullPath: '/app/super-admin/landing'
-      preLoaderRoute: typeof AppSuperAdminLandingRouteImport
-      parentRoute: typeof AppSuperAdminRoute
-    }
-    '/app/super-admin/chats': {
-      id: '/app/super-admin/chats'
-      path: '/chats'
-      fullPath: '/app/super-admin/chats'
-      preLoaderRoute: typeof AppSuperAdminChatsRouteImport
-      parentRoute: typeof AppSuperAdminRoute
-    }
-    '/app/super-admin/attribution': {
-      id: '/app/super-admin/attribution'
-      path: '/attribution'
-      fullPath: '/app/super-admin/attribution'
-      preLoaderRoute: typeof AppSuperAdminAttributionRouteImport
-      parentRoute: typeof AppSuperAdminRoute
-    }
-    '/app/super-admin/agents-network': {
-      id: '/app/super-admin/agents-network'
-      path: '/agents-network'
-      fullPath: '/app/super-admin/agents-network'
-      preLoaderRoute: typeof AppSuperAdminAgentsNetworkRouteImport
-      parentRoute: typeof AppSuperAdminRoute
-    }
-    '/app/super-admin/agents': {
-      id: '/app/super-admin/agents'
-      path: '/agents'
-      fullPath: '/app/super-admin/agents'
-      preLoaderRoute: typeof AppSuperAdminAgentsRouteImport
-      parentRoute: typeof AppSuperAdminRoute
-    }
   }
 }
 
-interface AppSuperAdminRouteChildren {
-  AppSuperAdminAgentsRoute: typeof AppSuperAdminAgentsRoute
-  AppSuperAdminAgentsNetworkRoute: typeof AppSuperAdminAgentsNetworkRoute
-  AppSuperAdminAttributionRoute: typeof AppSuperAdminAttributionRoute
-  AppSuperAdminChatsRoute: typeof AppSuperAdminChatsRoute
-  AppSuperAdminLandingRoute: typeof AppSuperAdminLandingRoute
-  AppSuperAdminRetentionRoute: typeof AppSuperAdminRetentionRoute
-  AppSuperAdminStoresRoute: typeof AppSuperAdminStoresRoute
-  AppSuperAdminSubscriptionsRoute: typeof AppSuperAdminSubscriptionsRoute
-  AppSuperAdminUpdatesRoute: typeof AppSuperAdminUpdatesRoute
-  AppSuperAdminUsersRoute: typeof AppSuperAdminUsersRoute
-  AppSuperAdminIndexRoute: typeof AppSuperAdminIndexRoute
-}
-
-const AppSuperAdminRouteChildren: AppSuperAdminRouteChildren = {
-  AppSuperAdminAgentsRoute: AppSuperAdminAgentsRoute,
-  AppSuperAdminAgentsNetworkRoute: AppSuperAdminAgentsNetworkRoute,
-  AppSuperAdminAttributionRoute: AppSuperAdminAttributionRoute,
-  AppSuperAdminChatsRoute: AppSuperAdminChatsRoute,
-  AppSuperAdminLandingRoute: AppSuperAdminLandingRoute,
-  AppSuperAdminRetentionRoute: AppSuperAdminRetentionRoute,
-  AppSuperAdminStoresRoute: AppSuperAdminStoresRoute,
-  AppSuperAdminSubscriptionsRoute: AppSuperAdminSubscriptionsRoute,
-  AppSuperAdminUpdatesRoute: AppSuperAdminUpdatesRoute,
-  AppSuperAdminUsersRoute: AppSuperAdminUsersRoute,
-  AppSuperAdminIndexRoute: AppSuperAdminIndexRoute,
-}
-
-const AppSuperAdminRouteWithChildren = AppSuperAdminRoute._addFileChildren(
-  AppSuperAdminRouteChildren,
-)
-
 interface AppRouteChildren {
-  AppAffiliatesRoute: typeof AppAffiliatesRoute
   AppAiInsightsRoute: typeof AppAiInsightsRoute
   AppAnalyticsRoute: typeof AppAnalyticsRoute
   AppCatalogRoute: typeof AppCatalogRoute
   AppCustomersRoute: typeof AppCustomersRoute
   AppDashboardRoute: typeof AppDashboardRoute
-  AppEcommerceRoute: typeof AppEcommerceRoute
   AppExpensesRoute: typeof AppExpensesRoute
   AppHelpRoute: typeof AppHelpRoute
   AppLocationsRoute: typeof AppLocationsRoute
@@ -866,20 +432,16 @@ interface AppRouteChildren {
   AppSalesAnalyticsRoute: typeof AppSalesAnalyticsRoute
   AppSalesHistoryRoute: typeof AppSalesHistoryRoute
   AppSettingsRoute: typeof AppSettingsRoute
-  AppSuperAdminRoute: typeof AppSuperAdminRouteWithChildren
   AppSuppliersRoute: typeof AppSuppliersRoute
-  AppTrackerRoute: typeof AppTrackerRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppAffiliatesRoute: AppAffiliatesRoute,
   AppAiInsightsRoute: AppAiInsightsRoute,
   AppAnalyticsRoute: AppAnalyticsRoute,
   AppCatalogRoute: AppCatalogRoute,
   AppCustomersRoute: AppCustomersRoute,
   AppDashboardRoute: AppDashboardRoute,
-  AppEcommerceRoute: AppEcommerceRoute,
   AppExpensesRoute: AppExpensesRoute,
   AppHelpRoute: AppHelpRoute,
   AppLocationsRoute: AppLocationsRoute,
@@ -891,36 +453,25 @@ const AppRouteChildren: AppRouteChildren = {
   AppSalesAnalyticsRoute: AppSalesAnalyticsRoute,
   AppSalesHistoryRoute: AppSalesHistoryRoute,
   AppSettingsRoute: AppSettingsRoute,
-  AppSuperAdminRoute: AppSuperAdminRouteWithChildren,
   AppSuppliersRoute: AppSuppliersRoute,
-  AppTrackerRoute: AppTrackerRoute,
   AppIndexRoute: AppIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
-interface StoreRouteChildren {
-  StoreSlugRoute: typeof StoreSlugRoute
-  StoreCartRoute: typeof StoreCartRoute
-  StoreIndexRoute: typeof StoreIndexRoute
-  StoreProductProductIdRoute: typeof StoreProductProductIdRoute
-}
-
-const StoreRouteChildren: StoreRouteChildren = {
-  StoreSlugRoute: StoreSlugRoute,
-  StoreCartRoute: StoreCartRoute,
-  StoreIndexRoute: StoreIndexRoute,
-  StoreProductProductIdRoute: StoreProductProductIdRoute,
-}
-
-const StoreRouteWithChildren = StoreRoute._addFileChildren(StoreRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AgentsRoute: AgentsRoute,
   AppRoute: AppRouteWithChildren,
-  StoreRoute: StoreRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

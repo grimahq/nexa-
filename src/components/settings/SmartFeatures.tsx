@@ -15,15 +15,21 @@ import {
   ArrowRight,
   Shield,
   Info,
-  ChevronRight
+  ChevronRight,
+  Key,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
+import { PaymentDialog } from "./PaymentDialog";
 
 interface SmartFeature {
   id: string;
@@ -97,7 +103,38 @@ const SMART_FEATURES_LIST: SmartFeature[] = [
 
 export function SmartFeatures() {
   const { flags } = useFeatureFlags();
+  const { settings, updateSettings } = useSystemSettings();
   const currentTier = flags.planId || "starter"; // "starter", "professional", "enterprise"
+
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [selectedTargetTier, setSelectedTargetTier] = useState<"starter" | "professional" | "enterprise">("professional");
+
+  const [enterpriseApiKey, setEnterpriseApiKey] = useState(settings.aiAssistantApiKey || "");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isSavingApiKey, setIsSavingApiKey] = useState(false);
+
+  useEffect(() => {
+    setEnterpriseApiKey(settings.aiAssistantApiKey || "");
+  }, [settings.aiAssistantApiKey]);
+
+  const handleSaveApiKey = async () => {
+    if (currentTier !== "enterprise") {
+      toast.error("This option is only available on the Enterprise tier.");
+      return;
+    }
+    setIsSavingApiKey(true);
+    try {
+      await updateSettings({
+        aiAssistantApiKey: enterpriseApiKey.trim() || ""
+      });
+      toast.success("Custom Gemini API Key updated successfully!");
+    } catch (err: unknown) {
+      console.error("Failed to save API key:", err);
+      toast.error(`Failed to save key: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsSavingApiKey(false);
+    }
+  };
 
   // Load state from localStorage or use defaults
   const [featureStates, setFeatureStates] = useState<Record<string, boolean>>(() => {
@@ -335,6 +372,81 @@ export function SmartFeatures() {
             </CardContent>
           </Card>
 
+          {/* Enterprise Gemini API Key (BYOK) Card */}
+          <Card className={`shadow-xs border-border/80 transition-all duration-200 ${currentTier !== "enterprise" ? "bg-muted/10 opacity-90" : ""}`}>
+            <CardHeader className="pb-3 border-b border-border/40">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <Key className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Custom Gemini API Key (BYOK)
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-0.5">Bring Your Own Key to bypass AI Credit limits completely.</CardDescription>
+                </div>
+                {currentTier !== "enterprise" ? (
+                  <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 uppercase tracking-wider">
+                    <Lock className="h-3 w-3" /> Locked
+                  </div>
+                ) : (
+                  <Badge variant="outline" className="bg-emerald-500/5 text-emerald-600 border-emerald-500/20">Enterprise Enabled</Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4 relative">
+              {/* Lock overlay if not Enterprise */}
+              {currentTier !== "enterprise" && (
+                <div className="absolute inset-0 bg-muted/5 dark:bg-zinc-950/5 backdrop-blur-[0.5px] rounded-b-xl z-20 flex items-center justify-center pointer-events-none">
+                  <div className="bg-white dark:bg-zinc-900 border border-border shadow-md rounded-lg px-4 py-3 text-center pointer-events-auto max-w-xs transform translate-y-1">
+                    <Lock className="h-5 w-5 mx-auto mb-1.5 text-emerald-500" />
+                    <p className="text-xs font-bold text-foreground">Enterprise Feature</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5 font-sans">Provide your own Gemini API Key to run unlimited AI operations. Upgrade to the Enterprise Plan to unlock this field.</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Provide your personal Google AI Studio Gemini API Key. When configured, all AI Assistant requests (including voice transcriptions and image processing) will run through your custom key directly and will <strong>not</strong> deplete your store's AI credits.
+                </p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="enterpriseApiKey" className="text-xs font-semibold">Gemini API Key</Label>
+                  <div className="relative flex items-center">
+                    <Input
+                      id="enterpriseApiKey"
+                      type={showApiKey ? "text" : "password"}
+                      placeholder="AIzaSy..."
+                      value={enterpriseApiKey}
+                      onChange={(e) => setEnterpriseApiKey(e.target.value)}
+                      disabled={currentTier !== "enterprise" || isSavingApiKey}
+                      className="pr-10 text-xs font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      disabled={currentTier !== "enterprise"}
+                      className="absolute right-3 text-muted-foreground hover:text-foreground focus:outline-none disabled:opacity-50"
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Your API key is securely saved directly in your private database ledger.
+                  </p>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    onClick={handleSaveApiKey}
+                    disabled={currentTier !== "enterprise" || isSavingApiKey}
+                    className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white gap-2 shadow-xs"
+                  >
+                    {isSavingApiKey ? "Saving Key..." : "Save API Key"}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="flex justify-end gap-3 pt-2">
             <Button onClick={handleSave} className="gap-2 shadow-xs">
               <Save className="h-4 w-4" /> Save Configuration
@@ -368,6 +480,25 @@ export function SmartFeatures() {
                   <div className="flex items-center gap-1.5"><ChevronRight className="h-3 w-3 text-emerald-500" /> Low stock local alerts</div>
                   <div className="flex items-center gap-1.5"><ChevronRight className="h-3 w-3 text-emerald-500" /> Default receipts</div>
                 </div>
+                {currentTier === "starter" ? (
+                  <Button disabled className="w-full mt-3 h-8 text-[11px] font-bold" variant="secondary">Currently Active</Button>
+                ) : (
+                  <Button 
+                    type="button" 
+                    onClick={async () => {
+                      try {
+                        await updateSettings({ subscriptionTier: "starter", subscriptionStatus: "active" });
+                        toast.success("Downgraded to Starter Plan successfully.");
+                      } catch (err) {
+                        toast.error("Failed to downgrade plan.");
+                      }
+                    }}
+                    className="w-full mt-3 h-8 text-[11px] font-bold" 
+                    variant="outline"
+                  >
+                    Select Starter
+                  </Button>
+                )}
               </div>
 
               {/* Professional Plan details */}
@@ -390,6 +521,20 @@ export function SmartFeatures() {
                   <div className="flex items-center gap-1.5"><ChevronRight className="h-3 w-3 text-purple-500" /> Cross-branch stock pools</div>
                   <div className="flex items-center gap-1.5"><ChevronRight className="h-3 w-3 text-purple-500" /> Daily summary dispatch logs</div>
                 </div>
+                {currentTier === "professional" ? (
+                  <Button disabled className="w-full mt-3 h-8 text-[11px] font-bold" variant="secondary">Currently Active</Button>
+                ) : (
+                  <Button 
+                    type="button" 
+                    onClick={() => {
+                      setSelectedTargetTier("professional");
+                      setPaymentOpen(true);
+                    }}
+                    className="w-full mt-3 h-8 text-[11px] font-bold bg-purple-600 hover:bg-purple-500 text-white"
+                  >
+                    Upgrade to Professional
+                  </Button>
+                )}
               </div>
 
               {/* Enterprise Plan details */}
@@ -409,11 +554,31 @@ export function SmartFeatures() {
                   <div className="flex items-center gap-1.5"><ChevronRight className="h-3 w-3 text-blue-500" /> Global B2B marketplace syndication</div>
                   <div className="flex items-center gap-1.5"><ChevronRight className="h-3 w-3 text-blue-500" /> AI Pricing & Demand analytics</div>
                 </div>
+                {currentTier === "enterprise" ? (
+                  <Button disabled className="w-full mt-3 h-8 text-[11px] font-bold" variant="secondary">Currently Active</Button>
+                ) : (
+                  <Button 
+                    type="button" 
+                    onClick={() => {
+                      setSelectedTargetTier("enterprise");
+                      setPaymentOpen(true);
+                    }}
+                    className="w-full mt-3 h-8 text-[11px] font-bold bg-blue-600 hover:bg-blue-500 text-white"
+                  >
+                    Upgrade to Enterprise
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      <PaymentDialog 
+        open={paymentOpen} 
+        onOpenChange={setPaymentOpen} 
+        targetTier={selectedTargetTier} 
+      />
     </div>
   );
 }

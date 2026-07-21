@@ -30,9 +30,13 @@ export interface StoreSettings {
   logoUrl?: string;
   businessType?: string;
   electronicsMainType?: "devices" | "accessories" | "both";
+  textilePrimarilySellsBy?: "yard" | "roll" | "both";
+  textileSubcategories?: { id: string; label: string; emoji: string; supportedUnits?: string[] }[];
+  boutiqueSubcategories?: { id: string; label: string; emoji: string; supportedUnits?: string[] }[];
   categories: string[];
   isOnboarded: boolean;
   moniepointKey?: string;
+  aiAssistantApiKey?: string;
   storeSlug?: string;
   onboardedAt?: string;
   onboardedBy?: string;

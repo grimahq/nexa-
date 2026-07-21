@@ -13,7 +13,18 @@ export interface OnboardingSelection {
   taxRate: number;
   brandColor?: string;
   logoUrl?: string;
-  initialItems?: Array<{ name: string; price: string; stock: string; unit: string; categoryId?: string }>;
+  initialItems?: Array<{ 
+    name: string; 
+    price: string; 
+    stock: string; 
+    unit: string; 
+    categoryId?: string;
+    color?: string;
+    sizes?: string;
+    enableColours?: boolean;
+    enableSizes?: boolean;
+    fineTunedVariants?: Record<string, { price: number; stock: number }>;
+  }>;
   currency?: string;
   country?: string;
   state?: string;
@@ -51,6 +62,14 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       // For now, let's just prepend/add them to the store
       ob.initialItems.forEach((pi, idx) => {
         const unitType = (SUPPORTED_UNITS.find(u => u.id === pi.unit)?.type || "count") as Item["unitType"];
+        
+        let conversions = undefined;
+        if (ob.businessType === "textile" && pi.name.toLowerCase().includes("ankara")) {
+          conversions = [
+            { unitId: "roll", multiplier: 10, priceNgn: 35000 }
+          ];
+        }
+
         s.createItem({
           id: `new-${idx}-${Date.now()}`,
           sku: `SKU-${100 + idx}`,
@@ -65,6 +84,12 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           reorderQuantity: 10,
           costPrice: parseFloat(pi.price) * 0.7, // Assume 30% margin for demo
           sellingPrice: parseFloat(pi.price) || 0,
+          unitConversions: conversions,
+          color: pi.color || "",
+          sizes: pi.sizes || "",
+          enableColours: pi.enableColours || false,
+          enableSizes: pi.enableSizes || false,
+          fineTunedVariants: pi.fineTunedVariants || null,
           supplierId: "sup-01",
           locationId: "loc-01",
           isEcommerceEnabled: true,

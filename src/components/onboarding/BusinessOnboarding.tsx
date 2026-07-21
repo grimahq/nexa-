@@ -35,6 +35,7 @@ const BUSINESS_TYPES = [
   { id: "pharmacy", label: "Pharmacy / Health", icon: Pill, description: "Medicines, medical supplies & prescriptions" },
   { id: "manufacturing", label: "Manufacturing", icon: Factory, description: "Production lines and raw materials" },
   { id: "textile", label: "Textiles / Fashion", icon: Scissors, description: "Fabrics, yards, and materials" },
+  { id: "boutique", label: "Boutique / Clothing", icon: Scissors, description: "Clothing, shoes, and accessories" },
   { id: "wholesale", label: "Wholesale", icon: Warehouse, description: "Bulk sales to other businesses" },
   { id: "general", label: "General Inventory", icon: Package, description: "Flexible for any business" },
 ] as const;
@@ -47,6 +48,13 @@ const CATEGORY_MAP: Record<string, { id: string; label: string; emoji: string; s
     { id: "beauty", label: "Beauty & Health", emoji: "💄", supportedUnits: ["pcs", "pack", "bottle"] },
     { id: "home", label: "Home & Living", emoji: "🏠", supportedUnits: ["pcs", "pack"] },
     { id: "sports", label: "Sports & Fitness", emoji: "⚽", supportedUnits: ["pcs", "pack"] },
+  ],
+  boutique: [
+    { id: "shoes", label: "Shoes", emoji: "👟", supportedUnits: ["pcs", "pair"] },
+    { id: "tops", label: "Tops", emoji: "👕", supportedUnits: ["pcs", "pack"] },
+    { id: "bottoms", label: "Bottoms", emoji: "👖", supportedUnits: ["pcs", "pack"] },
+    { id: "dresses", label: "Dresses", emoji: "👗", supportedUnits: ["pcs"] },
+    { id: "accessories", label: "Accessories", emoji: "👜", supportedUnits: ["pcs", "pack"] },
   ],
   electronics: [
     { id: "devices", label: "Devices (Phones/Tablets)", emoji: "📱", supportedUnits: ["pcs"] },
@@ -185,6 +193,9 @@ interface BusinessOnboardingProps {
     moniepointKey?: string;
     storeSlug?: string;
     electronicsMainType?: "devices" | "accessories" | "both";
+    textilePrimarilySellsBy?: "yard" | "roll" | "both";
+    textileSubcategories?: { id: string; label: string; emoji: string; supportedUnits?: string[] }[];
+    boutiqueSubcategories?: { id: string; label: string; emoji: string; supportedUnits?: string[] }[];
     initialItems?: PendingProduct[];
     country?: string;
     state?: string;
@@ -203,6 +214,25 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
   const [country, setCountry] = useState("Nigeria");
   const [state, setState] = useState("");
   const [lga, setLga] = useState("");
+
+  const [textilePrimarilySellsBy, setTextilePrimarilySellsBy] = useState<"yard" | "roll" | "both">("both");
+  const [textileSubcategories, setTextileSubcategories] = useState<{ id: string; label: string; emoji: string; supportedUnits?: string[] }[]>([
+    { id: "ankara", label: "Ankara", emoji: "🎨", supportedUnits: ["yard", "roll"] },
+    { id: "lace", label: "Lace", emoji: "✨", supportedUnits: ["yard", "roll"] },
+    { id: "cotton_plain", label: "Cotton/Plain", emoji: "🧵", supportedUnits: ["yard", "roll"] },
+    { id: "aso_oke", label: "Aso-oke", emoji: "👑", supportedUnits: ["yard", "roll"] },
+    { id: "adire", label: "Adire", emoji: "🎨", supportedUnits: ["yard", "roll"] },
+  ]);
+  const [newSubcategoryName, setNewSubcategoryName] = useState("");
+
+  const [boutiqueSubcategories, setBoutiqueSubcategories] = useState<{ id: string; label: string; emoji: string; supportedUnits?: string[] }[]>([
+    { id: "shoes", label: "Shoes", emoji: "👟", supportedUnits: ["pcs", "pair"] },
+    { id: "tops", label: "Tops", emoji: "👕", supportedUnits: ["pcs", "pack"] },
+    { id: "bottoms", label: "Bottoms", emoji: "👖", supportedUnits: ["pcs", "pack"] },
+    { id: "dresses", label: "Dresses", emoji: "👗", supportedUnits: ["pcs"] },
+    { id: "accessories", label: "Accessories", emoji: "👜", supportedUnits: ["pcs", "pack"] },
+  ]);
+  const [newBoutiqueSubcategoryName, setNewBoutiqueSubcategoryName] = useState("");
 
   useEffect(() => {
     const intended = sessionStorage.getItem("nexa_intended_business");
@@ -238,6 +268,10 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
         setStep(25); // Step 2.5: Online Store Config
       } else if (selectedBusiness === "electronics") {
         setStep(28); // Electronics Clarifying Question
+      } else if (selectedBusiness === "textile") {
+        setStep(27); // Textiles Clarifying Question
+      } else if (selectedBusiness === "boutique") {
+        setStep(29); // Boutique Subcategories Config
       } else {
         setStep(3);
         setSelectedCategories(new Set());
@@ -245,6 +279,32 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
     } else if (step === 25) {
       setStep(3);
       setSelectedCategories(new Set());
+    } else if (step === 27) {
+      // Textiles: auto-select all configured subcategories
+      const cats = new Set(textileSubcategories.map(c => c.id));
+      setSelectedCategories(cats);
+
+      // Prepopulate bulk entry with textiles
+      const templates: PendingProduct[] = [
+        { id: "1", name: "Ankara Lace (Ankara Roll)", price: "35000", stock: "10", unit: "roll", categoryId: "ankara" },
+        { id: "2", name: "White Cord Lace Fabric", price: "8000", stock: "50", unit: "yard", categoryId: "lace" },
+        { id: "3", name: "Premium Plain Cotton", price: "1800", stock: "150", unit: "yard", categoryId: "cotton_plain" }
+      ];
+      setPendingProducts(templates);
+      setStep(3.5);
+    } else if (step === 29) {
+      // Boutique: auto-select all configured subcategories
+      const cats = new Set(boutiqueSubcategories.map(c => c.id));
+      setSelectedCategories(cats);
+
+      // Prepopulate bulk entry with boutique templates
+      const templates: PendingProduct[] = [
+        { id: "1", name: "Premium Leather Shoes", price: "32000", stock: "30", unit: "pair", categoryId: "shoes" },
+        { id: "2", name: "High-Waist Denim Jeans", price: "16500", stock: "50", unit: "pcs", categoryId: "bottoms" },
+        { id: "3", name: "Cotton V-Neck T-Shirt", price: "7500", stock: "100", unit: "pcs", categoryId: "tops" }
+      ];
+      setPendingProducts(templates);
+      setStep(3.5);
     } else if (step === 3 && selectedCategories.size > 0) {
       setStep(3.5);
     } else if (step === 3.5) {
@@ -261,7 +321,11 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
     }
   };
 
-  const allCategories = selectedBusiness ? CATEGORY_MAP[selectedBusiness] ?? [] : [];
+  const allCategories = selectedBusiness === "textile"
+    ? textileSubcategories
+    : selectedBusiness === "boutique"
+    ? boutiqueSubcategories
+    : (selectedBusiness ? CATEGORY_MAP[selectedBusiness] ?? [] : []);
   const activeCategories = allCategories.filter(c => selectedCategories.has(c.id));
   const bulkEntryCategories = activeCategories.length > 0 ? activeCategories : allCategories;
 
@@ -275,6 +339,9 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
         moniepointKey,
         storeSlug,
         electronicsMainType: selectedBusiness === "electronics" ? electronicsMainType : undefined,
+        textilePrimarilySellsBy: selectedBusiness === "textile" ? textilePrimarilySellsBy : undefined,
+        textileSubcategories: selectedBusiness === "textile" ? textileSubcategories : undefined,
+        boutiqueSubcategories: selectedBusiness === "boutique" ? boutiqueSubcategories : undefined,
         initialItems: pendingProducts
           .filter(p => p.name.trim() !== "")
           .map(p => ({
@@ -302,13 +369,16 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
       >
         {/* Progress */}
         <div className="mb-6 flex items-center gap-2">
-          {[0, 1, 2, 25, 28, 3, 3.5, 4].map((i) => {
+          {[0, 1, 2, 25, 28, 27, 3, 3.5, 4].map((i) => {
             if (i === 25 && selectedBusiness !== "social_commerce") return null;
             if (i === 28 && selectedBusiness !== "electronics") return null;
+            if (i === 27 && selectedBusiness !== "textile") return null;
             let active = false;
             if (i === 25) {
               active = step > 2;
             } else if (i === 28) {
+              active = step > 2;
+            } else if (i === 27) {
               active = step > 2;
             } else if (i === 3.5) {
               active = step >= 3.5;
@@ -672,6 +742,270 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
                   }} 
                   disabled={!electronicsMainType} 
                   className="gap-1.5" 
+                  style={{ backgroundColor: brandColor, color: "#fff" }}
+                >
+                  Next <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 29: Boutique Clarifying Question & Subcategories */}
+          {step === 29 && (
+            <motion.div
+              key="step-29"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-5"
+            >
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Configure Boutique & Clothing</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Manage your clothing subcategories or size profiles.</p>
+              </div>
+
+              {/* Subcategories Management */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Boutique Subcategories</Label>
+                  <span className="text-xs text-muted-foreground">Suggested (editable/removable)</span>
+                </div>
+
+                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                  {boutiqueSubcategories.map((sub, idx) => (
+                    <div key={sub.id} className="flex items-center gap-2">
+                      <span className="text-lg">{sub.emoji}</span>
+                      <Input
+                        value={sub.label}
+                        onChange={(e) => {
+                          const updated = [...boutiqueSubcategories];
+                          updated[idx] = { ...updated[idx], label: e.target.value };
+                          setBoutiqueSubcategories(updated);
+                        }}
+                        className="h-9 text-sm text-foreground bg-background animate-in fade-in duration-200"
+                        placeholder="Subcategory Name"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          const updated = boutiqueSubcategories.filter((_, i) => i !== idx);
+                          setBoutiqueSubcategories(updated);
+                        }}
+                        className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                      >
+                        <span className="text-lg font-bold">×</span>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add Subcategory */}
+                <div className="flex gap-2">
+                  <Input
+                    value={newBoutiqueSubcategoryName}
+                    onChange={(e) => setNewBoutiqueSubcategoryName(e.target.value)}
+                    placeholder="e.g. Traditional, Swimwear, Loungewear"
+                    className="h-9 text-sm text-foreground bg-background"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newBoutiqueSubcategoryName.trim()) {
+                        e.preventDefault();
+                        const id = newBoutiqueSubcategoryName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+                        if (!boutiqueSubcategories.some(s => s.id === id)) {
+                          setBoutiqueSubcategories([...boutiqueSubcategories, {
+                            id,
+                            label: newBoutiqueSubcategoryName.trim(),
+                            emoji: "👗",
+                            supportedUnits: ["pcs", "pair", "pack"]
+                          }]);
+                        }
+                        setNewBoutiqueSubcategoryName("");
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (newBoutiqueSubcategoryName.trim()) {
+                        const id = newBoutiqueSubcategoryName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+                        if (!boutiqueSubcategories.some(s => s.id === id)) {
+                          setBoutiqueSubcategories([...boutiqueSubcategories, {
+                            id,
+                            label: newBoutiqueSubcategoryName.trim(),
+                            emoji: "👗",
+                            supportedUnits: ["pcs", "pair", "pack"]
+                          }]);
+                        }
+                        setNewBoutiqueSubcategoryName("");
+                      }
+                    }}
+                    size="sm"
+                    className="h-9 px-3 shrink-0"
+                  >
+                    Add
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <Button variant="ghost" onClick={() => setStep(2)} className="gap-1.5">
+                  <ArrowLeft className="h-4 w-4" /> Back
+                </Button>
+                <Button 
+                  onClick={handleNext} 
+                  disabled={boutiqueSubcategories.length === 0}
+                  className="gap-1.5" 
+                  style={{ backgroundColor: brandColor, color: "#fff" }}
+                >
+                  Next <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 27: Textiles Clarifying Question & Subcategories */}
+          {step === 27 && (
+            <motion.div
+              key="step-27"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-5"
+            >
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Configure Textiles & Yards</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Set up default units and manage your fabric subcategories.</p>
+              </div>
+
+              {/* Unit Selection */}
+              <div className="space-y-2.5">
+                <Label className="text-sm font-semibold">How do you primarily sell fabric?</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: "yard", label: "primarily by Yard", desc: "Yard defaults" },
+                    { id: "roll", label: "primarily by Roll", desc: "Roll defaults" },
+                    { id: "both", label: "Both Yard & Roll", desc: "Sets both units" }
+                  ].map((u) => {
+                    const isSelected = textilePrimarilySellsBy === u.id;
+                    return (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => setTextilePrimarilySellsBy(u.id as "yard" | "roll" | "both")}
+                        className={cn(
+                          "flex flex-col items-center justify-center rounded-xl border p-2.5 text-center transition-all cursor-pointer select-none",
+                          isSelected
+                            ? "border-primary bg-primary/5 text-foreground"
+                            : "border-border text-muted-foreground hover:bg-accent/10"
+                        )}
+                        style={
+                          isSelected ? { 
+                            borderColor: brandColor, 
+                            backgroundColor: `${brandColor}0a` 
+                          } : {}
+                        }
+                      >
+                        <span className="text-xs font-semibold">{u.label}</span>
+                        <span className="text-[10px] opacity-70 mt-0.5">{u.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Subcategories Management */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Fabric Subcategories / Profiles</Label>
+                  <span className="text-xs text-muted-foreground">Suggested (editable)</span>
+                </div>
+
+                <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                  {textileSubcategories.map((sub, idx) => (
+                    <div key={sub.id} className="flex items-center gap-2">
+                      <span className="text-lg">{sub.emoji}</span>
+                      <Input
+                        value={sub.label}
+                        onChange={(e) => {
+                          const updated = [...textileSubcategories];
+                          updated[idx] = { ...updated[idx], label: e.target.value };
+                          setTextileSubcategories(updated);
+                        }}
+                        className="h-9 text-sm text-foreground bg-background"
+                        placeholder="Subcategory Name"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          const updated = textileSubcategories.filter((_, i) => i !== idx);
+                          setTextileSubcategories(updated);
+                        }}
+                        className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                      >
+                        <span className="text-lg font-bold">×</span>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add Subcategory */}
+                <div className="flex gap-2">
+                  <Input
+                    value={newSubcategoryName}
+                    onChange={(e) => setNewSubcategoryName(e.target.value)}
+                    placeholder="e.g. Silk, Brocade, Velvet"
+                    className="h-9 text-sm text-foreground bg-background"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newSubcategoryName.trim()) {
+                        e.preventDefault();
+                        const id = newSubcategoryName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+                        if (!textileSubcategories.some(s => s.id === id)) {
+                          setTextileSubcategories([...textileSubcategories, {
+                            id,
+                            label: newSubcategoryName.trim(),
+                            emoji: "🧵",
+                            supportedUnits: ["yard", "roll"]
+                          }]);
+                        }
+                        setNewSubcategoryName("");
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (newSubcategoryName.trim()) {
+                        const id = newSubcategoryName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+                        if (!textileSubcategories.some(s => s.id === id)) {
+                          setTextileSubcategories([...textileSubcategories, {
+                            id,
+                            label: newSubcategoryName.trim(),
+                            emoji: "🧵",
+                            supportedUnits: ["yard", "roll"]
+                          }]);
+                        }
+                        setNewSubcategoryName("");
+                      }
+                    }}
+                    className="h-9 px-3 shrink-0"
+                    style={{ backgroundColor: brandColor, color: "#fff" }}
+                  >
+                    Add
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <Button variant="ghost" onClick={() => setStep(2)} className="gap-1.5">
+                  <ArrowLeft className="h-4 w-4" /> Back
+                </Button>
+                <Button
+                  onClick={handleNext}
+                  disabled={textileSubcategories.length === 0}
+                  className="gap-1.5"
                   style={{ backgroundColor: brandColor, color: "#fff" }}
                 >
                   Next <ArrowRight className="h-4 w-4" />

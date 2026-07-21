@@ -118,6 +118,11 @@ export function ItemFormSheet({
   const [dosageForm, setDosageForm] = useState("");
   const [showNameSuggestions, setShowNameSuggestions] = useState(false);
 
+  // Textile category fields states
+  const [gsm, setGsm] = useState("");
+  const [weaveType, setWeaveType] = useState("");
+  const [fabricContent, setFabricContent] = useState("");
+
   const [prepTime, setPrepTime] = useState("15 mins");
   const [portionSizes, setPortionSizes] = useState<{ name: string; price: number }[]>([
     { name: "Regular", price: 3500 },
@@ -150,8 +155,42 @@ export function ItemFormSheet({
   const [newColourInput, setNewColourInput] = useState("");
   const [newSizeInput, setNewSizeInput] = useState("");
   const [samePriceForVariants, setSamePriceForVariants] = useState(true);
-  const [fineTunedVariants, setFineTunedVariants] = useState<Record<string, { price: number; stock: number }>>({});
+  const [fineTunedVariants, setFineTunedVariants] = useState<Record<string, { price: number; stock: number; costPrice?: number; reorderPoint?: number }>>({});
   const [showFineTune, setShowFineTune] = useState(false);
+
+  // Option enablement states
+  const [enableColours, setEnableColours] = useState(true);
+  const [enableSizes, setEnableSizes] = useState(true);
+  const [enableFlavors, setEnableFlavors] = useState(false);
+
+  // Flavors states
+  const [availFlavors, setAvailFlavors] = useState<string[]>(["Vanilla", "Chocolate"]);
+  const [newFlavorInput, setNewFlavorInput] = useState("");
+
+  const [expandedVariants, setExpandedVariants] = useState<Record<string, boolean>>({});
+
+  // Memoized Cartesian Product of active options
+  const activeVariants = useMemo(() => {
+    const colors = enableColours ? availColours : [];
+    const sizes = enableSizes ? availSizes : [];
+    const flavors = enableFlavors ? availFlavors : [];
+
+    const dimensions: string[][] = [];
+    if (enableColours && colors.length > 0) dimensions.push(colors);
+    if (enableSizes && sizes.length > 0) dimensions.push(sizes);
+    if (enableFlavors && flavors.length > 0) dimensions.push(flavors);
+
+    if (dimensions.length === 0) return [];
+
+    const cartesian = (arrays: string[][]): string[][] => {
+      return arrays.reduce<string[][]>((a, b) => {
+        return a.flatMap(d => b.map(e => [...d, e]));
+      }, [[]]);
+    };
+
+    const combined = cartesian(dimensions);
+    return combined.map(arr => arr.join(" - "));
+  }, [enableColours, availColours, enableSizes, availSizes, enableFlavors, availFlavors]);
 
   // Simulation states for Step 4 (Lab)
   const [voiceSimState, setVoiceSimState] = useState<"idle" | "listening" | "done">("idle");
@@ -273,6 +312,16 @@ export function ItemFormSheet({
         setAccessoryType("");
       }
 
+      if (item.textile) {
+        setGsm(item.textile.gsm?.toString() || "");
+        setWeaveType(item.textile.weaveType || "");
+        setFabricContent(item.textile.fabricContent || "");
+      } else {
+        setGsm("");
+        setWeaveType("");
+        setFabricContent("");
+      }
+
       if (item.pharmacy) {
         setExpiryDate(item.pharmacy.expiryDate || "");
         setBatchNumber(item.pharmacy.batchNumber || "");
@@ -293,21 +342,49 @@ export function ItemFormSheet({
         setDistributorPrice("");
       }
       
-      // Determine template based on item structure
-      if (item.unitConversions && item.unitConversions.length > 0 && item.color) {
-        setProductType("both");
+      // Determine template based on item structure and options
+      interface ExtendedItem {
+        flavors?: string;
+        fineTunedVariants?: Record<string, { price: number; stock: number; costPrice?: number; reorderPoint?: number }>;
+      }
+      const extItem = item as unknown as ExtendedItem;
+
+      setEnableColours(!!item.color);
+      setEnableSizes(!!item.sizes);
+      setEnableFlavors(!!extItem.flavors);
+
+      if (item.color) {
         setAvailColours(item.color.split(",").map(c => c.trim()));
-        if (item.sizes) {
-          setAvailSizes(item.sizes.split(",").map(s => s.trim()));
-        }
+      } else {
+        setAvailColours(isPhoneAccessoriesSeller ? ["Black", "Clear", "Sierra Blue", "Space Gray"] : ["Red", "Navy", "Gold"]);
+      }
+
+      if (item.sizes) {
+        setAvailSizes(item.sizes.split(",").map(s => s.trim()));
+      } else {
+        setAvailSizes(isPhoneAccessoriesSeller ? ["iPhone 15 Pro", "iPhone 15 Pro Max", "iPhone 15", "iPhone 14 Pro"] : ["38", "39", "40", "41"]);
+      }
+
+      if (extItem.flavors) {
+        setAvailFlavors(extItem.flavors.split(",").map((f: string) => f.trim()));
+      } else {
+        setAvailFlavors(["Vanilla", "Chocolate"]);
+      }
+
+      if (extItem.fineTunedVariants) {
+        setFineTunedVariants(extItem.fineTunedVariants);
+        setSamePriceForVariants(false);
+      } else {
+        setFineTunedVariants({});
+        setSamePriceForVariants(true);
+      }
+
+      if (item.unitConversions && item.unitConversions.length > 0 && (item.color || item.sizes || extItem.flavors)) {
+        setProductType("both");
       } else if (item.unitConversions && item.unitConversions.length > 0) {
         setProductType("bulk");
-      } else if (item.color) {
+      } else if (item.color || item.sizes || extItem.flavors) {
         setProductType("variants");
-        setAvailColours(item.color.split(",").map(c => c.trim()));
-        if (item.sizes) {
-          setAvailSizes(item.sizes.split(",").map(s => s.trim()));
-        }
       } else {
         setProductType("simple");
       }
@@ -350,11 +427,22 @@ export function ItemFormSheet({
       setRequiresPrescription(false);
       setDosageForm("");
       setShowNameSuggestions(false);
+      setGsm("");
+      setWeaveType("");
+      setFabricContent("");
       setWholesalePrice("");
       setDistributorPrice("");
       setCurrentStep(1);
       setProductType("simple");
       setShowAdvanced(false);
+      setEnableColours(true);
+      setEnableSizes(true);
+      setEnableFlavors(false);
+      setAvailFlavors(["Vanilla", "Chocolate"]);
+      setNewFlavorInput("");
+      setExpandedVariants({});
+      setFineTunedVariants({});
+      setSamePriceForVariants(true);
 
       if (isPhoneAccessoriesSeller) {
         setAvailColours(["Black", "Clear", "Sierra Blue", "Space Gray"]);
@@ -480,11 +568,19 @@ export function ItemFormSheet({
     }
 
     // Apply variants option configuration if variant template is active
-    let finalColorsStr = data.color || "";
+    let finalColorsStr = "";
     let finalSizesStr = "";
+    let finalFlavorsStr = "";
     if (productType === "variants" || productType === "both") {
-      finalColorsStr = availColours.join(", ");
-      finalSizesStr = availSizes.join(", ");
+      if (enableColours) {
+        finalColorsStr = availColours.join(", ");
+      }
+      if (enableSizes) {
+        finalSizesStr = availSizes.join(", ");
+      }
+      if (enableFlavors) {
+        finalFlavorsStr = availFlavors.join(", ");
+      }
     }
 
     const electronicsData = isPhoneAccessoriesSeller ? {
@@ -493,6 +589,12 @@ export function ItemFormSheet({
       material: material.trim(),
       warrantyPeriod: warrantyPeriod.trim(),
       accessoryType: accessoryType.trim(),
+    } : undefined;
+
+    const textileData = onboarding?.businessType === "textile" ? {
+      gsm: gsm ? Number(gsm) : undefined,
+      weaveType: weaveType.trim() || undefined,
+      fabricContent: fabricContent.trim() || undefined,
     } : undefined;
 
     const pharmacyData = isPharmacy ? {
@@ -506,11 +608,17 @@ export function ItemFormSheet({
       ...data,
       color: finalColorsStr,
       sizes: finalSizesStr,
+      flavors: finalFlavorsStr,
+      enableColours,
+      enableSizes,
+      enableFlavors,
+      fineTunedVariants,
       categoryId: data.categoryId || null,
       supplierId: data.supplierId || null,
       locationId: data.locationId || null,
       description: data.description || "",
       electronics: electronicsData,
+      textile: textileData,
       pharmacy: pharmacyData,
       pricingTiers,
     });
@@ -518,7 +626,7 @@ export function ItemFormSheet({
 
   // Option combinations list
   const getVariantCount = () => {
-    return availColours.length * (productType === "variants" ? availSizes.length : 1);
+    return activeVariants.length;
   };
 
   const simulatedTotalStockVal = () => {
@@ -1163,6 +1271,52 @@ export function ItemFormSheet({
                     </div>
                   </div>
                 )}
+
+                {onboarding?.businessType === "textile" && (
+                  <div className="p-4 bg-blue-50/35 border border-blue-200/60 rounded-xl space-y-3.5 shadow-none">
+                    <div className="flex items-center gap-1.5 text-blue-700 font-extrabold text-xs uppercase tracking-wider">
+                      <BookOpen className="w-3.5 h-3.5" /> 🧵 Textiles Category Profile
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-tight -mt-1.5">
+                      Specify GSM (weight), weave type, and fabric content/pattern name.
+                    </p>
+                    
+                    <div className="grid grid-cols-3 gap-3 pt-1">
+                      <div>
+                        <label className={labelCls}>GSM (Weight)</label>
+                        <input 
+                          type="number" 
+                          value={gsm} 
+                          onChange={(e) => setGsm(e.target.value)} 
+                          className={inputCls} 
+                          placeholder="e.g. 150" 
+                        />
+                      </div>
+
+                      <div>
+                        <label className={labelCls}>Weave / Fabric Type</label>
+                        <input 
+                          type="text" 
+                          value={weaveType} 
+                          onChange={(e) => setWeaveType(e.target.value)} 
+                          className={inputCls} 
+                          placeholder="e.g. Lace, Cotton" 
+                        />
+                      </div>
+
+                      <div>
+                        <label className={labelCls}>Fabric Content / Pattern</label>
+                        <input 
+                          type="text" 
+                          value={fabricContent} 
+                          onChange={(e) => setFabricContent(e.target.value)} 
+                          className={inputCls} 
+                          placeholder="e.g. Ankara Floral" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Step 1 Actions */}
@@ -1573,143 +1727,291 @@ export function ItemFormSheet({
                       <span className="text-[10px] bg-pink-100 text-pink-800 px-2 py-0.5 rounded-full font-bold uppercase font-mono">Variants</span>
                     </div>
 
-                    {/* Colours Chips list with manual action */}
-                    <div className="space-y-1.5">
-                      <span className={labelCls}>Colours Available</span>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {availColours.map((color, idx) => (
-                          <span key={idx} className="bg-white border rounded-full pl-3 pr-2 py-1 text-xs font-semibold text-slate-700 inline-flex items-center gap-1">
-                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color.toLowerCase() }} />
-                            {color}
-                            <button 
-                              type="button" 
-                              className="text-slate-400 hover:text-red-500 ml-1"
-                              onClick={() => setAvailColours(availColours.filter(c => c !== color))}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <input 
-                          value={newColourInput} 
-                          onChange={e => setNewColourInput(e.target.value)}
-                          className="h-8 border rounded-md px-2.5 text-xs flex-1"
-                          placeholder="e.g. Black"
-                        />
-                        <Button 
-                          type="button" 
-                          size="sm" 
-                          className="h-8 px-2"
-                          onClick={() => {
-                            if (newColourInput.trim()) {
-                              setAvailColours([...availColours, newColourInput.trim()]);
-                              setNewColourInput("");
-                            }
-                          }}
+                    {/* Toggle selectors for option dimensions */}
+                    <div className="flex flex-col gap-1.5 p-2.5 bg-white border border-slate-100 rounded-xl">
+                      <span className="text-[10px] font-bold uppercase text-slate-500">Enable Option Dimensions:</span>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEnableColours(!enableColours)}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border transition-all cursor-pointer",
+                            enableColours 
+                              ? "bg-emerald-500 border-emerald-500 text-white shadow-sm" 
+                              : "bg-muted border-border text-muted-foreground hover:bg-muted/80"
+                          )}
                         >
-                          Add
-                        </Button>
-                      </div>
+                          <span className={cn("h-1.5 w-1.5 rounded-full", enableColours ? "bg-white" : "bg-muted-foreground")} />
+                          Colours
+                        </button>
 
-                      {isPhoneAccessoriesSeller && (
-                        <div className="pt-1.5 flex flex-wrap gap-1 items-center">
-                          <span className="text-[9px] text-muted-foreground font-extrabold mr-1">Palettes:</span>
-                          {[
-                            { label: "Basic", list: ["Black", "Clear", "White"] },
-                            { label: "Titanium", list: ["Natural Titanium", "Blue Titanium", "Black Titanium", "White Titanium"] },
-                            { label: "Sleek", list: ["Sierra Blue", "Space Gray", "Deep Purple", "Pink"] }
-                          ].map(pal => (
-                            <button
-                              key={pal.label}
-                              type="button"
-                              onClick={() => {
-                                const newCols = [...availColours];
-                                pal.list.forEach(c => {
-                                  if (!newCols.includes(c)) newCols.push(c);
-                                });
-                                setAvailColours(newCols);
-                                toast.success(`Added ${pal.label} colors.`);
-                              }}
-                              className="text-[9px] bg-teal-50 border border-teal-200/50 hover:bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 rounded-md transition-all active:scale-95"
-                            >
-                              + {pal.label}
-                            </button>
+                        <button
+                          type="button"
+                          onClick={() => setEnableSizes(!enableSizes)}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border transition-all cursor-pointer",
+                            enableSizes 
+                              ? "bg-emerald-500 border-emerald-500 text-white shadow-sm" 
+                              : "bg-muted border-border text-muted-foreground hover:bg-muted/80"
+                          )}
+                        >
+                          <span className={cn("h-1.5 w-1.5 rounded-full", enableSizes ? "bg-white" : "bg-muted-foreground")} />
+                          Sizes / Models
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setEnableFlavors(!enableFlavors)}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border transition-all cursor-pointer",
+                            enableFlavors 
+                              ? "bg-emerald-500 border-emerald-500 text-white shadow-sm" 
+                              : "bg-muted border-border text-muted-foreground hover:bg-muted/80"
+                          )}
+                        >
+                          <span className={cn("h-1.5 w-1.5 rounded-full", enableFlavors ? "bg-white" : "bg-muted-foreground")} />
+                          Flavors
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Colours Chips list with manual action */}
+                    {enableColours && (
+                      <div className="space-y-1.5 animate-in fade-in duration-200">
+                        <span className={labelCls}>Colours Available</span>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {availColours.map((color, idx) => (
+                            <span key={idx} className="bg-white border rounded-full pl-3 pr-2 py-1 text-xs font-semibold text-slate-700 inline-flex items-center gap-1">
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color.toLowerCase() }} />
+                              {color}
+                              <button 
+                                type="button" 
+                                className="text-slate-400 hover:text-red-500 ml-1"
+                                onClick={() => setAvailColours(availColours.filter(c => c !== color))}
+                              >
+                                ×
+                              </button>
+                            </span>
                           ))}
                         </div>
-                      )}
-                    </div>
+                        <div className="flex gap-2">
+                          <input 
+                            value={newColourInput} 
+                            onChange={e => setNewColourInput(e.target.value)}
+                            className="h-8 border rounded-md px-2.5 text-xs flex-1"
+                            placeholder="e.g. Black"
+                          />
+                          <Button 
+                            type="button" 
+                            size="sm" 
+                            className="h-8 px-2"
+                            onClick={() => {
+                              if (newColourInput.trim()) {
+                                setAvailColours([...availColours, newColourInput.trim()]);
+                                setNewColourInput("");
+                              }
+                            }}
+                          >
+                            Add
+                          </Button>
+                        </div>
+
+                        {isPhoneAccessoriesSeller && (
+                          <div className="pt-1.5 flex flex-wrap gap-1 items-center">
+                            <span className="text-[9px] text-muted-foreground font-extrabold mr-1">Palettes:</span>
+                            {[
+                              { label: "Basic", list: ["Black", "Clear", "White"] },
+                              { label: "Titanium", list: ["Natural Titanium", "Blue Titanium", "Black Titanium", "White Titanium"] },
+                              { label: "Sleek", list: ["Sierra Blue", "Space Gray", "Deep Purple", "Pink"] }
+                            ].map(pal => (
+                              <button
+                                key={pal.label}
+                                type="button"
+                                onClick={() => {
+                                  const newCols = [...availColours];
+                                  pal.list.forEach(c => {
+                                    if (!newCols.includes(c)) newCols.push(c);
+                                  });
+                                  setAvailColours(newCols);
+                                  toast.success(`Added ${pal.label} colors.`);
+                                }}
+                                className="text-[9px] bg-teal-50 border border-teal-200/50 hover:bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 rounded-md transition-all active:scale-95"
+                              >
+                                + {pal.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {onboarding?.businessType === "textile" && (
+                          <div className="pt-1.5 flex flex-wrap gap-1 items-center">
+                            <span className="text-[9px] text-muted-foreground font-extrabold mr-1">Fabric Palettes:</span>
+                            {[
+                              { label: "Traditional", list: ["Indigo Blue", "Kente Orange", "Aso-oke Gold", "Red Wax"] },
+                              { label: "Pastels", list: ["Lilac Lace", "Mint Cotton", "Peach Silk", "Cream Plain"] },
+                              { label: "Rich Shades", list: ["Royal Blue", "Emerald Green", "Wine Red", "Maroon"] }
+                            ].map(pal => (
+                              <button
+                                key={pal.label}
+                                type="button"
+                                onClick={() => {
+                                  const newCols = [...availColours];
+                                  pal.list.forEach(c => {
+                                    if (!newCols.includes(c)) newCols.push(c);
+                                  });
+                                  setAvailColours(newCols);
+                                  toast.success(`Added ${pal.label} textile styles/colors.`);
+                                }}
+                                className="text-[9px] bg-blue-50 border border-blue-200/50 hover:bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded-md transition-all active:scale-95"
+                              >
+                                + {pal.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Sizes chips */}
-                    <div className="space-y-1.5 pt-2 border-t border-dashed">
-                      <span className={labelCls}>
-                        {isPhoneAccessoriesSeller ? "Compatible Models" : "Sizes Available"}
-                      </span>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {availSizes.map((sz, idx) => (
-                          <span key={idx} className="bg-white border rounded-full px-3 py-1 text-xs font-semibold text-slate-700 inline-flex items-center gap-1.5">
-                            {sz}
-                            <button 
-                              type="button" 
-                              className="text-slate-400 hover:text-red-500"
-                              onClick={() => setAvailSizes(availSizes.filter(s => s !== sz))}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <input 
-                          value={newSizeInput} 
-                          onChange={e => setNewSizeInput(e.target.value)}
-                          className="h-8 border rounded-md px-2.5 text-xs flex-1"
-                          placeholder={isPhoneAccessoriesSeller ? "e.g. iPhone 15 Pro Max" : "e.g. 42 or XL"}
-                        />
-                        <Button 
-                          type="button" 
-                          size="sm" 
-                          className="h-8 px-2"
-                          onClick={() => {
-                            if (newSizeInput.trim()) {
-                              setAvailSizes([...availSizes, newSizeInput.trim()]);
-                              setNewSizeInput("");
-                            }
-                          }}
-                        >
-                          Add
-                        </Button>
-                      </div>
-
-                      {isPhoneAccessoriesSeller && (
-                        <div className="pt-1.5 flex flex-wrap gap-1 items-center">
-                          <span className="text-[9px] text-muted-foreground font-extrabold mr-1">Models:</span>
-                          {[
-                            { label: "iPhone 15", list: ["iPhone 15", "iPhone 15 Pro", "iPhone 15 Pro Max"] },
-                            { label: "iPhone 14", list: ["iPhone 14", "iPhone 14 Pro", "iPhone 14 Pro Max"] },
-                            { label: "iPhone 13", list: ["iPhone 13", "iPhone 13 Pro", "iPhone 13 Pro Max"] },
-                            { label: "Galaxy S24", list: ["Galaxy S24", "Galaxy S24 Plus", "Galaxy S24 Ultra"] }
-                          ].map(pal => (
-                            <button
-                              key={pal.label}
-                              type="button"
-                              onClick={() => {
-                                const newSzs = [...availSizes];
-                                pal.list.forEach(s => {
-                                  if (!newSzs.includes(s)) newSzs.push(s);
-                                });
-                                setAvailSizes(newSzs);
-                                toast.success(`Added ${pal.label} series compatible models.`);
-                              }}
-                              className="text-[9px] bg-teal-50 border border-teal-200/50 hover:bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 rounded-md transition-all active:scale-95"
-                            >
-                              + {pal.label}
-                            </button>
+                    {enableSizes && (
+                      <div className="space-y-1.5 pt-2 border-t border-dashed animate-in fade-in duration-200">
+                        <span className={labelCls}>
+                          {isPhoneAccessoriesSeller ? "Compatible Models" : "Sizes Available"}
+                        </span>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {availSizes.map((sz, idx) => (
+                            <span key={idx} className="bg-white border rounded-full px-3 py-1 text-xs font-semibold text-slate-700 inline-flex items-center gap-1.5">
+                              {sz}
+                              <button 
+                                type="button" 
+                                className="text-slate-400 hover:text-red-500"
+                                onClick={() => setAvailSizes(availSizes.filter(s => s !== sz))}
+                              >
+                                ×
+                              </button>
+                            </span>
                           ))}
                         </div>
-                      )}
-                    </div>
+                        <div className="flex gap-2">
+                          <input 
+                            value={newSizeInput} 
+                            onChange={e => setNewSizeInput(e.target.value)}
+                            className="h-8 border rounded-md px-2.5 text-xs flex-1"
+                            placeholder={isPhoneAccessoriesSeller ? "e.g. iPhone 15 Pro Max" : "e.g. 42 or XL"}
+                          />
+                          <Button 
+                            type="button" 
+                            size="sm" 
+                            className="h-8 px-2"
+                            onClick={() => {
+                              if (newSizeInput.trim()) {
+                                setAvailSizes([...availSizes, newSizeInput.trim()]);
+                                setNewSizeInput("");
+                              }
+                            }}
+                          >
+                            Add
+                          </Button>
+                        </div>
+
+                        {isPhoneAccessoriesSeller && (
+                          <div className="pt-1.5 flex flex-wrap gap-1 items-center">
+                            <span className="text-[9px] text-muted-foreground font-extrabold mr-1">Models:</span>
+                            {[
+                              { label: "iPhone 15", list: ["iPhone 15", "iPhone 15 Pro", "iPhone 15 Pro Max"] },
+                              { label: "iPhone 14", list: ["iPhone 14", "iPhone 14 Pro", "iPhone 14 Pro Max"] },
+                              { label: "iPhone 13", list: ["iPhone 13", "iPhone 13 Pro", "iPhone 13 Pro Max"] },
+                              { label: "Galaxy S24", list: ["Galaxy S24", "Galaxy S24 Plus", "Galaxy S24 Ultra"] }
+                            ].map(pal => (
+                              <button
+                                key={pal.label}
+                                type="button"
+                                onClick={() => {
+                                  const newSzs = [...availSizes];
+                                  pal.list.forEach(s => {
+                                    if (!newSzs.includes(s)) newSzs.push(s);
+                                  });
+                                  setAvailSizes(newSzs);
+                                  toast.success(`Added ${pal.label} series compatible models.`);
+                                }}
+                                className="text-[9px] bg-teal-50 border border-teal-200/50 hover:bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 rounded-md transition-all active:scale-95"
+                              >
+                                + {pal.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {onboarding?.businessType === "textile" && (
+                          <div className="pt-1.5 flex flex-wrap gap-1 items-center">
+                            <span className="text-[9px] text-muted-foreground font-extrabold mr-1">Length Cuts:</span>
+                            {[
+                              { label: "Ankara standard", list: ["6 Yards", "12 Yards"] },
+                              { label: "Lace cuts", list: ["5 Yards", "10 Yards"] },
+                              { label: "Sample pieces", list: ["1 Yard", "2 Yards", "2.5 Yards"] }
+                            ].map(pal => (
+                              <button
+                                key={pal.label}
+                                type="button"
+                                onClick={() => {
+                                  const newSzs = [...availSizes];
+                                  pal.list.forEach(s => {
+                                    if (!newSzs.includes(s)) newSzs.push(s);
+                                  });
+                                  setAvailSizes(newSzs);
+                                  toast.success(`Added ${pal.label} pre-cut lengths.`);
+                                }}
+                                className="text-[9px] bg-blue-50 border border-blue-200/50 hover:bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded-md transition-all active:scale-95"
+                              >
+                                + {pal.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Flavors chips */}
+                    {enableFlavors && (
+                      <div className="space-y-1.5 pt-2 border-t border-dashed animate-in fade-in duration-200">
+                        <span className={labelCls}>Flavors Available</span>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {availFlavors.map((flv, idx) => (
+                            <span key={idx} className="bg-white border rounded-full px-3 py-1 text-xs font-semibold text-slate-700 inline-flex items-center gap-1.5">
+                              {flv}
+                              <button 
+                                type="button" 
+                                className="text-slate-400 hover:text-red-500"
+                                onClick={() => setAvailFlavors(availFlavors.filter(f => f !== flv))}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <input 
+                            value={newFlavorInput} 
+                            onChange={e => setNewFlavorInput(e.target.value)}
+                            className="h-8 border rounded-md px-2.5 text-xs flex-1"
+                            placeholder="e.g. Vanilla, Chocolate, Mango..."
+                          />
+                          <Button 
+                            type="button" 
+                            size="sm" 
+                            className="h-8 px-2"
+                            onClick={() => {
+                              if (newFlavorInput.trim()) {
+                                setAvailFlavors([...availFlavors, newFlavorInput.trim()]);
+                                setNewFlavorInput("");
+                              }
+                            }}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Toggle Same price for all variants */}
@@ -1820,42 +2122,118 @@ export function ItemFormSheet({
                         </button>
                         
                         {showFineTune && (
-                          <div className="max-h-[180px] overflow-y-auto space-y-2 mt-2 pr-1 border rounded p-2 bg-white">
-                            {availColours.flatMap(c => availSizes.map(s => `${c} - ${s}`)).map((vName, vIdx) => (
-                              <div key={vIdx} className="flex items-center justify-between gap-2 p-1.5 border-b last:border-b-0 text-xs">
-                                <span className="font-semibold text-slate-700 shrink-0 w-24 truncate">{vName}</span>
-                                <div className="flex gap-2">
-                                  <input 
-                                    type="number"
-                                    placeholder="Price ₦"
-                                    className="h-7 w-20 border rounded px-1.5 text-[11px] font-mono text-right"
-                                    onChange={e => {
-                                      setFineTunedVariants({
-                                        ...fineTunedVariants,
-                                        [vName]: { 
-                                          price: Number(e.target.value) || 0, 
-                                          stock: fineTunedVariants[vName]?.stock || 0 
-                                        }
-                                      });
-                                    }}
-                                  />
-                                  <input 
-                                    type="number"
-                                    placeholder="Qty"
-                                    className="h-7 w-14 border rounded px-1.5 text-[11px] font-mono text-center"
-                                    onChange={e => {
-                                      setFineTunedVariants({
-                                        ...fineTunedVariants,
-                                        [vName]: { 
-                                          price: fineTunedVariants[vName]?.price || 0, 
-                                          stock: Number(e.target.value) || 0 
-                                        }
-                                      });
-                                    }}
-                                  />
+                          <div className="max-h-[350px] overflow-y-auto space-y-2 mt-2 pr-1 border rounded p-2 bg-white">
+                            {activeVariants.map((vName, vIdx) => {
+                              const isExpanded = !!expandedVariants[vName];
+                              const currentVal = fineTunedVariants[vName] || { 
+                                price: Number(watch("sellingPrice")) || 0, 
+                                stock: Number(watch("currentStock")) || 0,
+                                costPrice: Number(watch("costPrice")) || 0,
+                                reorderPoint: Number(watch("reorderPoint")) || 0
+                              };
+
+                              return (
+                                <div key={vIdx} className="border border-slate-100 rounded-lg overflow-hidden bg-slate-50/45">
+                                  {/* Collapsible Trigger Header */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedVariants(prev => ({ ...prev, [vName]: !prev[vName] }))}
+                                    className="flex items-center justify-between w-full p-2.5 text-xs hover:bg-slate-50 transition-colors border-b border-slate-100"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="font-bold text-slate-800 truncate">{vName}</span>
+                                      <span className="text-[10px] text-emerald-600 font-mono font-bold shrink-0">
+                                        ₦{currentVal.price} · Stock: {currentVal.stock}
+                                      </span>
+                                    </div>
+                                    <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform duration-200", isExpanded ? "rotate-180" : "")} />
+                                  </button>
+
+                                  {/* Expanded content with input fields */}
+                                  {isExpanded && (
+                                    <div className="p-3 bg-white space-y-3 border-t border-slate-100/60 animate-in slide-in-from-top-1 duration-150">
+                                      <div className="grid grid-cols-2 gap-2.5">
+                                        <div>
+                                          <label className="text-[9px] font-bold uppercase text-slate-500 block mb-1">Variant Selling Price (₦)</label>
+                                          <input 
+                                            type="number"
+                                            value={currentVal.price || ""}
+                                            placeholder="Price ₦"
+                                            className="h-8 w-full border rounded-md px-2 text-xs font-mono font-semibold"
+                                            onChange={e => {
+                                              setFineTunedVariants({
+                                                ...fineTunedVariants,
+                                                [vName]: { 
+                                                  ...currentVal,
+                                                  price: Number(e.target.value) || 0
+                                                }
+                                              });
+                                            }}
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="text-[9px] font-bold uppercase text-slate-500 block mb-1">Variant Cost Price (₦)</label>
+                                          <input 
+                                            type="number"
+                                            value={currentVal.costPrice || ""}
+                                            placeholder="Cost Price ₦"
+                                            className="h-8 w-full border rounded-md px-2 text-xs font-mono font-semibold"
+                                            onChange={e => {
+                                              setFineTunedVariants({
+                                                ...fineTunedVariants,
+                                                [vName]: { 
+                                                  ...currentVal,
+                                                  costPrice: Number(e.target.value) || 0
+                                                }
+                                              });
+                                            }}
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-2 gap-2.5">
+                                        <div>
+                                          <label className="text-[9px] font-bold uppercase text-slate-500 block mb-1">Stock Count</label>
+                                          <input 
+                                            type="number"
+                                            value={currentVal.stock || ""}
+                                            placeholder="Qty"
+                                            className="h-8 w-full border rounded-md px-2 text-xs font-mono font-semibold"
+                                            onChange={e => {
+                                              setFineTunedVariants({
+                                                ...fineTunedVariants,
+                                                [vName]: { 
+                                                  ...currentVal,
+                                                  stock: Number(e.target.value) || 0
+                                                }
+                                              });
+                                            }}
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="text-[9px] font-bold uppercase text-slate-500 block mb-1">Reorder Point</label>
+                                          <input 
+                                            type="number"
+                                            value={currentVal.reorderPoint || ""}
+                                            placeholder="Alert point"
+                                            className="h-8 w-full border rounded-md px-2 text-xs font-mono font-semibold"
+                                            onChange={e => {
+                                              setFineTunedVariants({
+                                                ...fineTunedVariants,
+                                                [vName]: { 
+                                                  ...currentVal,
+                                                  reorderPoint: Number(e.target.value) || 0
+                                                }
+                                              });
+                                            }}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
 
@@ -1902,45 +2280,235 @@ export function ItemFormSheet({
                       <span className="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-bold uppercase">Both</span>
                     </div>
 
-                    {/* Colors chips */}
-                    <div>
-                      <label className={labelCls}>Colours Available</label>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {availColours.map((color, idx) => (
-                          <span key={idx} className="bg-white border rounded-full px-3 py-1 text-xs font-semibold text-slate-700 inline-flex items-center gap-1.5">
-                            {color}
-                            <button 
-                              type="button" 
-                              className="text-slate-400 hover:text-red-500"
-                              onClick={() => setAvailColours(availColours.filter(c => c !== color))}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <input 
-                          value={newColourInput} 
-                          onChange={e => setNewColourInput(e.target.value)}
-                          className="h-8 border rounded px-2.5 text-xs flex-1"
-                          placeholder="e.g. Royal Blue"
-                        />
-                        <Button 
-                          type="button" 
-                          size="sm" 
-                          className="h-8 px-2"
-                          onClick={() => {
-                            if (newColourInput.trim()) {
-                              setAvailColours([...availColours, newColourInput.trim()]);
-                              setNewColourInput("");
-                            }
-                          }}
+                    {/* Toggle selectors for option dimensions */}
+                    <div className="flex flex-col gap-1.5 p-2.5 bg-white border border-slate-100 rounded-xl">
+                      <span className="text-[10px] font-bold uppercase text-slate-500">Enable Option Dimensions:</span>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEnableColours(!enableColours)}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border transition-all cursor-pointer",
+                            enableColours 
+                              ? "bg-emerald-500 border-emerald-500 text-white shadow-sm" 
+                              : "bg-muted border-border text-muted-foreground hover:bg-muted/80"
+                          )}
                         >
-                          Add
-                        </Button>
+                          <span className={cn("h-1.5 w-1.5 rounded-full", enableColours ? "bg-white" : "bg-muted-foreground")} />
+                          Colours
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setEnableSizes(!enableSizes)}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border transition-all cursor-pointer",
+                            enableSizes 
+                              ? "bg-emerald-500 border-emerald-500 text-white shadow-sm" 
+                              : "bg-muted border-border text-muted-foreground hover:bg-muted/80"
+                          )}
+                        >
+                          <span className={cn("h-1.5 w-1.5 rounded-full", enableSizes ? "bg-white" : "bg-muted-foreground")} />
+                          Sizes
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setEnableFlavors(!enableFlavors)}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border transition-all cursor-pointer",
+                            enableFlavors 
+                              ? "bg-emerald-500 border-emerald-500 text-white shadow-sm" 
+                              : "bg-muted border-border text-muted-foreground hover:bg-muted/80"
+                          )}
+                        >
+                          <span className={cn("h-1.5 w-1.5 rounded-full", enableFlavors ? "bg-white" : "bg-muted-foreground")} />
+                          Flavors
+                        </button>
                       </div>
                     </div>
+
+                    {/* Colors chips */}
+                    {enableColours && (
+                      <div className="space-y-1.5 animate-in fade-in duration-200">
+                        <label className={labelCls}>Colours Available</label>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {availColours.map((color, idx) => (
+                            <span key={idx} className="bg-white border rounded-full pl-3 pr-2 py-1 text-xs font-semibold text-slate-700 inline-flex items-center gap-1">
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color.toLowerCase() }} />
+                              {color}
+                              <button 
+                                type="button" 
+                                className="text-slate-400 hover:text-red-500 ml-1"
+                                onClick={() => setAvailColours(availColours.filter(c => c !== color))}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <input 
+                            value={newColourInput} 
+                            onChange={e => setNewColourInput(e.target.value)}
+                            className="h-8 border rounded px-2.5 text-xs flex-1"
+                            placeholder="e.g. Royal Blue"
+                          />
+                          <Button 
+                            type="button" 
+                            size="sm" 
+                            className="h-8 px-2"
+                            onClick={() => {
+                              if (newColourInput.trim()) {
+                                setAvailColours([...availColours, newColourInput.trim()]);
+                                setNewColourInput("");
+                              }
+                            }}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                        {onboarding?.businessType === "textile" && (
+                          <div className="pt-1.5 flex flex-wrap gap-1 items-center">
+                            <span className="text-[9px] text-muted-foreground font-extrabold mr-1">Fabric Palettes:</span>
+                            {[
+                              { label: "Traditional", list: ["Indigo Blue", "Kente Orange", "Aso-oke Gold", "Red Wax"] },
+                              { label: "Pastels", list: ["Lilac Lace", "Mint Cotton", "Peach Silk", "Cream Plain"] },
+                              { label: "Rich Shades", list: ["Royal Blue", "Emerald Green", "Wine Red", "Maroon"] }
+                            ].map(pal => (
+                              <button
+                                key={pal.label}
+                                type="button"
+                                onClick={() => {
+                                  const newCols = [...availColours];
+                                  pal.list.forEach(c => {
+                                    if (!newCols.includes(c)) newCols.push(c);
+                                  });
+                                  setAvailColours(newCols);
+                                  toast.success(`Added ${pal.label} textile styles/colors.`);
+                                }}
+                                className="text-[9px] bg-blue-50 border border-blue-200/50 hover:bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded-md transition-all active:scale-95"
+                              >
+                                + {pal.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Sizes chips */}
+                    {enableSizes && (
+                      <div className="space-y-1.5 pt-2 border-t border-dashed animate-in fade-in duration-200">
+                        <span className={labelCls}>
+                          Sizes Available
+                        </span>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {availSizes.map((sz, idx) => (
+                            <span key={idx} className="bg-white border rounded-full px-3 py-1 text-xs font-semibold text-slate-700 inline-flex items-center gap-1.5">
+                              {sz}
+                              <button 
+                                type="button" 
+                                className="text-slate-400 hover:text-red-500"
+                                onClick={() => setAvailSizes(availSizes.filter(s => s !== sz))}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <input 
+                            value={newSizeInput} 
+                            onChange={e => setNewSizeInput(e.target.value)}
+                            className="h-8 border rounded-md px-2.5 text-xs flex-1"
+                            placeholder="e.g. 42 or XL"
+                          />
+                          <Button 
+                            type="button" 
+                            size="sm" 
+                            className="h-8 px-2"
+                            onClick={() => {
+                              if (newSizeInput.trim()) {
+                                setAvailSizes([...availSizes, newSizeInput.trim()]);
+                                setNewSizeInput("");
+                              }
+                            }}
+                          >
+                            Add
+                          </Button>
+                        </div>
+
+                        {onboarding?.businessType === "textile" && (
+                          <div className="pt-1.5 flex flex-wrap gap-1 items-center">
+                            <span className="text-[9px] text-muted-foreground font-extrabold mr-1">Length Cuts:</span>
+                            {[
+                              { label: "Ankara standard", list: ["6 Yards", "12 Yards"] },
+                              { label: "Lace cuts", list: ["5 Yards", "10 Yards"] },
+                              { label: "Sample pieces", list: ["1 Yard", "2 Yards", "2.5 Yards"] }
+                            ].map(pal => (
+                              <button
+                                key={pal.label}
+                                type="button"
+                                onClick={() => {
+                                  const newSzs = [...availSizes];
+                                  pal.list.forEach(s => {
+                                    if (!newSzs.includes(s)) newSzs.push(s);
+                                  });
+                                  setAvailSizes(newSzs);
+                                  toast.success(`Added ${pal.label} pre-cut lengths.`);
+                                }}
+                                className="text-[9px] bg-blue-50 border border-blue-200/50 hover:bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded-md transition-all active:scale-95"
+                              >
+                                + {pal.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Flavors chips */}
+                    {enableFlavors && (
+                      <div className="space-y-1.5 pt-2 border-t border-dashed animate-in fade-in duration-200">
+                        <span className={labelCls}>Flavors Available</span>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {availFlavors.map((flv, idx) => (
+                            <span key={idx} className="bg-white border rounded-full px-3 py-1 text-xs font-semibold text-slate-700 inline-flex items-center gap-1.5">
+                              {flv}
+                              <button 
+                                type="button" 
+                                className="text-slate-400 hover:text-red-500"
+                                onClick={() => setAvailFlavors(availFlavors.filter(f => f !== flv))}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <input 
+                            value={newFlavorInput} 
+                            onChange={e => setNewFlavorInput(e.target.value)}
+                            className="h-8 border rounded-md px-2.5 text-xs flex-1"
+                            placeholder="e.g. Vanilla, Chocolate, Mango..."
+                          />
+                          <Button 
+                            type="button" 
+                            size="sm" 
+                            className="h-8 px-2"
+                            onClick={() => {
+                              if (newFlavorInput.trim()) {
+                                setAvailFlavors([...availFlavors, newFlavorInput.trim()]);
+                                setNewFlavorInput("");
+                              }
+                            }}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Smallest unit base */}
                     <div className="grid grid-cols-3 gap-2 pt-2 border-t border-dashed">
@@ -2042,6 +2610,136 @@ export function ItemFormSheet({
                       ))}
                     </div>
                   </div>
+
+                  {/* Individual Variant Fine-tuning Accordion */}
+                  {activeVariants.length > 0 && (
+                    <div className="p-4 bg-slate-50 border rounded-xl space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowFineTune(!showFineTune)}
+                        className="flex items-center justify-between w-full text-xs font-bold text-[#007E85] pb-1 cursor-pointer"
+                      >
+                        <span>📊 Fine-tune individual variants</span>
+                        {showFineTune ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </button>
+                      
+                      {showFineTune && (
+                        <div className="max-h-[350px] overflow-y-auto space-y-2 mt-2 pr-1 border rounded-lg p-2.5 bg-white">
+                          {activeVariants.map((vName, vIdx) => {
+                            const isExpanded = !!expandedVariants[vName];
+                            const currentVal = fineTunedVariants[vName] || { 
+                              price: Number(watch("sellingPrice")) || 0, 
+                              stock: Number(watch("currentStock")) || 0,
+                              costPrice: Number(watch("costPrice")) || 0,
+                              reorderPoint: Number(watch("reorderPoint")) || 0
+                            };
+
+                            return (
+                              <div key={vIdx} className="border border-slate-100 rounded-lg overflow-hidden bg-slate-50/45">
+                                {/* Collapsible Trigger Header */}
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedVariants(prev => ({ ...prev, [vName]: !prev[vName] }))}
+                                  className="flex items-center justify-between w-full p-2.5 text-xs hover:bg-slate-50 transition-colors border-b border-slate-100 text-left"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="font-bold text-slate-800 truncate">{vName}</span>
+                                    <span className="text-[10px] text-emerald-600 font-mono font-bold shrink-0">
+                                      ₦{currentVal.price} · Stock: {currentVal.stock}
+                                    </span>
+                                  </div>
+                                  <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform duration-200", isExpanded ? "rotate-180" : "")} />
+                                </button>
+
+                                {/* Expanded content with input fields */}
+                                {isExpanded && (
+                                  <div className="p-3 bg-white space-y-3 border-t border-slate-100/60 animate-in slide-in-from-top-1 duration-150">
+                                    <div className="grid grid-cols-2 gap-2.5">
+                                      <div>
+                                        <label className="text-[9px] font-bold uppercase text-slate-500 block mb-1">Variant Selling Price (₦)</label>
+                                        <input 
+                                          type="number"
+                                          value={currentVal.price || ""}
+                                          placeholder="Price ₦"
+                                          className="h-8 w-full border rounded-md px-2 text-xs font-mono font-semibold"
+                                          onChange={e => {
+                                            setFineTunedVariants({
+                                              ...fineTunedVariants,
+                                              [vName]: { 
+                                                ...currentVal,
+                                                price: Number(e.target.value) || 0
+                                              }
+                                            });
+                                          }}
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-[9px] font-bold uppercase text-slate-500 block mb-1">Variant Cost Price (₦)</label>
+                                        <input 
+                                          type="number"
+                                          value={currentVal.costPrice || ""}
+                                          placeholder="Cost Price ₦"
+                                          className="h-8 w-full border rounded-md px-2 text-xs font-mono font-semibold"
+                                          onChange={e => {
+                                            setFineTunedVariants({
+                                              ...fineTunedVariants,
+                                              [vName]: { 
+                                                ...currentVal,
+                                                costPrice: Number(e.target.value) || 0
+                                              }
+                                            });
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2.5">
+                                      <div>
+                                        <label className="text-[9px] font-bold uppercase text-slate-500 block mb-1">Stock Count</label>
+                                        <input 
+                                          type="number"
+                                          value={currentVal.stock || ""}
+                                          placeholder="Qty"
+                                          className="h-8 w-full border rounded-md px-2 text-xs font-mono font-semibold"
+                                          onChange={e => {
+                                            setFineTunedVariants({
+                                              ...fineTunedVariants,
+                                              [vName]: { 
+                                                ...currentVal,
+                                                stock: Number(e.target.value) || 0
+                                              }
+                                            });
+                                          }}
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-[9px] font-bold uppercase text-slate-500 block mb-1">Reorder Point</label>
+                                        <input 
+                                          type="number"
+                                          value={currentVal.reorderPoint || ""}
+                                          placeholder="Alert point"
+                                          className="h-8 w-full border rounded-md px-2 text-xs font-mono font-semibold"
+                                          onChange={e => {
+                                            setFineTunedVariants({
+                                              ...fineTunedVariants,
+                                              [vName]: { 
+                                                ...currentVal,
+                                                reorderPoint: Number(e.target.value) || 0
+                                              }
+                                            });
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

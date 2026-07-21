@@ -192,6 +192,16 @@ export function SalesGrid() {
       if (configStr) {
         try {
           const config = JSON.parse(configStr);
+          if (item.fineTunedVariants && (config.color || config.size)) {
+            const parts: string[] = [];
+            if (config.color) parts.push(config.color);
+            if (config.size) parts.push(config.size);
+            const variantKey = parts.join(" - ");
+            const variantMatch = item.fineTunedVariants[variantKey];
+            if (variantMatch && typeof variantMatch.price === "number") {
+              unitPrice = variantMatch.price;
+            }
+          }
           if (config.portion) {
             unitPrice = config.portion.price;
           }

@@ -68,6 +68,7 @@ export const SUPPORTED_UNITS = [
   { id: "bowl", label: "Bowls", type: "count" as const, step: 1 },
   { id: "bundle", label: "Bundles", type: "count" as const, step: 1 },
   { id: "yard", label: "Yards", type: "length" as const, step: 0.1 },
+  { id: "roll", label: "Rolls", type: "length" as const, step: 1 },
   { id: "mudu", label: "Mudu", type: "volume" as const, step: 0.1 },
   { id: "paint", label: "Paint Buckets", type: "volume" as const, step: 0.1 },
   { id: "cup", label: "Cups", type: "volume" as const, step: 0.1 },

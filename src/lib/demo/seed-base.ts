@@ -42,6 +42,22 @@ export const getBaseForSector = (sector: string) => {
           { id: "loc-tx-01", name: "Fabric Warehouse", type: "warehouse", parentId: null, description: "Storage for rolls", address: "", isActive: true, createdAt: ts(120), updatedAt: ts(5) },
         ]
       };
+    case "boutique":
+      return {
+        categories: [
+          { id: "shoes", name: "Shoes", description: "Footwear & Boots", parentId: null, createdAt: ts(90), updatedAt: ts(90), supportedUnits: ["pair", "pcs", "pack"] },
+          { id: "tops", name: "Tops", description: "Shirts, T-shirts, Blouses", parentId: null, createdAt: ts(90), updatedAt: ts(90), supportedUnits: ["pcs", "pack"] },
+          { id: "bottoms", name: "Bottoms", description: "Trousers, Jeans, Skirts", parentId: null, createdAt: ts(90), updatedAt: ts(90), supportedUnits: ["pcs", "pack"] },
+          { id: "dresses", name: "Dresses", description: "Gowns and One-pieces", parentId: null, createdAt: ts(90), updatedAt: ts(90), supportedUnits: ["pcs", "pack"] },
+          { id: "accessories", name: "Accessories", description: "Bags, Belts, Jewelry", parentId: null, createdAt: ts(90), updatedAt: ts(90), supportedUnits: ["pcs", "pack", "pair"] },
+        ],
+        suppliers: [
+          { id: "sup-bt-01", name: "Balogun Apparel Wholesalers", contactName: "Alhaji Kola", email: "balogun@apparel.com", phone: "08033221100", address: "Balogun Market, Lagos", leadTimeDays: 2, rating: 4.6, isActive: true, createdAt: ts(120), updatedAt: ts(10) },
+        ],
+        locations: [
+          { id: "loc-bt-01", name: "Main Boutique Showroom", type: "warehouse", parentId: null, description: "Display racks & hanger area", address: "", isActive: true, createdAt: ts(120), updatedAt: ts(5) },
+        ]
+      };
     case "wholesale":
       return {
         categories: [
