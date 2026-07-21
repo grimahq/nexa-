@@ -277,6 +277,11 @@ function SuperAdminRetention() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [selectedBulkStoreIds, setSelectedBulkStoreIds] = useState<string[]>([]);
   const [sendingBulk, setSendingBulk] = useState(false);
+  const [retentionStatus, setRetentionStatus] = useState<{
+    gmailConfigured: boolean;
+    mode: string;
+    recipientDomainHint: string;
+  } | null>(null);
 
   useEffect(() => {
     const atRiskIds = stores.map(store => {
@@ -385,6 +390,7 @@ function SuperAdminRetention() {
 
     // Fetch metric details
     fetchMetrics();
+    fetchRetentionStatus();
 
     return () => {
       unsubTriggers();
@@ -395,6 +401,18 @@ function SuperAdminRetention() {
       unsubAgents();
     };
   }, []);
+
+  const fetchRetentionStatus = async () => {
+    try {
+      const response = await fetch("/api/retention/status");
+      if (response.ok) {
+        const data = await response.json();
+        setRetentionStatus(data);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch retention status from server:", err);
+    }
+  };
 
   const fetchMetrics = async () => {
     try {
@@ -656,7 +674,10 @@ function SuperAdminRetention() {
         })
       });
 
-      if (!res.ok) throw new Error("Failed to dispatch custom retention email");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to dispatch custom retention email");
+      }
       const data = await res.json();
       toast.dismiss(toastId);
       toast.success(`Success! Personalized email successfully sent. ${data.simulated ? "(Simulated delivery sandbox)" : `Delivered to ${recipient}`}!`, {
@@ -664,9 +685,10 @@ function SuperAdminRetention() {
       });
       setEmailRecipientStoreId("");
       setCustomRecipientEmail("");
-    } catch (err) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
       toast.dismiss(toastId);
-      toast.error("Failed to send personalized email nudge.");
+      toast.error(err.message || "Failed to send personalized email nudge.");
     } finally {
       setSendingEmail(false);
     }
@@ -691,15 +713,19 @@ function SuperAdminRetention() {
         })
       });
 
-      if (!res.ok) throw new Error("Failed to dispatch bulk retention campaign");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to dispatch bulk retention campaign");
+      }
       const data = await res.json();
       toast.dismiss(toastId);
       toast.success(`Success! Bulk email outreach completed. Successfully dispatched to ${data.successCount} merchants.`, {
         duration: 5000
       });
-    } catch (err) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
       toast.dismiss(toastId);
-      toast.error("Failed to execute bulk email campaign.");
+      toast.error(err.message || "Failed to execute bulk email campaign.");
     } finally {
       setSendingBulk(false);
     }
@@ -1245,6 +1271,45 @@ function SuperAdminRetention() {
 
       {activeTab === "emails" && (
         <div className="space-y-6 animate-in fade-in-50 duration-300">
+          {/* Email Engine Configuration Status Banner */}
+          {retentionStatus ? (
+            retentionStatus.gmailConfigured ? (
+              <div className="p-4 rounded-xl border border-emerald-500/10 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 flex items-start gap-3.5 shadow-sm">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1">
+                  <h4 className="font-bold uppercase tracking-wider text-[10px]">Gmail Live Outreach Active</h4>
+                  <p className="text-muted-foreground leading-normal">The Gmail API retention engine is successfully configured with an active <strong>GMAIL_ACCESS_TOKEN</strong>. Personalized customer reactivation emails will be delivered instantly to target clients.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl border border-indigo-500/15 bg-indigo-500/5 text-indigo-700 dark:text-indigo-300 flex items-start gap-3.5 shadow-sm">
+                <CheckCircle2 className="h-5 w-5 text-indigo-500 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1.5 flex-1">
+                  <div className="flex justify-between items-center gap-2">
+                    <h4 className="font-bold uppercase tracking-wider text-[10px]">High-Fidelity Simulated Sandbox Delivery Active</h4>
+                    <Badge className="text-[8px] uppercase font-bold text-indigo-700 bg-indigo-500/10 border border-indigo-500/25 shrink-0">Option 2 (Default Sandbox)</Badge>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">
+                    NEXAOS Email outreach is running in <strong>Simulated Sandbox Delivery Mode</strong>. All email dispatches, manual campaigns, and automated scheduled business reports will run instantly, execute template compiling with live merge tags, and log flawlessly to the timeline without sending real emails.
+                  </p>
+                  <div className="pt-2.5 border-t border-indigo-500/10 text-[11px] text-muted-foreground space-y-1">
+                    <p className="font-bold text-indigo-800 dark:text-indigo-400">⚡ Key benefits of Simulated Sandbox Mode:</p>
+                    <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
+                      <li>Allows seamless offline demo testing and merchant training without spamming real inboxes.</li>
+                      <li>Simulates 100% realistic API response behaviors, status updates, and quota indexes.</li>
+                      <li>Instantly preview dynamic merge tags (e.g. store names, manager names, low stock lists) live in the dispatch console.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )
+          ) : (
+            <div className="p-4 rounded-xl border bg-muted/20 animate-pulse flex items-center gap-3">
+              <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground font-medium">Verifying Gmail API configuration status...</span>
+            </div>
+          )}
+
           <div className="grid gap-6 md:grid-cols-3">
             {/* Template Selector & Editor */}
             <Card className="md:col-span-2 shadow-none border border-muted-foreground/10">

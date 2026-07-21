@@ -559,7 +559,14 @@ export function SalesGrid() {
             <div className="hidden lg:grid lg:grid-cols-5 lg:h-full lg:divide-x lg:divide-border overflow-hidden">
               {/* Left Column: Product Catalog */}
               <div className="lg:col-span-3 flex flex-col overflow-hidden h-full">
-                <SalesStepBrowse cart={cart} onAdd={addToCart} onRemove={removeFromCart} />
+                <SalesStepBrowse 
+                  cart={cart} 
+                  onAdd={addToCart} 
+                  onRemove={removeFromCart} 
+                  pricingMode={onboarding?.pricingMode || "single"}
+                  activeTier={activeTier}
+                  onChangeTier={setActiveTier}
+                />
               </div>
               
               {/* Right Column: Interactive Cart Review / Billing Checkout */}
@@ -610,7 +617,14 @@ export function SalesGrid() {
             {/* Mobile / Tablet Wizard View */}
             <div className="flex-1 overflow-hidden flex flex-col lg:hidden">
               {step === "browse" && (
-                <SalesStepBrowse cart={cart} onAdd={addToCart} onRemove={removeFromCart} />
+                <SalesStepBrowse 
+                  cart={cart} 
+                  onAdd={addToCart} 
+                  onRemove={removeFromCart} 
+                  pricingMode={onboarding?.pricingMode || "single"}
+                  activeTier={activeTier}
+                  onChangeTier={setActiveTier}
+                />
               )}
               {step === "cart" && (
                 <SalesStepCart

@@ -33,6 +33,7 @@ import { FoodPlate } from "./FoodPlate";
 import { SUPPORTED_UNITS, type Item } from "@/types/inventory";
 import { DishCustomizerDialog } from "./DishCustomizerDialog";
 import { VariantCustomizerDialog } from "./VariantCustomizerDialog";
+import { resolvePrice } from "@/utils/pricing";
 
 const NAIRA = "₦";
 const USD_TO_NGN = 1;
@@ -46,9 +47,19 @@ interface SalesStepBrowseProps {
   cart: Map<string, number>; // keys are itemId:unitId:configString
   onAdd: (id: string, qty?: number, unitId?: string, configStr?: string) => void;
   onRemove: (id: string, unitId?: string, configStr?: string) => void;
+  pricingMode?: "single" | "tiered";
+  activeTier?: "retail" | "wholesale" | "distributor";
+  onChangeTier?: (tier: "retail" | "wholesale" | "distributor") => void;
 }
 
-export function SalesStepBrowse({ cart, onAdd, onRemove }: SalesStepBrowseProps) {
+export function SalesStepBrowse({ 
+  cart, 
+  onAdd, 
+  onRemove,
+  pricingMode = "single",
+  activeTier = "retail",
+  onChangeTier
+}: SalesStepBrowseProps) {
   const { data: items } = useItems();
   const { data: categories } = useCategories();
   const { isDemo, demoStore, onboarding: demoOnboarding } = useDemo();
@@ -178,11 +189,11 @@ export function SalesStepBrowse({ cart, onAdd, onRemove }: SalesStepBrowseProps)
       const item = items.find((i) => i.id === itemId);
       if (!item) return;
 
-      let price = item.sellingPrice;
+      let price = resolvePrice(item, pricingMode, activeTier);
       if (unitId && unitId !== item.unit && item.unitConversions) {
         const conv = item.unitConversions.find(c => c.unitId === unitId);
         if (conv) {
-          price = conv.priceNgn !== undefined ? conv.priceNgn / USD_TO_NGN : item.sellingPrice * conv.multiplier;
+          price = conv.priceNgn !== undefined ? conv.priceNgn / USD_TO_NGN : resolvePrice(item, pricingMode, activeTier) * conv.multiplier;
         }
       }
 

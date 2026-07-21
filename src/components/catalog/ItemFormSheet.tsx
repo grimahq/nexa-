@@ -140,6 +140,10 @@ export function ItemFormSheet({
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [productType, setProductType] = useState<"simple" | "variants" | "bulk" | "both">("simple");
 
+  // Tiered pricing states
+  const [wholesalePrice, setWholesalePrice] = useState("");
+  const [distributorPrice, setDistributorPrice] = useState("");
+
   // Options states
   const [availColours, setAvailColours] = useState<string[]>(["Red", "Navy", "Gold"]);
   const [availSizes, setAvailSizes] = useState<string[]>(["38", "39", "40", "41"]);
@@ -280,6 +284,14 @@ export function ItemFormSheet({
         setRequiresPrescription(false);
         setDosageForm("");
       }
+
+      if (item.pricingTiers) {
+        setWholesalePrice(item.pricingTiers.wholesale?.toString() || "");
+        setDistributorPrice(item.pricingTiers.distributor?.toString() || "");
+      } else {
+        setWholesalePrice("");
+        setDistributorPrice("");
+      }
       
       // Determine template based on item structure
       if (item.unitConversions && item.unitConversions.length > 0 && item.color) {
@@ -338,6 +350,8 @@ export function ItemFormSheet({
       setRequiresPrescription(false);
       setDosageForm("");
       setShowNameSuggestions(false);
+      setWholesalePrice("");
+      setDistributorPrice("");
       setCurrentStep(1);
       setProductType("simple");
       setShowAdvanced(false);
@@ -419,6 +433,13 @@ export function ItemFormSheet({
   };
 
   const onSubmit = (data: FormValues) => {
+    const pricingTiers = isTieredMode ? {
+      retail: data.sellingPrice,
+      wholesale: wholesalePrice ? Number(wholesalePrice) : undefined,
+      distributor: distributorPrice ? Number(distributorPrice) : undefined,
+      tierEnabled: true,
+    } : undefined;
+
     if (isRestaurant) {
       const activePortions = portionSizes.filter(p => p.name.trim() !== "");
       const activeProteins = proteinAddons.filter(p => p.name.trim() !== "");
@@ -445,6 +466,7 @@ export function ItemFormSheet({
         locationId: data.locationId || null,
         description: data.description || "",
         restaurant: restaurantData,
+        pricingTiers,
       });
       return;
     }
@@ -490,6 +512,7 @@ export function ItemFormSheet({
       description: data.description || "",
       electronics: electronicsData,
       pharmacy: pharmacyData,
+      pricingTiers,
     });
   };
 
@@ -1192,6 +1215,33 @@ export function ItemFormSheet({
                           />
                         </div>
                       </div>
+
+                      {isTieredMode && (
+                        <>
+                          <div>
+                            <label className={labelCls}>Wholesale Price (₦)</label>
+                            <input 
+                              type="number" 
+                              step="0.01"
+                              value={wholesalePrice}
+                              onChange={(e) => setWholesalePrice(e.target.value)}
+                              className={`${inputCls} font-mono`} 
+                              placeholder="Wholesale Price..."
+                            />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Distributor Price (₦)</label>
+                            <input 
+                              type="number" 
+                              step="0.01"
+                              value={distributorPrice}
+                              onChange={(e) => setDistributorPrice(e.target.value)}
+                              className={`${inputCls} font-mono`} 
+                              placeholder="Distributor Price..."
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -1321,6 +1371,33 @@ export function ItemFormSheet({
                         </div>
                       </div>
                     </div>
+
+                    {isTieredMode && (
+                      <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-amber-200/40">
+                        <div>
+                          <label className={labelCls}>Wholesale Price (₦)</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            value={wholesalePrice}
+                            onChange={(e) => setWholesalePrice(e.target.value)}
+                            className={`${inputCls} font-mono`} 
+                            placeholder="Wholesale Price..."
+                          />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Distributor Price (₦)</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            value={distributorPrice}
+                            onChange={(e) => setDistributorPrice(e.target.value)}
+                            className={`${inputCls} font-mono`} 
+                            placeholder="Distributor Price..."
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {/* Common local nigerian preset tags */}
                     <div>
@@ -1673,6 +1750,33 @@ export function ItemFormSheet({
                               className={`${inputCls} font-mono`} 
                             />
                           </div>
+
+                          {isTieredMode && (
+                            <>
+                              <div>
+                                <label className={labelCls}>Wholesale Price (₦)</label>
+                                <input 
+                                  type="number" 
+                                  step="0.01"
+                                  value={wholesalePrice}
+                                  onChange={(e) => setWholesalePrice(e.target.value)}
+                                  className={`${inputCls} font-mono`} 
+                                  placeholder="Wholesale Price..."
+                                />
+                              </div>
+                              <div>
+                                <label className={labelCls}>Distributor Price (₦)</label>
+                                <input 
+                                  type="number" 
+                                  step="0.01"
+                                  value={distributorPrice}
+                                  onChange={(e) => setDistributorPrice(e.target.value)}
+                                  className={`${inputCls} font-mono`} 
+                                  placeholder="Distributor Price..."
+                                />
+                              </div>
+                            </>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-3 gap-2">
