@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { getStorefrontUrl } from "@/lib/utils";
+import { getStorefrontUrl, getCleanStoreSlug } from "@/lib/utils";
 import { 
   QrCode, 
   Download, 
@@ -42,7 +42,7 @@ export function InStoreQRGeneratorModal({ open, onOpenChange }: InStoreQRGenerat
   const { data: locations } = useLocations();
 
   const activeSettings = isDemo ? demoOnboarding : liveSettings;
-  const storeSlug = activeSettings.storeSlug || "sample-store";
+  const storeSlug = getCleanStoreSlug(activeSettings.storeSlug, activeSettings.storeName);
   const storeName = activeSettings.storeName || "Our Store";
 
   const [sector, setSector] = useState<"restaurant" | "supermarket" | "pharmacy" | "vet" | "retail">("restaurant");

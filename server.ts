@@ -1591,8 +1591,10 @@ Please contact us directly on WhatsApp at **${storeInfo?.storePhone || "our supp
       const storeData = storeSnap.data();
       const tier = storeData?.subscriptionTier || "starter";
 
-      // Enforce Enterprise tier gating!
-      if (tier !== "enterprise") {
+      const isSuperAdmin = req.body.isSuperAdmin === true;
+
+      // Enforce Enterprise tier gating unless user is Super Admin!
+      if (tier !== "enterprise" && !isSuperAdmin) {
         return res.status(403).json({
           error: "AI_ASSISTANT_LOCKED",
           message: "The NEXAOS AI Assistant is exclusive to Enterprise tier subscribers."
@@ -1604,7 +1606,7 @@ Please contact us directly on WhatsApp at **${storeInfo?.storePhone || "our supp
       const period = new Date().toISOString().slice(0, 7);
       const ledger = await getOrCreateLedger(db, storeId, period, tier);
 
-      if (!isBYOK) {
+      if (!isBYOK && !isSuperAdmin) {
         const totalCredits = (ledger.creditsIncluded || 0) + (ledger.creditsPurchased || 0);
         const remaining = totalCredits - (ledger.creditsUsed || 0);
         if (remaining <= 0) {
@@ -1914,12 +1916,14 @@ Provide the response as clean structured JSON.`;
       const storeData = storeSnap.exists() ? storeSnap.data() : null;
       const tier = storeData?.subscriptionTier || "starter";
 
-      // 2. Check Credits (if not BYOK)
+      const isSuperAdmin = req.body.isSuperAdmin === true;
+
+      // 2. Check Credits (if not BYOK and not Super Admin)
       const isBYOK = !!(storeData?.aiAssistantApiKey);
       const period = new Date().toISOString().slice(0, 7);
       const ledger = await getOrCreateLedger(db, storeId, period, tier);
 
-      if (!isBYOK) {
+      if (!isBYOK && !isSuperAdmin) {
         const totalCredits = (ledger.creditsIncluded || 0) + (ledger.creditsPurchased || 0);
         const remaining = totalCredits - (ledger.creditsUsed || 0);
         if (remaining <= 0) {

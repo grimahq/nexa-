@@ -55,6 +55,7 @@ function SettingsPage() {
           {isAdmin && (
             <>
               <TabsTrigger value="store">Store Info</TabsTrigger>
+              <TabsTrigger value="subscription">Subscription & Upgrade</TabsTrigger>
               <TabsTrigger value="branding">Appearance</TabsTrigger>
               <TabsTrigger value="sector" className="capitalize">{sector.type} Rules</TabsTrigger>
               <TabsTrigger value="customers">{sector.labels.customers}</TabsTrigger>
@@ -78,6 +79,9 @@ function SettingsPage() {
             <>
               <TabsContent value="store">
                 <ErrorBoundary><StoreSettings /></ErrorBoundary>
+              </TabsContent>
+              <TabsContent value="subscription">
+                <ErrorBoundary><SmartFeatures /></ErrorBoundary>
               </TabsContent>
               <TabsContent value="branding">
                 <ErrorBoundary><StoreBranding /></ErrorBoundary>

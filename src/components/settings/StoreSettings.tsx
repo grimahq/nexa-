@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Store, Save, ShieldAlert, Mail, FileText, MapPin, Trash2, Plus, Building2, ExternalLink, Copy, Sparkles } from "lucide-react";
+import { Store, Save, ShieldAlert, Mail, FileText, MapPin, Trash2, Plus, Building2, ExternalLink, Copy, Sparkles, Layers, ShieldCheck, Zap, ArrowUpRight } from "lucide-react";
+import { PaymentDialog } from "@/components/settings/PaymentDialog";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
 import { useDemo } from "@/hooks/useDemo";
@@ -69,6 +70,9 @@ export function StoreSettings() {
   const [recipientEmail, setRecipientEmail] = useState(
     activeSettings.reportPreferences?.recipientEmail || ""
   );
+
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeTier, setUpgradeTier] = useState<"starter" | "professional" | "enterprise">("professional");
 
   useEffect(() => {
     setStoreName(activeSettings.storeName || "");
@@ -275,6 +279,108 @@ export function StoreSettings() {
 
   return (
     <div className="space-y-6">
+      {/* Active Subscription & Upgrade Card */}
+      <Card className="border-indigo-500/30 bg-gradient-to-r from-indigo-950/20 via-background to-purple-950/20 shadow-md overflow-hidden relative">
+        <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+          <Zap className="h-32 w-32 text-indigo-500" />
+        </div>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                  Current Plan
+                </span>
+                <span className="text-xs font-semibold uppercase text-emerald-400 flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Active
+                </span>
+              </div>
+              <CardTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+                {flags.planName}
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground mt-1">
+                Manage your subscription tier, unlock branch expansions, and access Enterprise AI tools.
+              </CardDescription>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {flags.planId !== "professional" && flags.planId !== "enterprise" && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setUpgradeTier("professional");
+                    setShowUpgradeModal(true);
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs gap-1.5 shadow-sm"
+                  id="upgrade-pro-btn"
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> Upgrade to Pro
+                </Button>
+              )}
+
+              {flags.planId !== "enterprise" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setUpgradeTier("enterprise");
+                    setShowUpgradeModal(true);
+                  }}
+                  className="border-indigo-500/40 hover:bg-indigo-500/10 text-indigo-400 font-semibold text-xs gap-1.5"
+                  id="upgrade-enterprise-btn"
+                >
+                  <Zap className="h-3.5 w-3.5 text-amber-400" /> Upgrade to Enterprise
+                </Button>
+              )}
+
+              <Link
+                to="/app/settings"
+                search={{ tab: "subscription" }}
+                className="text-xs font-medium text-muted-foreground hover:text-foreground underline flex items-center gap-1 px-2 py-1"
+              >
+                Compare Plans <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs border-t border-border/40 pt-3">
+            <div>
+              <span className="text-muted-foreground block text-[11px] uppercase font-medium">Branch Locations</span>
+              <span className="font-semibold text-foreground">Up to {flags.maxBranches} Location{flags.maxBranches > 1 ? "s" : ""}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground block text-[11px] uppercase font-medium">Enterprise AI Assistant</span>
+              <span className={`font-semibold ${flags.aiAssistant ? "text-emerald-400" : "text-amber-400"}`}>
+                {flags.aiAssistant ? "Included" : "Gated (Enterprise)"}
+              </span>
+            </div>
+            <div>
+              <span className="text-muted-foreground block text-[11px] uppercase font-medium">Multi-Tier Pricing</span>
+              <span className={`font-semibold ${flags.pricingMode ? "text-emerald-400" : "text-muted-foreground"}`}>
+                {flags.pricingMode ? "Unlocked" : "Single Tier"}
+              </span>
+            </div>
+            <div>
+              <span className="text-muted-foreground block text-[11px] uppercase font-medium">Auto-Replenishment</span>
+              <span className={`font-semibold ${flags.aiReplenishment ? "text-emerald-400" : "text-muted-foreground"}`}>
+                {flags.aiReplenishment ? "Active" : "Pro / Enterprise"}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <PaymentDialog
+        open={showUpgradeModal}
+        onOpenChange={setShowUpgradeModal}
+        targetTier={upgradeTier}
+        onSuccess={() => {
+          setShowUpgradeModal(false);
+          toast.success("Subscription updated! Your new plan features are active.");
+        }}
+      />
+
       {/* Performance Section */}
       <div>
         <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Performance</h3>

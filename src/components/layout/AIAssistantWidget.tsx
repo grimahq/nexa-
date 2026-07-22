@@ -74,7 +74,7 @@ interface Message {
 }
 
 export function AIAssistantWidget() {
-  const { currentStoreId } = useRole();
+  const { currentStoreId, isSuperAdmin, stores, setCurrentStoreId } = useRole();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -298,6 +298,7 @@ export function AIAssistantWidget() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           storeId: currentStoreId,
+          isSuperAdmin,
           message: text,
           voiceBase64,
           voiceMime,
@@ -402,7 +403,7 @@ export function AIAssistantWidget() {
       const res = await fetch("/api/ai-assistant/execute-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId, storeId: currentStoreId })
+        body: JSON.stringify({ requestId, storeId: currentStoreId, isSuperAdmin })
       });
 
       if (res.ok) {
@@ -515,11 +516,11 @@ export function AIAssistantWidget() {
 
               {/* Status & Options */}
               <div className="flex items-center gap-2">
-                <div className="text-[10px] rounded-full bg-indigo-50 px-2 py-1 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400 max-w-[130px] truncate">
-                  {byokKey ? "Unlimited" : ledger ? `${((ledger.creditsIncluded || 0) + (ledger.creditsPurchased || 0) - (ledger.creditsUsed || 0))} cr` : "0 cr"}
+                <div className="text-[10px] rounded-full bg-indigo-50 px-2 py-1 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400 max-w-[130px] truncate font-medium">
+                  {isSuperAdmin ? "👑 Super Admin" : byokKey ? "Unlimited" : ledger ? `${((ledger.creditsIncluded || 0) + (ledger.creditsPurchased || 0) - (ledger.creditsUsed || 0))} cr` : "0 cr"}
                 </div>
 
-                {!byokKey && (
+                {!byokKey && !isSuperAdmin && (
                   <button
                     onClick={() => setShowTopUpModal(true)}
                     className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
@@ -548,6 +549,27 @@ export function AIAssistantWidget() {
                 </button>
               </div>
             </div>
+
+            {/* Super Admin Store Context Bar */}
+            {isSuperAdmin && (
+              <div className="bg-amber-500/10 border-b border-amber-500/20 px-3 py-2 flex items-center justify-between text-xs shrink-0" id="super-admin-store-switcher-widget">
+                <span className="font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1 text-[11px]">
+                  👑 Active Store Context:
+                </span>
+                <select
+                  value={currentStoreId}
+                  onChange={(e) => setCurrentStoreId(e.target.value)}
+                  className="bg-white dark:bg-slate-900 border border-amber-500/30 rounded px-2 py-1 text-xs font-medium text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-amber-500 max-w-[210px] truncate"
+                  id="widget-super-admin-store-select"
+                >
+                  {stores.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* BYOK config screen within widget */}
             {showByokSettings && (

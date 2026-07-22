@@ -89,21 +89,61 @@ function GlobalStyles() {
   );
 }
 
+import { useEffect, useState } from "react";
+
 function NotFoundComponent() {
+  const [countdown, setCountdown] = useState(3);
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+
+  useEffect(() => {
+    // Handle typos like /app/sells -> redirect to /app/sales
+    if (pathname.includes("/app/sells")) {
+      window.location.href = "/app/sales";
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          if (pathname.startsWith("/app/")) {
+            window.location.href = "/app/dashboard";
+          } else {
+            window.location.href = "/";
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [pathname]);
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-background p-6 text-center">
-      <div className="mb-6 rounded-full bg-destructive/10 p-4">
-        <AlertCircle className="h-12 w-12 text-destructive" />
+      <div className="mb-6 rounded-full bg-amber-500/10 p-4 border border-amber-500/20">
+        <AlertCircle className="h-12 w-12 text-amber-600 dark:text-amber-400" />
       </div>
-      <h1 className="text-3xl font-bold tracking-tight mb-2">404 - Page Not Found</h1>
-      <p className="text-muted-foreground max-w-md mb-8">
-        Oops! The page you're looking for doesn't exist or has been moved.
+      <h1 className="text-2xl font-bold tracking-tight mb-2">Invalid or Unrecognized Page</h1>
+      <p className="text-muted-foreground max-w-md mb-2 text-sm leading-relaxed">
+        We couldn't find a page at <code className="bg-muted px-2 py-0.5 rounded text-xs font-mono text-foreground">{pathname}</code>.
       </p>
-      <Button asChild>
-        <Link to="/app/dashboard" className="gap-2">
-          <Home className="h-4 w-4" /> Back to Dashboard
-        </Link>
-      </Button>
+      <p className="text-xs text-muted-foreground mb-6">
+        Auto-redirecting to dashboard in <span className="font-bold text-foreground">{countdown}s</span>...
+      </p>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <Button asChild variant="default">
+          <Link to="/app/dashboard" className="gap-2">
+            <Home className="h-4 w-4" /> Go to Dashboard
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link to="/app/sales" className="gap-2">
+            POS Sales
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }

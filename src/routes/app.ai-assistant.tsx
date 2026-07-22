@@ -90,7 +90,7 @@ interface Message {
 }
 
 function AiAssistantPage() {
-  const { currentStoreId } = useRole();
+  const { currentStoreId, isSuperAdmin, stores, setCurrentStoreId } = useRole();
   const { isDemo } = useDemo();
 
   // State Management
@@ -295,6 +295,7 @@ function AiAssistantPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           storeId: currentStoreId,
+          isSuperAdmin,
           message: text,
           voiceBase64,
           voiceMime,
@@ -399,7 +400,7 @@ function AiAssistantPage() {
       const res = await fetch("/api/ai-assistant/execute-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId, storeId: currentStoreId })
+        body: JSON.stringify({ requestId, storeId: currentStoreId, isSuperAdmin })
       });
 
       if (res.ok) {
@@ -485,14 +486,34 @@ function AiAssistantPage() {
 
         {/* AI Credits Tracker */}
         <div className="flex items-center gap-4">
+          {isSuperAdmin && (
+            <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 text-xs">
+              <span className="font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                👑 Target Store:
+              </span>
+              <select
+                value={currentStoreId}
+                onChange={(e) => setCurrentStoreId(e.target.value)}
+                className="bg-white dark:bg-slate-900 border border-amber-500/30 rounded px-2 py-1 text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-amber-500 max-w-[220px]"
+                id="page-super-admin-store-select"
+              >
+                {stores.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-1.5 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400">
             <Sparkles className="h-4 w-4" />
             <span className="text-sm font-medium">
-              {byokKey ? "BYOK Mode (Unlimited)" : `Credits: ${ledger ? ((ledger.creditsIncluded || 0) + (ledger.creditsPurchased || 0) - (ledger.creditsUsed || 0)) : 0} left`}
+              {isSuperAdmin ? "Super Admin Access (All Stores)" : byokKey ? "BYOK Mode (Unlimited)" : `Credits: ${ledger ? ((ledger.creditsIncluded || 0) + (ledger.creditsPurchased || 0) - (ledger.creditsUsed || 0)) : 0} left`}
             </span>
           </div>
 
-          {!byokKey && (
+          {!byokKey && !isSuperAdmin && (
             <button
               onClick={() => setShowTopUpModal(true)}
               className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-indigo-500"

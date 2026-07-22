@@ -13,10 +13,35 @@ export function getPublicUrl(url?: string): string {
   return origin;
 }
 
+export function slugify(text?: string): string {
+  if (!text) return "";
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')           // Replace spaces with -
+    .replace(/[^\w-]+/g, '')        // Remove all non-word chars
+    .replace(/--+/g, '-')           // Replace multiple - with single -
+    .replace(/^-+/, '')             // Trim - from start of text
+    .replace(/-+$/, '');            // Trim - from end of text
+}
+
+export function getCleanStoreSlug(slug?: string, storeName?: string): string {
+  if (slug && slug.trim() && slug !== "general" && slug !== "sample-store") {
+    const s = slugify(slug);
+    if (s && s !== "general") return s;
+  }
+  if (storeName && storeName.trim()) {
+    const slugifiedName = slugify(storeName);
+    if (slugifiedName && slugifiedName !== "general") return slugifiedName;
+  }
+  return "nexa-store";
+}
+
 /**
  * Generates the absolute storefront or product URL based on the environment.
- * - Local / Sandbox: uses sub-routes e.g., origin/store/:slug or origin/store/product/:productId
- * - Production: uses custom subdomains e.g., :slug.nexastoreos.com/ or :slug.nexastoreos.com/product/:productId
+ * - Single Domain / Vercel / Cloud Run / Local: uses sub-routes e.g., origin/store/:slug or origin/store/product/:productId
+ * - Production Custom Subdomains (only when VITE_USE_SUBDOMAINS="true"): uses :slug.domain.com/
  */
 export function getStorefrontUrl(
   storeSlug: string,
@@ -24,35 +49,36 @@ export function getStorefrontUrl(
   queryParams?: Record<string, string | null | undefined>
 ): string {
   const origin = window.location.origin;
-  const isDevUrl = origin.includes("ais-dev-") || 
-                   origin.includes("ais-pre-") || 
-                   origin.includes("localhost") || 
-                   origin.includes("127.0.0.1") ||
-                   origin.includes("run.app"); // Also treat other Google Cloud Run preview URLs as dev/preview
+  const cleanSlug = getCleanStoreSlug(storeSlug);
+
+  // Use custom wildcard subdomains ONLY if explicitly configured in environment
+  const useSubdomains = import.meta.env.VITE_USE_SUBDOMAINS === "true";
 
   let base = "";
-  if (isDevUrl) {
-    const publicOrigin = getPublicUrl(origin);
-    // In dev sandbox / local environments, routes are standard subpaths
-    if (path.startsWith("product/")) {
-      // Product detail route is /store/product/$productId
-      base = `${publicOrigin}/store/${path}`;
-    } else {
-      // General storefront route is /store/$slug
-      base = `${publicOrigin}/store/${storeSlug}${path ? `/${path}` : ""}`;
-    }
-  } else {
-    // In production, we host on a custom domain with wildcard subdomains (defaults to nexastoreos.com)
+  if (useSubdomains) {
     const productionDomain = import.meta.env.VITE_STORE_DOMAIN || "nexastoreos.com";
     const cleanPath = path ? (path.startsWith("/") ? path : `/${path}`) : "";
-    base = `https://${storeSlug}.${productionDomain}${cleanPath}`;
+    base = `https://${cleanSlug}.${productionDomain}${cleanPath}`;
+  } else {
+    // Standard origin URL structure for Vercel, Cloud Run, Localhost, Custom App Domains
+    const publicOrigin = getPublicUrl(origin);
+    const cleanPath = path ? (path.startsWith("/") ? path : `/${path}`) : "";
+    
+    if (cleanPath.startsWith("/product/") || cleanPath.startsWith("product/")) {
+      const productId = cleanPath.replace(/^\/?product\//, "");
+      base = `${publicOrigin}/store/product/${productId}`;
+    } else if (cleanPath.startsWith("/store/")) {
+      base = `${publicOrigin}${cleanPath}`;
+    } else {
+      base = `${publicOrigin}/store/${cleanSlug}${cleanPath}`;
+    }
   }
 
   // Append query params if any
   if (queryParams) {
     const params = new URLSearchParams();
     Object.entries(queryParams).forEach(([key, val]) => {
-      if (val !== undefined && val !== null) {
+      if (val !== undefined && val !== null && val !== "") {
         params.set(key, val);
       }
     });

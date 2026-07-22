@@ -97,6 +97,18 @@ function PublicStorefront() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Item | null>(null);
+
+  // Auto select product if passed via URL parameter ?product=id
+  useEffect(() => {
+    if (!allItems || allItems.length === 0) return;
+    const urlProductId = queryParams.get("product");
+    if (urlProductId) {
+      const target = allItems.find(i => i.id === urlProductId);
+      if (target) {
+        setSelectedProduct(target);
+      }
+    }
+  }, [allItems, queryParams]);
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedSize, setSelectedSize] = useState<string>("");
 

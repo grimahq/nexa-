@@ -1,6 +1,6 @@
 import { QRCodeSVG } from "qrcode.react";
 import { QrCode, Download, Printer } from "lucide-react";
-import { getStorefrontUrl } from "@/lib/utils";
+import { getStorefrontUrl, getCleanStoreSlug } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useDemo } from "@/hooks/useDemo";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
@@ -23,7 +23,7 @@ export function QRCodeDialog({ item, trigger }: QRCodeDialogProps) {
   const { isDemo, onboarding: demoOnboarding } = useDemo();
   const { settings: liveSettings } = useSystemSettings();
   const onboarding = isDemo ? demoOnboarding : liveSettings;
-  const storeSlug = onboarding?.storeSlug || "general";
+  const storeSlug = getCleanStoreSlug(onboarding?.storeSlug, onboarding?.storeName);
 
   const isDevUrl = window.location.origin.includes("ais-dev-");
   // Append source=qr for CRM tracking

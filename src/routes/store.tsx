@@ -10,6 +10,7 @@ import { useItems } from "@/hooks/useInventoryData";
 import { Item } from "@/types/inventory";
 import { NexaLogo } from "@/components/shared/NexaLogo";
 import { logQRLeadEvent } from "@/utils/qrTracking";
+import { getCleanStoreSlug } from "@/lib/utils";
 import { useOnboarding, TourStep } from "@/hooks/useOnboarding";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { db } from "@/lib/firebase";
@@ -214,7 +215,7 @@ function StoreLayout() {
     const qrSourceIdParam = params.get("qrSourceId");
     if (qrSourceIdParam) {
       localStorage.setItem("nexa_current_qr_source_id", qrSourceIdParam);
-      const storeSlug = onboarding?.storeSlug || "general";
+      const storeSlug = getCleanStoreSlug(onboarding?.storeSlug, onboarding?.storeName);
       const storeId = onboarding?.id || storeSlug;
       localStorage.setItem("nexa_current_qr_store_id", storeId);
       console.log("Customer QR source detected:", qrSourceIdParam);
@@ -226,7 +227,7 @@ function StoreLayout() {
     if (savedQrId) {
       const parts = savedQrId.split("_");
       const branchId = parts[2] && parts[2] !== "main" ? parts[2] : null;
-      const storeSlug = onboarding?.storeSlug || "general";
+      const storeSlug = getCleanStoreSlug(onboarding?.storeSlug, onboarding?.storeName);
       const storeId = localStorage.getItem("nexa_current_qr_store_id") || onboarding?.id || storeSlug;
       logQRLeadEvent({
         qrSourceId: savedQrId,
@@ -408,7 +409,7 @@ function StoreLayout() {
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase font-semibold text-neutral-400">Powered by</span>
             <a 
-              href={`${import.meta.env.VITE_LANDING_URL || "https://nexastoreos.com"}/?utm_source=qr_footer&utm_medium=customer_store&utm_campaign=${encodeURIComponent(onboarding.storeSlug || "general")}${tableNumber ? `&utm_content=table_${encodeURIComponent(tableNumber)}` : ""}`}
+              href={`${import.meta.env.VITE_LANDING_URL || "https://nexastoreos.com"}/?utm_source=qr_footer&utm_medium=customer_store&utm_campaign=${encodeURIComponent(getCleanStoreSlug(onboarding?.storeSlug, onboarding?.storeName))}${tableNumber ? `&utm_content=table_${encodeURIComponent(tableNumber)}` : ""}`}
               target="_blank" 
               rel="noopener noreferrer" 
               onClick={handleCtaClick}
@@ -419,7 +420,7 @@ function StoreLayout() {
             </a>
             <span className="text-neutral-300">|</span>
             <a 
-              href={`${import.meta.env.VITE_LANDING_URL || "https://nexastoreos.com"}/?utm_source=qr_footer_cta&utm_medium=customer_store&utm_campaign=${encodeURIComponent(onboarding.storeSlug || "general")}${tableNumber ? `&utm_content=table_${encodeURIComponent(tableNumber)}` : ""}`}
+              href={`${import.meta.env.VITE_LANDING_URL || "https://nexastoreos.com"}/?utm_source=qr_footer_cta&utm_medium=customer_store&utm_campaign=${encodeURIComponent(getCleanStoreSlug(onboarding?.storeSlug, onboarding?.storeName))}${tableNumber ? `&utm_content=table_${encodeURIComponent(tableNumber)}` : ""}`}
               target="_blank" 
               rel="noopener noreferrer" 
               onClick={handleCtaClick}

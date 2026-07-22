@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useDemo } from "@/hooks/useDemo";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
-import { getStorefrontUrl } from "@/lib/utils";
+import { getStorefrontUrl, getCleanStoreSlug } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/affiliates")({
   component: AffiliatesPage,
@@ -27,7 +27,7 @@ function AffiliatesPage() {
   const { isDemo, onboarding: demoOnboarding } = useDemo();
   const { settings: liveSettings } = useSystemSettings();
   const onboarding = isDemo ? demoOnboarding : liveSettings;
-  const storeSlug = onboarding?.storeSlug || "general";
+  const storeSlug = getCleanStoreSlug(onboarding?.storeSlug, onboarding?.storeName);
 
   const copyReferralLink = (partnerId: string) => {
     const url = getStorefrontUrl(storeSlug, "", { aff: partnerId });

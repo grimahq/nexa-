@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { Badge } from "@/components/ui/badge";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
-import { getStorefrontUrl } from "@/lib/utils";
+import { getStorefrontUrl, getCleanStoreSlug } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/ecommerce")({
   component: EcommercePage,
@@ -19,16 +19,17 @@ function EcommercePage() {
   const { settings } = useSystemSettings();
   const { flags } = useFeatureFlags();
 
-  const storeUrl = getStorefrontUrl(settings.storeSlug || "general");
+  const storeSlug = getCleanStoreSlug(settings.storeSlug, settings.storeName);
+  const storeUrl = getStorefrontUrl(storeSlug);
 
   const copyLink = (id: string) => {
-    const url = getStorefrontUrl(settings.storeSlug || "general", `product/${id}`);
+    const url = getStorefrontUrl(storeSlug, `product/${id}`);
     navigator.clipboard.writeText(url);
     toast.success("Product link copied to clipboard!");
   };
 
   const shareWhatsApp = (item: { id: string; name: string; sellingPrice: number }) => {
-    const url = getStorefrontUrl(settings.storeSlug || "general", `product/${item.id}`);
+    const url = getStorefrontUrl(storeSlug, `product/${item.id}`);
     const text = `Check out ${item.name} on our store! Only ₦${item.sellingPrice.toLocaleString()}\n\nBuy here: ${url}`;
     const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(waUrl, "_blank");
