@@ -13,7 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useDemo } from "@/hooks/useDemo";
+import { useUpdateRequest, useCreateMovement } from "@/hooks/useInventoryMutations";
+import { useAuth } from "@/contexts/AuthContext";
 import { RequestStatus, MovementType } from "@/types/inventory";
 import type { InventoryRequest, Item, StockMovement } from "@/types/inventory";
 
@@ -39,6 +40,7 @@ function checkStock(
 function buildMovements(
   request: InventoryRequest,
   qtys?: Record<string, number>,
+  performedBy: string = "Manager",
 ): StockMovement[] {
   const now = new Date().toISOString();
   return request.items
@@ -55,19 +57,22 @@ function buildMovements(
       toLocationId: null,
       reference: request.requestNumber,
       notes: `Auto-generated from request ${request.requestNumber}`,
-      performedBy: "demo-admin",
+      performedBy,
       createdAt: now,
     }));
 }
 
 export function useApprovalActions({ items }: { items: Item[] }) {
-  const { isDemo, demoStore, bumpVersion } = useDemo();
+  const { user, profile } = useAuth();
+  const updateRequest = useUpdateRequest();
+  const createMovement = useCreateMovement();
+
   const [dialog, setDialog] = useState<DialogType>(null);
   const [activeRequest, setActiveRequest] = useState<InventoryRequest | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [partialQtys, setPartialQtys] = useState<Record<string, number>>({});
-  const [isLoading, setIsLoading] = useState(false);
 
+  const performerName = profile?.name || user?.displayName || user?.email?.split('@')[0] || "Manager";
   const itemMap = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
 
   function openApprove(req: InventoryRequest) {
@@ -92,51 +97,68 @@ export function useApprovalActions({ items }: { items: Item[] }) {
   }
 
   function confirmApprove() {
-    if (!activeRequest || !isDemo || !demoStore) return;
+    if (!activeRequest) return;
     const err = checkStock(activeRequest.items, itemMap);
     if (err) { toast.error(err); return; }
 
     const now = new Date().toISOString();
-    const movements = buildMovements(activeRequest);
-    setIsLoading(true);
-    try {
-      for (const m of movements) demoStore.createMovement(m);
-      demoStore.updateRequest(activeRequest.id, {
-        status: RequestStatus.Approved,
-        approvedBy: "demo-admin",
-        updatedAt: now,
-      });
-      bumpVersion();
-      toast.success(`${activeRequest.requestNumber} approved`);
-      setDialog(null);
-      setActiveRequest(null);
-    } finally {
-      setIsLoading(false);
+    const movements = buildMovements(activeRequest, undefined, performerName);
+
+    for (const m of movements) {
+      createMovement.mutate(m);
     }
+
+    updateRequest.mutate(
+      {
+        id: activeRequest.id,
+        updates: {
+          status: RequestStatus.Approved,
+          approvedBy: performerName,
+          updatedAt: now,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success(`${activeRequest.requestNumber} approved`);
+          setDialog(null);
+          setActiveRequest(null);
+        },
+        onError: (e) => {
+          toast.error(e.message || "Failed to approve request.");
+        },
+      },
+    );
   }
 
   function confirmDecline() {
-    if (!activeRequest || !declineReason.trim() || !isDemo || !demoStore) return;
+    if (!activeRequest || !declineReason.trim()) return;
     const now = new Date().toISOString();
-    setIsLoading(true);
-    try {
-      demoStore.updateRequest(activeRequest.id, {
-        status: RequestStatus.Declined,
-        approvedBy: "demo-admin",
-        declineReason: declineReason.trim(),
-        updatedAt: now,
-      });
-      bumpVersion();
-      toast.success(`${activeRequest.requestNumber} declined`);
-      setDialog(null);
-      setActiveRequest(null);
-    } finally {
-      setIsLoading(false);
-    }
+
+    updateRequest.mutate(
+      {
+        id: activeRequest.id,
+        updates: {
+          status: RequestStatus.Declined,
+          approvedBy: performerName,
+          declineReason: declineReason.trim(),
+          updatedAt: now,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success(`${activeRequest.requestNumber} declined`);
+          setDialog(null);
+          setActiveRequest(null);
+        },
+        onError: (e) => {
+          toast.error(e.message || "Failed to decline request.");
+        },
+      },
+    );
   }
 
   function confirmPartial() {
-    if (!activeRequest || !isDemo || !demoStore) return;
+    if (!activeRequest) return;
     const allZero = activeRequest.items.every((li) => (partialQtys[li.id] ?? 0) === 0);
     if (allZero) { toast.error("Approve at least one item quantity"); return; }
 
@@ -146,25 +168,34 @@ export function useApprovalActions({ items }: { items: Item[] }) {
     const allFull = activeRequest.items.every((li) => (partialQtys[li.id] ?? 0) >= li.quantity);
     const newStatus = allFull ? RequestStatus.Approved : RequestStatus.PartiallyFulfilled;
     const now = new Date().toISOString();
-    const movements = buildMovements(activeRequest, partialQtys);
+    const movements = buildMovements(activeRequest, partialQtys, performerName);
 
-    setIsLoading(true);
-    try {
-      for (const m of movements) demoStore.createMovement(m);
-      demoStore.updateRequest(activeRequest.id, {
-        status: newStatus,
-        approvedBy: "demo-admin",
-        updatedAt: now,
-      });
-      bumpVersion();
-      toast.success(
-        `${activeRequest.requestNumber} ${allFull ? "approved" : "partially fulfilled"}`,
-      );
-      setDialog(null);
-      setActiveRequest(null);
-    } finally {
-      setIsLoading(false);
+    for (const m of movements) {
+      createMovement.mutate(m);
     }
+
+    updateRequest.mutate(
+      {
+        id: activeRequest.id,
+        updates: {
+          status: newStatus,
+          approvedBy: performerName,
+          updatedAt: now,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success(
+            `${activeRequest.requestNumber} ${allFull ? "approved" : "partially fulfilled"}`,
+          );
+          setDialog(null);
+          setActiveRequest(null);
+        },
+        onError: (e) => {
+          toast.error(e.message || "Failed to update request.");
+        },
+      },
+    );
   }
 
   function renderDialogs() {
@@ -268,6 +299,8 @@ export function useApprovalActions({ items }: { items: Item[] }) {
       </>
     );
   }
+
+  const isLoading = updateRequest.isLoading || createMovement.isLoading;
 
   return { openApprove, openDecline, openPartial, renderDialogs, isLoading };
 }

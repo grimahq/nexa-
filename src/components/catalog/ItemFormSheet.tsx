@@ -28,7 +28,15 @@ import {
 import { generateProductDescription } from "@/lib/gemini";
 import type { Item, Category, Supplier, Location, UnitConversion } from "@/types/inventory";
 import { ItemStatus, SUPPORTED_UNITS } from "@/types/inventory";
-import { DRUG_LIBRARY } from "@/data/drugLibrary";
+import { DRUG_LIBRARY, type DrugLibraryItem } from "@/data/drugLibrary";
+import { useDrugLibrary } from "@/hooks/useDrugLibrary";
+import { 
+  predictCategoryAndUnit, 
+  getCategorySupportedUnits, 
+  getBuiltInProductSuggestions, 
+  type BuiltInProduct,
+  CATEGORY_PRESETS 
+} from "@/utils/categorySuggestions";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -85,6 +93,8 @@ export function ItemFormSheet({
   const { isDemo, onboarding: demoOnboarding } = useDemo();
   const { settings: liveSettings } = useSystemSettings();
   const onboarding = isDemo ? demoOnboarding : liveSettings;
+  const activeSettings = onboarding;
+  const isTieredMode = activeSettings?.pricingMode === "tiered";
   const isRestaurant = onboarding?.businessType === "restaurant";
 
   const isPhoneAccessoriesSeller = onboarding?.businessType === "electronics" && (
@@ -229,27 +239,44 @@ export function ItemFormSheet({
   const name = watch("name");
   const sku = watch("sku");
 
+  const { searchDrugs } = useDrugLibrary(isPharmacy);
+
   const matchedDrugs = useMemo(() => {
     if (!isPharmacy || !name || name.trim().length < 2 || isEdit) return [];
-    const q = name.toLowerCase();
-    return DRUG_LIBRARY.filter(drug => 
-      drug.name.toLowerCase().includes(q) || 
-      drug.activeIngredient.toLowerCase().includes(q) ||
-      drug.category.toLowerCase().includes(q)
-    );
-  }, [name, isPharmacy, isEdit]);
+    return searchDrugs(name);
+  }, [name, isPharmacy, isEdit, searchDrugs]);
   const price = watch("sellingPrice");
   const unit = watch("unit");
   const imageUrl = watch("imageUrl");
 
   const selectedCategoryId = watch("categoryId");
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
+  
   const allowedUnits = useMemo(() => {
-    if (selectedCategory && selectedCategory.supportedUnits && selectedCategory.supportedUnits.length > 0) {
-      return SUPPORTED_UNITS.filter(u => selectedCategory.supportedUnits!.includes(u.id));
+    return getCategorySupportedUnits(selectedCategory?.name || selectedCategoryId, selectedCategory);
+  }, [selectedCategory, selectedCategoryId]);
+
+  const smartPrediction = useMemo(() => {
+    if (!name || name.trim().length < 2 || isEdit) return null;
+    return predictCategoryAndUnit(name, categories);
+  }, [name, categories, isEdit]);
+
+  const handleApplySmartPrediction = () => {
+    if (!smartPrediction) return;
+    if (smartPrediction.matchedCategory) {
+      setValue("categoryId", smartPrediction.matchedCategory.id);
     }
-    return SUPPORTED_UNITS;
-  }, [selectedCategory]);
+    if (smartPrediction.suggestedUnit) {
+      setValue("unit", smartPrediction.suggestedUnit);
+    }
+    if (smartPrediction.builtInProduct?.description && !watch("description")) {
+      setValue("description", smartPrediction.builtInProduct.description);
+    }
+    if (smartPrediction.builtInProduct?.estimatedPrice && !watch("sellingPrice")) {
+      setValue("sellingPrice", smartPrediction.builtInProduct.estimatedPrice);
+    }
+    toast.success(`Applied Category (${smartPrediction.suggestedCategoryName}) & Unit (${smartPrediction.suggestedUnit})!`);
+  };
 
   useEffect(() => {
     const currentUnit = watch("unit");
@@ -1014,16 +1041,71 @@ export function ItemFormSheet({
                   />
                   {errors.name && <p className="text-xs text-rose-500 mt-1">{errors.name.message}</p>}
 
-                  {/* Clinical Drug Library Autocomplete Dropdown */}
+                  {/* Smart Auto-Category Prediction Pop-up Banner */}
+                  {smartPrediction && smartPrediction.confidence !== "low" && (
+                    <div className="mt-2.5 p-3 rounded-2xl border border-teal-200/80 dark:border-teal-800 bg-teal-50/80 dark:bg-teal-950/40 flex items-center justify-between gap-3 text-xs shadow-xs animate-in fade-in duration-200">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-lg bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0">
+                          <Sparkles className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-teal-950 dark:text-teal-100 leading-tight">
+                            Suggested Category: <span className="underline underline-offset-2">{smartPrediction.suggestedCategoryName}</span>
+                          </p>
+                          <p className="text-[10px] text-teal-700 dark:text-teal-400 font-medium">
+                            Auto-selected Unit: <strong className="uppercase font-mono">{smartPrediction.suggestedUnit}</strong>
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleApplySmartPrediction}
+                        className="h-7 text-xs bg-teal-700 hover:bg-teal-800 text-white font-bold shrink-0 rounded-lg shadow-xs"
+                      >
+                        Apply Suggestion
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Built-in Product Name Suggestions */}
+                  {!name && (
+                    <div className="mt-2.5 space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                        <Sparkles className="h-3 w-3 text-amber-500" /> Built-in Product Suggestions ({selectedCategory?.name || "All Categories"}):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 bg-muted/20 dark:bg-muted/10 rounded-xl border border-border/50">
+                        {getBuiltInProductSuggestions(selectedCategory?.name || selectedCategoryId).map((p, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setValue("name", p.name);
+                              setValue("unit", p.defaultUnit);
+                              if (p.description) setValue("description", p.description);
+                              if (p.estimatedPrice) setValue("sellingPrice", p.estimatedPrice);
+                              const matchCat = categories.find(c => c.name.toLowerCase().includes(p.categoryName.toLowerCase().split(" ")[0]));
+                              if (matchCat) setValue("categoryId", matchCat.id);
+                              toast.success(`Loaded built-in suggestion for ${p.name}`);
+                            }}
+                            className="text-[11px] px-2.5 py-1 rounded-lg border bg-card hover:bg-teal-50 hover:border-teal-300 dark:hover:bg-teal-950/40 text-foreground transition-all font-medium flex items-center gap-1 shadow-2xs"
+                          >
+                            <span>{p.emoji || "📦"}</span>
+                            <span>{p.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {isPharmacy && showNameSuggestions && matchedDrugs.length > 0 && (
                     <div className="absolute z-50 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white dark:bg-slate-900 border border-teal-100 rounded-lg shadow-lg divide-y divide-slate-100 dark:divide-slate-800 scrollbar-none">
                       <div className="p-1.5 bg-teal-50/50 dark:bg-teal-950/20 text-[9px] font-extrabold text-teal-800 dark:text-teal-300 flex items-center justify-between">
                         <span>💡 INBUILT NAFDAC/WHO DRUG SUGGESTIONS</span>
                         <span>{matchedDrugs.length} matched</span>
                       </div>
-                      {matchedDrugs.map((drug) => (
+                      {matchedDrugs.map((drug, idx) => (
                         <button
-                          key={drug.id}
+                          key={`${drug.id || drug.name}-${idx}`}
                           type="button"
                           className="w-full text-left p-2.5 hover:bg-teal-50/30 dark:hover:bg-teal-950/20 transition-all flex items-center justify-between"
                           onMouseDown={() => {

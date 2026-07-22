@@ -255,10 +255,10 @@ export function PaymentDialog({ open, onOpenChange, targetTier, onSuccess }: Pay
               <div className="h-16 w-16 rounded-full border-4 border-primary/10 border-t-primary animate-spin" />
               <Lock className="h-6 w-6 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
             </div>
-            <h3 className="text-lg font-bold tracking-tight text-foreground">Processing Secure Payment</h3>
-            <p className="text-xs text-muted-foreground mt-2 max-w-xs leading-relaxed">
+            <DialogTitle className="text-lg font-bold tracking-tight text-foreground">Processing Secure Payment</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-2 max-w-xs leading-relaxed">
               Verifying your billing credentials with the central payment processor. Please do not close or reload this window.
-            </p>
+            </DialogDescription>
             <div className="mt-8 px-4 py-2.5 bg-muted/50 rounded-lg border text-[10px] text-muted-foreground font-mono">
               SECURE_ID: TXN_{Math.floor(100000 + Math.random() * 900000)}
             </div>
@@ -270,12 +270,12 @@ export function PaymentDialog({ open, onOpenChange, targetTier, onSuccess }: Pay
             <div className="h-16 w-16 bg-emerald-500/10 dark:bg-emerald-500/20 rounded-full flex items-center justify-center mb-6 text-emerald-500 ring-8 ring-emerald-500/5 animate-bounce">
               <CheckCircle className="h-10 w-10" />
             </div>
-            <h3 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-1.5 justify-center">
+            <DialogTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-1.5 justify-center">
               Migration Successful <Sparkles className="h-5 w-5 text-amber-500 animate-pulse" />
-            </h3>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 max-w-sm leading-relaxed">
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-600 dark:text-slate-400 mt-2 max-w-sm leading-relaxed">
               Your billing was successfully authorized. Your subscription tier is now updated to <strong className="text-foreground">{plan.name}</strong> and all features are instantly unlocked.
-            </p>
+            </DialogDescription>
 
             <div className="my-6 w-full max-w-xs p-4 rounded-xl border bg-card text-left space-y-2">
               <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Unlocked Modules</p>

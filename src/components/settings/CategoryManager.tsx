@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, Pencil, Trash2, X, Check, Tag } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Check, Tag, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useCategories, useItems } from "@/hooks/useInventoryData";
 import { useCreateCategory, useUpdateCategory, useDeleteCategory } from "@/hooks/useInventoryMutations";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { SUPPORTED_UNITS } from "@/types/inventory";
+import { CATEGORY_PRESETS, getCategorySupportedUnits } from "@/utils/categorySuggestions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -94,18 +95,42 @@ export function CategoryManager() {
 
       <div className="divide-y divide-border rounded-lg border border-border">
         {adding && (
-          <div className="flex flex-col gap-2 p-3 bg-muted/10">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-3 p-3.5 bg-muted/20 border-b border-border">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] uppercase font-bold text-teal-700 dark:text-teal-400 flex items-center gap-1">
+                <Sparkles className="h-3 w-3" /> Quick Industry Presets (One-tap category & unique units)
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {CATEGORY_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      setNewName(preset.name);
+                      setSelectedUnits(preset.supportedUnits);
+                      setInlineError("");
+                      toast.info(`Selected preset "${preset.name}" with unique units: ${preset.supportedUnits.join(", ")}`);
+                    }}
+                    className="text-[11px] px-2.5 py-1 rounded-lg border bg-card hover:bg-teal-50 hover:border-teal-300 dark:hover:bg-teal-950/40 text-foreground transition-all flex items-center gap-1 shadow-xs font-medium"
+                  >
+                    <span>{preset.emoji}</span>
+                    <span>{preset.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 mt-1">
               <Input ref={addRef} value={newName} onChange={(e) => { setNewName(e.target.value); setInlineError(""); }}
                 onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") { setAdding(false); setInlineError(""); } }}
-                placeholder="Category name…" className="h-8 text-sm" />
+                placeholder="Category name (e.g. Beverages or Pharmaceuticals)…" className="h-8 text-sm" />
               <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 border" onClick={handleAdd}><Check className="h-4 w-4 text-emerald-600" /></Button>
               <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 border" onClick={() => { setAdding(false); setInlineError(""); }}><X className="h-4 w-4 text-destructive" /></Button>
             </div>
             {inlineError && <p className="text-xs text-destructive">{inlineError}</p>}
             
             <div className="space-y-1.5 mt-1 border border-border bg-background p-2.5 rounded-lg">
-              <span className="text-[10px] uppercase font-semibold text-muted-foreground block">Select Compatible Units (Category specific)</span>
+              <span className="text-[10px] uppercase font-semibold text-muted-foreground block">Selected Compatible Unique Units</span>
               <div className="flex flex-wrap gap-1.5 p-0.5 max-h-[140px] overflow-y-auto">
                 {SUPPORTED_UNITS.map(u => {
                   const isSel = selectedUnits.includes(u.id);

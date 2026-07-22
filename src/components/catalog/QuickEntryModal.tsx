@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Html5Qrcode } from "html5-qrcode";
+import { predictCategoryAndUnit } from "@/utils/categorySuggestions";
 import { 
   Camera, 
   QrCode, 
@@ -658,6 +659,39 @@ export function QuickEntryModal({ open, onOpenChange }: QuickEntryModalProps) {
                     placeholder="Enter brand & description (e.g. Peak Milk 400g)"
                     className="bg-neutral-950 border-neutral-800 text-white placeholder-neutral-700 h-10 rounded-xl focus:border-emerald-500"
                   />
+
+                  {/* Smart Category Prediction Banner */}
+                  {(() => {
+                    if (!productName || productName.trim().length < 2) return null;
+                    const pred = predictCategoryAndUnit(productName, currentCategories || []);
+                    if (!pred || pred.confidence === "low") return null;
+                    return (
+                      <div className="mt-2 p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-950/40 text-xs flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-emerald-400 shrink-0" />
+                          <div>
+                            <span className="text-emerald-200 font-medium">Suggested Category: </span>
+                            <strong className="text-white underline">{pred.suggestedCategoryName}</strong>
+                            <span className="text-neutral-400 text-[10px] block">Unit: {pred.suggestedUnit}</span>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            setCategoryName(pred.suggestedCategoryName);
+                            if (pred.builtInProduct?.estimatedPrice && (!sellingPrice || Number(sellingPrice) === 0)) {
+                              setSellingPrice(String(pred.builtInProduct.estimatedPrice));
+                            }
+                            toast.success(`Applied Category (${pred.suggestedCategoryName}) & Unit (${pred.suggestedUnit})`);
+                          }}
+                          className="h-7 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shrink-0 px-2.5"
+                        >
+                          Apply
+                        </Button>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3.5">

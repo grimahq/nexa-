@@ -1162,6 +1162,7 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
                 products={pendingProducts} 
                 setProducts={setPendingProducts} 
                 categories={bulkEntryCategories}
+                businessType={selectedBusiness}
               />
 
               <div className="flex items-center justify-between pt-2">

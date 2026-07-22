@@ -112,9 +112,9 @@ export function AIAssistantWidget() {
 
   // Fetch Credits Ledger
   const fetchLedger = useCallback(async () => {
-    if (!currentStoreId) return;
+    const activeStoreId = currentStoreId || "global-store";
     try {
-      const res = await fetch(`/api/ai-assistant/credits/${currentStoreId}`);
+      const res = await fetch(`/api/ai-assistant/credits/${activeStoreId}`);
       if (res.ok) {
         const data = await res.json();
         setLedger(data);
@@ -126,9 +126,9 @@ export function AIAssistantWidget() {
 
   // Fetch Custom API Key from Firestore Store Doc
   const fetchApiKey = useCallback(async () => {
-    if (!currentStoreId) return;
+    const activeStoreId = currentStoreId || "global-store";
     try {
-      const storeRef = doc(db, "stores", currentStoreId);
+      const storeRef = doc(db, "stores", activeStoreId);
       const snap = await getDoc(storeRef);
       if (snap.exists() && snap.data().aiAssistantApiKey) {
         setByokKey(snap.data().aiAssistantApiKey);
@@ -139,11 +139,9 @@ export function AIAssistantWidget() {
   }, [currentStoreId]);
 
   useEffect(() => {
-    if (currentStoreId) {
-      fetchLedger();
-      fetchApiKey();
-    }
-  }, [currentStoreId, fetchLedger, fetchApiKey]);
+    fetchLedger();
+    fetchApiKey();
+  }, [fetchLedger, fetchApiKey]);
 
   // Audio Recording Handlers with robust permissions & stream cleanup
   const startRecording = async () => {
@@ -218,15 +216,23 @@ export function AIAssistantWidget() {
     }
   };
 
-  // Save BYOK Key to Firestore Store Doc
+  // Save BYOK Key to Firestore Store Doc or System Settings Doc
   const handleSaveApiKey = async () => {
-    if (!currentStoreId) return;
     setIsSavingKey(true);
     try {
-      const storeRef = doc(db, "stores", currentStoreId);
-      await updateDoc(storeRef, {
-        aiAssistantApiKey: byokKey.trim() || null
-      });
+      const trimmedKey = byokKey.trim();
+      if (currentStoreId) {
+        const storeRef = doc(db, "stores", currentStoreId);
+        await updateDoc(storeRef, {
+          aiAssistantApiKey: trimmedKey || null
+        });
+      }
+      try {
+        const sysSettingsRef = doc(db, "settings", "store");
+        await setDoc(sysSettingsRef, { aiAssistantApiKey: trimmedKey || null }, { merge: true });
+      } catch (e) {
+        // ignore if permissions restriction
+      }
       toast.success("Custom Gemini API Key updated successfully.");
       setShowByokSettings(false);
       fetchLedger();
@@ -297,7 +303,7 @@ export function AIAssistantWidget() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          storeId: currentStoreId,
+          storeId: currentStoreId || "global-store",
           isSuperAdmin,
           message: text,
           voiceBase64,
@@ -310,7 +316,30 @@ export function AIAssistantWidget() {
 
       if (!res.ok) {
         const err = await res.json();
-        if (err.error === "AI_CREDITS_EXHAUSTED") {
+        if (
+          err.error === "GEMINI_QUOTA_EXHAUSTED" ||
+          err.error === "RESOURCE_EXHAUSTED" ||
+          (err.message && (err.message.includes("prepayment") || err.message.includes("429") || err.message.includes("quota") || err.message.includes("RESOURCE_EXHAUSTED")))
+        ) {
+          setMessages(prev => [...prev, {
+            id: `err-${Date.now()}`,
+            sender: "assistant",
+            text: "⚠️ **Google Gemini API Quota Depleted**: The system Gemini API prepayment credits are currently depleted.\n\n💡 **Quick Solution**: You can enter your custom **Google Gemini API Key** in the **Custom Key** panel above to bypass system quota limits and power your AI Assistant directly.",
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }]);
+          setShowByokSettings(true);
+        } else if (
+          err.error === "GEMINI_KEY_INVALID" ||
+          (err.message && (err.message.includes("API_KEY_INVALID") || err.message.includes("invalid")))
+        ) {
+          setMessages(prev => [...prev, {
+            id: `err-${Date.now()}`,
+            sender: "assistant",
+            text: "🔑 **Invalid Gemini API Key**: The custom Gemini API Key provided is invalid or expired. Please check your key in the settings panel above.",
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }]);
+          setShowByokSettings(true);
+        } else if (err.error === "AI_CREDITS_EXHAUSTED") {
           setMessages(prev => [...prev, {
             id: `err-${Date.now()}`,
             sender: "assistant",
@@ -403,7 +432,7 @@ export function AIAssistantWidget() {
       const res = await fetch("/api/ai-assistant/execute-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId, storeId: currentStoreId, isSuperAdmin })
+        body: JSON.stringify({ requestId, storeId: currentStoreId || "global-store", isSuperAdmin })
       });
 
       if (res.ok) {

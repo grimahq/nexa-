@@ -21,6 +21,7 @@ import { SupplierScoreCards, computeMetrics } from "@/components/analytics/Suppl
 import { SpendBySupplierChart } from "@/components/analytics/SpendBySupplierChart";
 import { CostByCategoryChart } from "@/components/analytics/CostByCategoryChart";
 import { CostTrendChart } from "@/components/analytics/CostTrendChart";
+import { AuditComplianceSection } from "@/components/analytics/AuditComplianceSection";
 
 export const Route = createFileRoute("/app/analytics")({
   component: AnalyticsPage,
@@ -111,6 +112,7 @@ function AnalyticsPage() {
         <TabsList className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="stock">Stock Overview</TabsTrigger>
           <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
+          <TabsTrigger value="audit">Audit & Compliance</TabsTrigger>
         </TabsList>
 
         <div className="mt-4">
@@ -214,6 +216,12 @@ function AnalyticsPage() {
                 <CostTrendChart purchaseOrders={purchaseOrders} />
               </CardContent>
             </Card>
+          </ErrorBoundary>
+        </TabsContent>
+
+        <TabsContent value="audit" className="space-y-6 mt-4">
+          <ErrorBoundary>
+            <AuditComplianceSection items={allItems} categories={categories} />
           </ErrorBoundary>
         </TabsContent>
       </Tabs>

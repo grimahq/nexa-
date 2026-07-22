@@ -55,17 +55,6 @@ function AppLayout() {
     });
   };
 
-  // Initialize dark mode on mount
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    const isDark = savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, []);
-
   // Listen to feature locks in real-time
   useEffect(() => {
     if (isDemo) {

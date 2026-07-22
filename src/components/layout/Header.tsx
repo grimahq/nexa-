@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Search, Plus, Menu, User, LogOut, Settings, ChevronDown, ScanBarcode, Store, ShieldCheck, WifiOff } from "lucide-react";
+import { Search, Plus, Menu, User, LogOut, Settings, ChevronDown, ScanBarcode, Store, ShieldCheck, WifiOff, Sun, Moon } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   Sheet,
   SheetContent,
@@ -34,6 +35,8 @@ import { useDemo } from "@/hooks/useDemo";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { PermissionGate } from "@/hooks/usePermissions";
+import { useStoreType } from "@/hooks/useStoreType";
+import { StoreTypeOnboardingOverlay } from "@/components/onboarding/StoreTypeOnboardingOverlay";
 
 const ROLE_BADGE_STYLES: Record<string, string> = {
   admin: "bg-primary/15 text-primary border-primary/20",
@@ -58,10 +61,13 @@ export function Header({ isSidebarMinimized, onToggleSidebar }: HeaderProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [storeTypeOverlayOpen, setStoreTypeOverlayOpen] = useState(false);
+  const { currentOption } = useStoreType();
   
   const { exitDemoMode, isDemo } = useDemo();
   const { role, setDemoRole, stores, currentStoreId, setCurrentStoreId, isSuperAdmin } = useRole();
   const { user, profile, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const currentStore = stores.find(s => s.id === currentStoreId);
@@ -91,8 +97,8 @@ export function Header({ isSidebarMinimized, onToggleSidebar }: HeaderProps) {
   }, []);
 
   return (
-    <header className="flex h-16 items-center gap-3 border-b border-border bg-card px-4 shadow-sm lg:px-8">
-      <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open menu">
+    <header className="flex h-16 items-center gap-1.5 sm:gap-3 border-b border-border bg-card px-2.5 sm:px-4 shadow-sm lg:px-8 max-w-full overflow-hidden">
+      <Button variant="ghost" size="icon" className="lg:hidden shrink-0 h-8 w-8 sm:h-9 sm:w-9" onClick={() => setMobileOpen(true)} aria-label="Open menu">
         <Menu className="h-5 w-5" />
       </Button>
 
@@ -100,7 +106,7 @@ export function Header({ isSidebarMinimized, onToggleSidebar }: HeaderProps) {
         <Button 
           variant="ghost" 
           size="icon" 
-          className="hidden lg:flex" 
+          className="hidden lg:flex shrink-0 h-9 w-9" 
           onClick={onToggleSidebar} 
           title={isSidebarMinimized ? "Maximize Sidebar" : "Minimize Sidebar"}
           aria-label={isSidebarMinimized ? "Expand sidebar" : "Minimize sidebar"}
@@ -109,25 +115,51 @@ export function Header({ isSidebarMinimized, onToggleSidebar }: HeaderProps) {
         </Button>
       )}
 
-      <button data-tour="search" type="button" onClick={() => setPaletteOpen(true)} className="flex h-9 flex-1 items-center gap-2 rounded-md border border-input bg-white px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 md:max-w-sm">
-        <Search className="h-4 w-4 shrink-0" />
-        <span>Search…</span>
+      <button data-tour="search" type="button" onClick={() => setPaletteOpen(true)} className="flex h-8 sm:h-9 flex-1 min-w-[60px] items-center gap-1.5 sm:gap-2 rounded-md border border-input bg-background px-2 sm:px-3 text-xs sm:text-sm text-muted-foreground transition-colors hover:border-primary/40 md:max-w-sm shrink">
+        <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+        <span className="truncate">Search…</span>
         <kbd className="ml-auto hidden rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs md:inline-block">⌘K</kbd>
       </button>
 
+      <button
+        type="button"
+        onClick={() => setStoreTypeOverlayOpen(true)}
+        className="flex items-center gap-1 px-1.5 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-all shrink-0"
+        title="Tap to switch store type preference"
+      >
+        <span className="text-sm sm:text-base">{currentOption.icon}</span>
+        <span className="hidden md:inline">{currentOption.badge}</span>
+        <span className="text-[9px] sm:text-[10px] bg-emerald-500/20 px-1 sm:px-1.5 py-0.5 rounded font-mono">1-Tap</span>
+      </button>
+
       <PermissionGate permission="log_movement">
-        <Button size="icon" variant="outline" className="shrink-0" aria-label="Quick entry" onClick={() => setQuickEntryOpen(true)}>
+        <Button size="icon" variant="outline" className="shrink-0 h-8 w-8 sm:h-9 sm:w-9 hidden xs:inline-flex" aria-label="Quick entry" onClick={() => setQuickEntryOpen(true)}>
           <ScanBarcode className="h-4 w-4" />
         </Button>
       </PermissionGate>
 
       <PermissionGate permission="create_item">
-        <Button size="icon" variant="outline" className="shrink-0" aria-label="New item" onClick={() => navigate({ to: "/app/catalog", search: { newItem: "true" } })}>
+        <Button size="icon" variant="outline" className="shrink-0 h-8 w-8 sm:h-9 sm:w-9" aria-label="New item" onClick={() => navigate({ to: "/app/catalog", search: { newItem: "true" } })}>
           <Plus className="h-4 w-4" />
         </Button>
       </PermissionGate>
 
       <NotificationBell onClick={() => setNotifOpen(true)} />
+
+      <Button
+        size="icon"
+        variant="ghost"
+        className="shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full"
+        onClick={toggleTheme}
+        title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+        aria-label="Toggle theme"
+      >
+        {theme === "light" ? (
+          <Moon className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
+        ) : (
+          <Sun className="h-4 w-4 text-amber-400 animate-[spin_20s_linear_infinite]" />
+        )}
+      </Button>
 
       {isOffline && (
         <>
@@ -222,6 +254,19 @@ export function Header({ isSidebarMinimized, onToggleSidebar }: HeaderProps) {
           ))}
 
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={toggleTheme}>
+            {theme === "light" ? (
+              <>
+                <Moon className="mr-2 h-4 w-4 text-slate-700 dark:text-slate-300" />
+                <span>Dark Mode</span>
+              </>
+            ) : (
+              <>
+                <Sun className="mr-2 h-4 w-4 text-amber-500" />
+                <span>Light Mode</span>
+              </>
+            )}
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigate({ to: "/app/settings" })}>
             <Settings className="mr-2 h-4 w-4" />
             Settings
@@ -244,6 +289,7 @@ export function Header({ isSidebarMinimized, onToggleSidebar }: HeaderProps) {
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <NotificationCenter open={notifOpen} onOpenChange={setNotifOpen} onOpenPrefs={() => { setNotifOpen(false); setTimeout(() => setPrefsOpen(true), 300); }} />
       <NotificationPreferences open={prefsOpen} onOpenChange={setPrefsOpen} />
+      <StoreTypeOnboardingOverlay open={storeTypeOverlayOpen} onOpenChange={setStoreTypeOverlayOpen} />
       
     </header>
   );

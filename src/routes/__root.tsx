@@ -45,22 +45,25 @@ export const Route = createRootRoute({
 });
 
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 
 function RootComponent() {
   return (
-    <AuthProvider>
-      <SystemSettingsProvider>
-        <DemoProvider>
-          <RoleProvider>
-            <GlobalStyles />
-            <ErrorBoundary>
-              <Outlet />
-            </ErrorBoundary>
-            <Toaster position="bottom-right" richColors />
-          </RoleProvider>
-        </DemoProvider>
-      </SystemSettingsProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <SystemSettingsProvider>
+          <DemoProvider>
+            <RoleProvider>
+              <GlobalStyles />
+              <ErrorBoundary>
+                <Outlet />
+              </ErrorBoundary>
+              <Toaster position="bottom-right" richColors />
+            </RoleProvider>
+          </DemoProvider>
+        </SystemSettingsProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

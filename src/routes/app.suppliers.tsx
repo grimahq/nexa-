@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Plus, Truck } from "lucide-react";
+import { Plus, Truck, Building2 } from "lucide-react";
 import { SuppliersTable } from "@/components/suppliers/SuppliersTable";
 import { SupplierFormSheet } from "@/components/suppliers/SupplierFormSheet";
 import { SupplierDetailSheet } from "@/components/suppliers/SupplierDetailSheet";
+import { DistributorPickerModal } from "@/components/suppliers/DistributorPickerModal";
 import { CSVExportButton, type CSVColumn } from "@/components/data/CSVExportButton";
 import { useSuppliers, useItems, usePurchaseOrders } from "@/hooks/useInventoryData";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -43,6 +44,7 @@ function SuppliersPage() {
   const [editSupplier, setEditSupplier] = useState<Supplier | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailSupplier, setDetailSupplier] = useState<Supplier | null>(null);
+  const [distributorModalOpen, setDistributorModalOpen] = useState(false);
 
   const supplierCsvColumns = useMemo<CSVColumn<Supplier>[]>(() => [
     { header: "Name", accessor: (s) => s.name },
@@ -105,6 +107,15 @@ function SuppliersPage() {
           <p className="text-sm text-muted-foreground">{suppliers.length} suppliers</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setDistributorModalOpen(true)}
+            className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+          >
+            <Building2 className="mr-1.5 h-4 w-4" />
+            Verified Distributors
+          </Button>
           <CSVExportButton
             data={suppliers}
             columns={supplierCsvColumns}
@@ -149,6 +160,11 @@ function SuppliersPage() {
         open={formOpen}
         onOpenChange={setFormOpen}
         supplier={editSupplier}
+      />
+
+      <DistributorPickerModal
+        open={distributorModalOpen}
+        onOpenChange={setDistributorModalOpen}
       />
     </div>
   );

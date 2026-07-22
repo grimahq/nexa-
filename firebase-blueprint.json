@@ -160,6 +160,30 @@
       },
       "required": ["id", "type", "title", "message", "read"]
     },
+    "DrugLibraryItem": {
+      "title": "Drug Library Item",
+      "description": "Clinical drug definition for pharmaceutical autofill and verification queue.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "genericName": { "type": "string" },
+        "strength": { "type": "string" },
+        "dosageForm": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "manufacturer": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "isPrescriptionOnly": { "type": "boolean" },
+        "requiresPrescription": { "type": "boolean" },
+        "source": { "type": "string", "enum": ["nafdac_seed_v2", "merchant_submitted", "who_essential"] },
+        "verificationStatus": { "type": "string", "enum": ["verified", "pending_review", "rejected"] },
+        "submittedBy": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "genericName", "strength", "dosageForm", "category", "isPrescriptionOnly", "verificationStatus"]
+    },
     "Customer": {
       "title": "Customer",
       "description": "Customer record.",
@@ -497,6 +521,10 @@
     "reportDeliveries": {
         "schema": "ReportDelivery",
         "description": "History of daily, weekly, or monthly email report deliveries."
+    },
+    "drugLibrary": {
+        "schema": "DrugLibraryItem",
+        "description": "Master pharmaceutical drug library and custom product review queue."
     }
   }
 }

@@ -23,9 +23,12 @@ import { useStockSummary, useSales, useExpenses, useRefunds, useItems, useMoveme
 import { useUsers } from "@/hooks/useUsers";
 import { useAlertGenerator } from "@/hooks/useStockAlertGenerator";
 import { useDemo } from "@/hooks/useDemo";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useRole } from "@/hooks/useRole";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { useOnboarding, type TourStep } from "@/hooks/useOnboarding";
+import { useStoreType } from "@/hooks/useStoreType";
+import { WholesalerDashboardWidget, RetailerDashboardWidget, SupermarketDashboardWidget } from "@/components/dashboard/StoreTypeDashboards";
 
 const NAIRA = "₦";
 const USD_TO_NGN = 1;
@@ -80,30 +83,12 @@ export const Route = createFileRoute("/app/dashboard")({
 export function DashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [theme, setTheme] = useState<"light" | "dark font-sans animate-fade-in">(() => {
-    if (typeof window !== "undefined") {
-      return document.documentElement.classList.contains("dark") ? "dark" : "light";
-    }
-    return "light";
-  });
-
-  const toggleTheme = () => {
-    const nextTheme = theme === "light" ? "dark" : "light";
-    setTheme(nextTheme);
-    if (nextTheme === "dark") {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-      toast.success("Dark Mode enabled", { duration: 2000 });
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-      toast.success("Light Mode enabled", { duration: 2000 });
-    }
-  };
+  const { theme, toggleTheme } = useTheme();
 
   const { data: summary } = useStockSummary();
   const { isDemo, onboarding: demoOnboarding } = useDemo();
   const { settings: liveSettings } = useSystemSettings();
+  const { storeType, isWholesaler, isRetailer, isSupermarket } = useStoreType();
   const { isAdmin, isManager, role, stores, currentStoreId, members, setCurrentStoreId } = useRole();
   useAlertGenerator();
 
@@ -340,6 +325,19 @@ export function DashboardPage() {
             {cat.replace(/-/g, " ")}
           </span>
         ))}
+      </div>
+
+      {/* Customized Store Type Dashboard Widget */}
+      <div className="space-y-4">
+        {isWholesaler && (
+          <WholesalerDashboardWidget sales={sales} items={items} customers={customers} creditsList={creditsList} />
+        )}
+        {isRetailer && (
+          <RetailerDashboardWidget sales={sales} items={items} customers={customers} creditsList={creditsList} />
+        )}
+        {isSupermarket && (
+          <SupermarketDashboardWidget sales={sales} items={items} customers={customers} creditsList={creditsList} />
+        )}
       </div>
 
       {/* Domain-Specific Visualizations (Primary) */}

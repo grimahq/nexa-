@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { ShoppingCart, ArrowLeft, ArrowRight, Check, Utensils, Box, Truck, QrCode, Download, Printer } from "lucide-react";
+import { ShoppingCart, ArrowLeft, ArrowRight, Check, Utensils, Box, Truck, QrCode, Download, Printer, Store, Layers, Calculator, CreditCard, Tag, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useItems } from "@/hooks/useInventoryData";
 import { useDemo } from "@/hooks/useDemo";
+import { useStoreType } from "@/hooks/useStoreType";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { cn, getStorefrontUrl, getCleanStoreSlug } from "@/lib/utils";
 import { SUPPORTED_UNITS } from "@/types/inventory";
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { QRCodeSVG } from "qrcode.react";
 import { resolvePrice } from "@/utils/pricing";
+import { getEffectiveUnitConversions } from "@/utils/unitConversions";
 import { useFirebaseOffline } from "@/lib/firebase";
 import { toast } from "sonner";
 import { Wifi, WifiOff } from "lucide-react";
@@ -65,13 +67,24 @@ export function SalesGrid() {
   const onboarding = isDemo ? demoOnboarding : liveSettings;
   const isRestaurant = onboarding?.businessType === "restaurant";
 
+  const { storeType, isWholesaler, isRetailer, isSupermarket, currentOption } = useStoreType();
+  const [supermarketTill, setSupermarketTill] = useState("Till #1 - Main Counter");
+
   const [posMode, setPosMode] = useState<"standard" | "quickscan">("standard");
   const [diningMode, setDiningMode] = useState<"dine-in" | "takeaway" | "delivery">("dine-in");
   const [tableNumber, setTableNumber] = useState("4");
   const [isTableSelectorOpen, setIsTableSelectorOpen] = useState(false);
 
   // Tiered Pricing & Price Override States
-  const [activeTier, setActiveTier] = useState<"retail" | "wholesale" | "distributor">("retail");
+  const [activeTier, setActiveTier] = useState<"retail" | "wholesale" | "distributor">(() => {
+    return storeType === "wholesaler" ? "wholesale" : "retail";
+  });
+
+  useEffect(() => {
+    if (isWholesaler && activeTier === "retail") {
+      setActiveTier("wholesale");
+    }
+  }, [isWholesaler, activeTier]);
   const [priceOverrides, setPriceOverrides] = useState<Map<string, number>>(new Map());
 
   const [cart, setCart] = useState<Map<string, number>>(() => {
@@ -179,8 +192,9 @@ export function SalesGrid() {
       const overridePrice = priceOverrides.get(compositeKey);
       let unitPrice = overridePrice !== undefined ? overridePrice : basePrice;
 
-      if (overridePrice === undefined && unitId !== item.unit && item.unitConversions) {
-        const conv = item.unitConversions.find(c => c.unitId === unitId);
+      if (overridePrice === undefined && unitId !== item.unit) {
+        const conversions = getEffectiveUnitConversions(item);
+        const conv = conversions.find(c => c.unitId === unitId);
         if (conv) {
           unitPrice = conv.priceNgn !== undefined 
             ? conv.priceNgn / USD_TO_NGN // convert back to USD for internal consistency
@@ -354,6 +368,123 @@ export function SalesGrid() {
             </Button>
           )}
         </div>
+
+        {/* Customized Store Type Context Banner */}
+        {step === "browse" && (
+          <div className="rounded-2xl border border-border/60 bg-gradient-to-r from-card via-card to-muted/30 p-3 shadow-xs space-y-2">
+            {isWholesaler && (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-sm">
+                    📦
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-foreground">Wholesale Depot Controls</span>
+                      <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-600 border-blue-500/30 px-1.5 py-0 font-bold">
+                        B2B Bulk Pricing
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">Carton & crate conversions active. Tiered discounts apply automatically.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl">
+                  <span className="text-[10px] font-bold text-muted-foreground px-1 uppercase tracking-wider">Tier:</span>
+                  {(["retail", "wholesale", "distributor"] as const).map((tier) => (
+                    <button
+                      key={tier}
+                      type="button"
+                      onClick={() => setActiveTier(tier)}
+                      className={cn(
+                        "px-2.5 py-1 text-xs font-bold rounded-lg transition-all capitalize",
+                        activeTier === tier
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {tier}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {isRetailer && (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-sm">
+                    🛍️
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-foreground">Retail POS Quick Counter</span>
+                      <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/30 px-1.5 py-0 font-bold">
+                        Single-Unit Express
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">Single unit items with fast cash tender calculations and barcode lookup.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold text-muted-foreground">Quick Cash Tender:</span>
+                  {[1000, 5000, 10000].map((amt) => (
+                    <Badge
+                      key={amt}
+                      variant="outline"
+                      className="cursor-pointer hover:bg-emerald-500/10 hover:border-emerald-500 text-[10px] font-mono px-2 py-0.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                      onClick={() => toast.info(`Quick Tender ₦${amt.toLocaleString()} selected for fast change calculation.`)}
+                    >
+                      ₦{amt.toLocaleString()}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {isSupermarket && (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-sm">
+                    🛒
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-foreground">Supermarket & Store Till Matrix</span>
+                      <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-600 border-purple-500/30 px-1.5 py-0 font-bold">
+                        Multi-Counter Active
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">Department / Aisle index mapped with active till sales tracking.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl">
+                  <span className="text-[10px] font-bold text-muted-foreground px-1 uppercase tracking-wider">Till:</span>
+                  {["Till #1 - Main", "Till #2 - Express", "Till #3 - Self Scan"].map((tName) => (
+                    <button
+                      key={tName}
+                      type="button"
+                      onClick={() => {
+                        setSupermarketTill(tName);
+                        toast.success(`Switched to active register: ${tName}`);
+                      }}
+                      className={cn(
+                        "px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all",
+                        supermarketTill === tName
+                          ? "bg-purple-600 text-white shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {tName}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Restaurant Order Context Bar (Dine-In, Takeaway, Delivery) */}
         {isRestaurant && step === "browse" && (

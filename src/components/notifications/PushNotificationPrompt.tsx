@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Bell, Monitor, ShieldCheck, X } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -87,14 +87,14 @@ export function PushNotificationPrompt() {
         </div>
 
         {/* Title */}
-        <h2 className="text-xl font-black font-display text-emerald-950 uppercase tracking-tight italic leading-none mb-3">
+        <DialogTitle className="text-xl font-black font-display text-emerald-950 uppercase tracking-tight italic leading-none mb-3">
           NEVER MISS A BEAT
-        </h2>
+        </DialogTitle>
 
         {/* Subtitle description */}
-        <p className="text-xs font-bold font-sans text-neutral-500 tracking-wide uppercase leading-relaxed max-w-[280px] mb-6">
+        <DialogDescription className="text-xs font-bold font-sans text-neutral-500 tracking-wide uppercase leading-relaxed max-w-[280px] mb-6">
           GET REAL-TIME UPDATES FOR LOW STOCK, SALES, AND URGENT STORE ALERTS DIRECTLY ON YOUR DEVICE.
-        </p>
+        </DialogDescription>
 
         {/* Nested Secure Architecture Card */}
         <div className="w-full flex items-center gap-3 bg-emerald-50/40 border border-emerald-100/70 rounded-2xl p-4.5 mb-8 text-left">

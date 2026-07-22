@@ -67,6 +67,71 @@ export class DemoStore {
     this.sector = sector;
     this.selectedCategories = selectedCategories;
     this.data = generateSeedData(sector, selectedCategories);
+    this.initSeedCredits();
+  }
+
+  private initSeedCredits() {
+    this.credits = new Map([
+      [
+        "07060680901",
+        {
+          id: "credit-07060680901",
+          customerName: "Ibrahim Bello",
+          customerPhone: "07060680901",
+          balanceNgn: 3360,
+          transactions: [
+            { id: "ctx-1", type: "payment", amountNgn: 5000, notes: "Initial deposit", createdAt: new Date(Date.now() - 32 * 86400000).toISOString() },
+            { id: "ctx-2", type: "payment", amountNgn: 25000, notes: "Auto-settled with sale NMaVnu1FvYMqtiFfRd5", createdAt: new Date(Date.now() - 7 * 86400000).toISOString() },
+            { id: "ctx-3", type: "credit", amountNgn: 24000, saleId: "tACBI1", createdAt: new Date(Date.now() - 6 * 86400000).toISOString() },
+            { id: "ctx-4", type: "payment", amountNgn: 24000, notes: "Auto-settled with sale fIMJGssTLsr4ntKTkWLK", createdAt: new Date(Date.now() - 6 * 86400000).toISOString() },
+            { id: "ctx-5", type: "credit", amountNgn: 960, saleId: "UVuDKN", createdAt: new Date(Date.now() - 5 * 86400000).toISOString() },
+            { id: "ctx-6", type: "credit", amountNgn: 3360, saleId: "wQm9hp", createdAt: new Date(Date.now() - 4 * 86400000).toISOString() },
+            { id: "ctx-7", type: "payment", amountNgn: 960, notes: "Auto-settled with sale 2wlkQMdYHCq4KjwQm9hp", createdAt: new Date(Date.now() - 4 * 86400000).toISOString() },
+          ],
+        },
+      ],
+      [
+        "08075438790",
+        {
+          id: "credit-08075438790",
+          customerName: "Abbas",
+          customerPhone: "08075438790",
+          balanceNgn: 0,
+          transactions: [
+            { id: "ctx-8", type: "credit", amountNgn: 80000, saleId: "AB8901", createdAt: new Date(Date.now() - 12 * 86400000).toISOString() },
+            { id: "ctx-9", type: "payment", amountNgn: 80000, notes: "Bank transfer", createdAt: new Date(Date.now() - 12 * 86400000).toISOString() },
+            { id: "ctx-10", type: "credit", amountNgn: 31220, saleId: "AB8910", createdAt: new Date(Date.now() - 7 * 86400000).toISOString() },
+            { id: "ctx-11", type: "payment", amountNgn: 31220, notes: "Direct cash settlement", createdAt: new Date(Date.now() - 5 * 86400000).toISOString() },
+          ],
+        },
+      ],
+      [
+        "08107858785",
+        {
+          id: "credit-08107858785",
+          customerName: "Pinky",
+          customerPhone: "08107858785",
+          balanceNgn: 0,
+          transactions: [
+            { id: "ctx-12", type: "payment", amountNgn: 100000, notes: "Card Payment", createdAt: new Date(Date.now() - 17 * 86400000).toISOString() },
+            { id: "ctx-13", type: "payment", amountNgn: 51000, notes: "Auto-settled with sale PK1001", createdAt: new Date(Date.now() - 8 * 86400000).toISOString() },
+          ],
+        },
+      ],
+      [
+        "08065061326",
+        {
+          id: "credit-08065061326",
+          customerName: "Nuru Munkaila",
+          customerPhone: "08065061326",
+          balanceNgn: 90000,
+          transactions: [
+            { id: "ctx-14", type: "credit", amountNgn: 100000, saleId: "NM2022", createdAt: new Date(Date.now() - 24 * 86400000).toISOString() },
+            { id: "ctx-15", type: "payment", amountNgn: 10000, notes: "Partial cash payment", createdAt: new Date(Date.now() - 21 * 86400000).toISOString() },
+          ],
+        },
+      ],
+    ]);
   }
 
   getVersion() {
@@ -79,7 +144,7 @@ export class DemoStore {
     this.sales = [];
     this.expenses = [];
     this.refunds = [];
-    this.credits = new Map();
+    this.initSeedCredits();
     this.version++;
   }
 

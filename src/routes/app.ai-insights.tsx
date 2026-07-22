@@ -17,6 +17,7 @@ import { ForecastSummary } from "@/components/insights/ForecastSummary";
 import { DemandForecastChart } from "@/components/insights/DemandForecastChart";
 import { ReorderSuggestionCard } from "@/components/insights/ReorderSuggestionCard";
 import { AnomalyAlertCard } from "@/components/insights/AnomalyAlertCard";
+import { SelfTrainingRecommendationsSection } from "@/components/insights/SelfTrainingRecommendationsSection";
 import { useItems, useMovements, useSuppliers } from "@/hooks/useInventoryData";
 import { useDemo } from "@/hooks/useDemo";
 import { useUpdateItem } from "@/hooks/useInventoryMutations";
@@ -160,6 +161,8 @@ function AiInsightsPage() {
       </div>
 
       {/* AI Forecasting & Reordering Gated Screen */}
+      <SelfTrainingRecommendationsSection />
+
       {!autoReorderEnabled ? (
         <div className="relative overflow-hidden rounded-xl border border-purple-500/10 bg-purple-500/[0.01] dark:bg-purple-950/[0.04] p-8 text-center shadow-xs">
           <div className="max-w-md mx-auto space-y-4 py-4">

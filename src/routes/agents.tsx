@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { auth, db } from "@/lib/firebase";
 import { 
   signInWithEmailAndPassword, 
@@ -37,8 +37,6 @@ import {
   ArrowRightLeft, 
   UserPlus, 
   LogIn, 
-  Percent, 
-  BadgePercent,
   Calculator,
   Award,
   Clock,
@@ -48,7 +46,12 @@ import {
   ArrowRight,
   ArrowLeft,
   ShieldCheck,
-  CheckSquare
+  CheckSquare,
+  Globe,
+  ChevronDown,
+  Building2,
+  FileText,
+  HelpCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
@@ -57,6 +60,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import gsap from "gsap";
 import "@/styles/landing.css";
 
 export const Route = createFileRoute("/agents")({
@@ -106,6 +110,24 @@ interface EarningRecord {
   storeName?: string;
 }
 
+const NIGERIAN_STATES = [
+  "Taraba State", "Adamawa State", "Borno State", "Yobe State", "Gombe State",
+  "Bauchi State", "Plateau State", "Nasarawa State", "Benue State", "Kogi State",
+  "Kwara State", "Niger State", "FCT Abuja", "Lagos State", "Ogun State",
+  "Oyo State", "Kano State", "Kaduna State", "Sokoto State", "Kebbi State",
+  "Zamfara State", "Katsina State", "Jigawa State", "Enugu State", "Anambra State",
+  "Imo State", "Abia State", "Ebonyi State", "Edo State", "Delta State",
+  "Rivers State", "Cross River State", "Akwa Ibom State", "Bayelsa State", "Ekiti State",
+  "Osun State", "Ondo State"
+];
+
+const NIGERIAN_BANKS = [
+  "Access Bank", "GTBank", "First Bank of Nigeria", "UBA (United Bank for Africa)",
+  "Zenith Bank", "Fidelity Bank", "Stanbic IBTC Bank", "Union Bank", "Sterling Bank",
+  "Wema Bank", "OPay", "PalmPay", "Kuda Bank", "Moniepoint Microfinance Bank",
+  "Ecobank", "Heritage Bank", "Keystone Bank", "Polaris Bank", "Jaiz Bank", "Other Bank"
+];
+
 export function AgentsPage() {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -125,12 +147,23 @@ export function AgentsPage() {
   const [passwordInput, setPasswordInput] = useState("");
   const [nameInput, setNameInput] = useState("");
   const [phoneInput, setPhoneInput] = useState("");
-  const [regionInput, setRegionInput] = useState("");
+  const [ninInput, setNinInput] = useState("");
+  const [stateInput, setStateInput] = useState("");
+  const [lgaInput, setLgaInput] = useState("");
+  const [bankInput, setBankInput] = useState("");
+  const [accountNoInput, setAccountNoInput] = useState("");
+  const [whyInput, setWhyInput] = useState("");
   const [customRefCodeInput, setCustomRefCodeInput] = useState("");
   const [registerStep, setRegisterStep] = useState(1);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
-  // Settings
+  // Application Success Banner
+  const [appSubmittedSuccess, setAppSubmittedSuccess] = useState<null | {
+    agentId: string;
+    message: string;
+  }>(null);
+
+  // Settings state
   const [settingsName, setSettingsName] = useState("");
   const [settingsPhone, setSettingsPhone] = useState("");
   const [settingsRegion, setSettingsRegion] = useState("");
@@ -141,9 +174,46 @@ export function AgentsPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
-  // Commission Simulator State
-  const [simStores, setSimStores] = useState(10);
-  const [simTier, setSimTier] = useState<"professional" | "enterprise">("professional");
+  // Interactive Calculator State
+  const [calcPlan, setCalcPlan] = useState<"pro" | "enterprise" | "mix">("pro");
+  const [calcProCount, setCalcProCount] = useState(20);
+  const [calcEntCount, setCalcEntCount] = useState(5);
+  const [calcMixPro, setCalcMixPro] = useState(15);
+  const [calcMixEnt, setCalcMixEnt] = useState(3);
+  const [calcMonths, setCalcMonths] = useState(12);
+
+  // FAQ Open State
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  // Nav Scroll effect
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Mouse 3D tilt effect on Agent Wallet Card
+  const walletCardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!walletCardRef.current) return;
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      const dx = (e.clientX - cx) / cx;
+      const dy = (e.clientY - cy) / cy;
+      gsap.to(walletCardRef.current, {
+        rotateX: 10 - dy * 5,
+        rotateY: -2 + dx * 5,
+        duration: 0.8,
+        ease: "power2.out"
+      });
+    };
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
 
   // Load user session
   useEffect(() => {
@@ -268,23 +338,30 @@ export function AgentsPage() {
     return () => unsub();
   }, []);
 
-  // Simulator computations (₦10k Fixed Field Allowance + Onboarding Bonus + Monthly Recurring)
-  const projectedEarnings = useMemo(() => {
-    const flatAllowance = 10000; // ₦10,000 NGN flat on-field support
-    const onboardingBonus = simTier === "professional" ? 1500 : 5000;
-    const monthlyResidual = simTier === "professional" ? 500 : 1000;
-
-    const totalBonus = simStores * onboardingBonus;
-    const totalResidualMonthly = simStores * monthlyResidual;
-    const totalResidualAnnual = totalResidualMonthly * 12;
+  // Calculated Earnings Projection
+  const calculatedIncome = useMemo(() => {
+    let bonus = 0;
+    let residual = 0;
+    if (calcPlan === "pro") {
+      bonus = calcProCount * 1500;
+      residual = calcProCount * 500;
+    } else if (calcPlan === "enterprise") {
+      bonus = calcEntCount * 5000;
+      residual = calcEntCount * 1000;
+    } else {
+      bonus = (calcMixPro * 1500) + (calcMixEnt * 5000);
+      residual = (calcMixPro * 500) + (calcMixEnt * 1000);
+    }
+    const fieldAllowance = 10000;
+    const yearTotal = fieldAllowance + bonus + (residual * calcMonths);
 
     return {
-      flatAllowance,
-      onboardingBonus: totalBonus,
-      monthlyResidual: totalResidualMonthly,
-      annualProjected: flatAllowance + totalBonus + totalResidualAnnual
+      fieldAllowance,
+      bonus,
+      residual,
+      yearTotal
     };
-  }, [simStores, simTier]);
+  }, [calcPlan, calcProCount, calcEntCount, calcMixPro, calcMixEnt, calcMonths]);
 
   // Copy to clipboard actions
   const copyReferralLink = () => {
@@ -303,90 +380,92 @@ export function AgentsPage() {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  // Step validation
-  const handleNextStep = () => {
-    if (registerStep === 1) {
-      if (!nameInput.trim() || !emailInput.trim() || !passwordInput) {
-        toast.error("Please fill in your name, email, and secure password.");
-        return;
-      }
-      if (passwordInput.length < 6) {
-        toast.error("Password must be at least 6 characters.");
-        return;
-      }
-      setRegisterStep(2);
-    } else if (registerStep === 2) {
-      if (!phoneInput.trim()) {
-        toast.error("Phone number is required for field logistics.");
-        return;
-      }
-      if (!regionInput.trim()) {
-        toast.error("Please specify your operational territory.");
-        return;
-      }
-      setRegisterStep(3);
+  const scrollToSection = (id: string) => {
+    const el = document.querySelector(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
 
-  // Onboarding / Sign Up
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Submit Application
+  const handleApplyFormSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!nameInput.trim() || !phoneInput.trim() || !stateInput || !lgaInput.trim() || !bankInput || !accountNoInput.trim() || !whyInput.trim()) {
+      toast.error("Please fill in all required fields marked with *");
+      return;
+    }
     if (!acceptedTerms) {
-      toast.error("You must review and accept the partner program terms.");
+      toast.error("Please accept the terms and conditions to proceed.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const sanitizedCode = (customRefCodeInput.trim() || nameInput.trim().toLowerCase().replace(/[^a-z0-9]/g, "") + Math.floor(100 + Math.random() * 900)).toUpperCase();
+      const generatedCode = (customRefCodeInput.trim() || nameInput.trim().toLowerCase().replace(/[^a-z0-9]/g, "") + Math.floor(100 + Math.random() * 900)).toUpperCase();
+      const statePrefix = stateInput.substring(0, 3).toUpperCase();
+      const randomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const agentId = `NEXA-${randomId}-${statePrefix}`;
 
-      // Check if custom ref code already exists in DB
-      const querySnap = await getDocs(query(collection(db, "agents"), where("referralCode", "==", sanitizedCode)));
-      if (!querySnap.empty) {
-        toast.error("This referral code is already taken. Please choose another one.");
-        setSubmitting(false);
-        return;
+      // Check if user already logged in or if we generate account
+      let userId = currentUser?.uid;
+
+      if (!currentUser) {
+        const dummyEmail = emailInput.trim() || `${nameInput.toLowerCase().replace(/[^a-z0-9]/g, "")}.${randomId.toLowerCase()}@nexaagent.ng`;
+        const dummyPassword = passwordInput || `NexaPass#${Math.floor(1000 + Math.random() * 9000)}`;
+
+        const userCred = await createUserWithEmailAndPassword(auth, dummyEmail, dummyPassword);
+        userId = userCred.user.uid;
+        await updateProfile(userCred.user, { displayName: nameInput.trim() });
       }
 
-      // 1. Create firebase auth user
-      const userCredential = await createUserWithEmailAndPassword(auth, emailInput.trim(), passwordInput);
-      const u = userCredential.user;
+      if (userId) {
+        const refLink = `${window.location.origin}/?ref=${generatedCode}`;
 
-      // 2. Set profile display name
-      await updateProfile(u, { displayName: nameInput.trim() });
+        await setDoc(doc(db, "users", userId), {
+          id: userId,
+          name: nameInput.trim(),
+          email: emailInput.trim() || `${nameInput.toLowerCase().replace(/[^a-z0-9]/g, "")}@nexaagent.ng`,
+          phone: phoneInput.trim(),
+          nin: ninInput.trim(),
+          state: stateInput,
+          lga: lgaInput.trim(),
+          bank: bankInput,
+          accountNumber: accountNoInput.trim(),
+          whyJoined: whyInput.trim(),
+          role: "agent",
+          onboardingCompleted: true,
+          createdAt: new Date().toISOString()
+        });
 
-      // 3. Create users collection profile
-      await setDoc(doc(db, "users", u.uid), {
-        id: u.uid,
-        name: nameInput.trim(),
-        email: emailInput.trim(),
-        phone: phoneInput.trim(),
-        region: regionInput.trim(),
-        role: "agent",
-        onboardingCompleted: true,
-        createdAt: new Date().toISOString()
-      });
+        await setDoc(doc(db, "agents", userId), {
+          agentId,
+          fullName: nameInput.trim(),
+          email: emailInput.trim() || `${nameInput.toLowerCase().replace(/[^a-z0-9]/g, "")}@nexaagent.ng`,
+          phone: phoneInput.trim(),
+          nin: ninInput.trim(),
+          region: `${stateInput} (${lgaInput.trim()})`,
+          state: stateInput,
+          lga: lgaInput.trim(),
+          bank: bankInput,
+          accountNumber: accountNoInput.trim(),
+          whyJoined: whyInput.trim(),
+          referralCode: generatedCode,
+          referralLink: refLink,
+          status: "pending",
+          commissionRulesApplied: "default",
+          earnings: { pending: 0, paid: 0, reversed: 0 },
+          createdAt: new Date().toISOString()
+        });
 
-      // 4. Create agents collection entry
-      const link = `${window.location.origin}/?ref=${sanitizedCode}`;
-      await setDoc(doc(db, "agents", u.uid), {
-        agentId: u.uid,
-        fullName: nameInput.trim(),
-        email: emailInput.trim(),
-        phone: phoneInput.trim(),
-        region: regionInput.trim(),
-        referralCode: sanitizedCode,
-        referralLink: link,
-        status: "pending",
-        commissionRulesApplied: "default",
-        earnings: { pending: 0, paid: 0, reversed: 0 },
-        createdAt: new Date().toISOString()
-      });
+        const welcomeMsg = `Welcome, ${nameInput.trim()}! 🎉 Your application for the NexaStoreOS Growth Partner Program in ${stateInput} (${lgaInput.trim()}) has been received and registered. Your assigned Agent ID is ${agentId}. Your State Lead will reach out to you at ${phoneInput.trim()} within 48 hours to complete orientation and dispatch your ₦10,000 logistics allowance. Welcome to the team! — Nexa Agent Operations Team, Jalingo, Taraba State.`;
 
-      toast.success("Application submitted successfully! Our State Lead will contact you shortly.");
-      setShowAuthModal(false);
-      // Reset step
-      setRegisterStep(1);
+        setAppSubmittedSuccess({
+          agentId,
+          message: welcomeMsg
+        });
+
+        toast.success("Agent application submitted successfully!");
+      }
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -394,7 +473,7 @@ export function AgentsPage() {
     }
   };
 
-  // Login
+  // Login Handler
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailInput.trim() || !passwordInput) {
@@ -405,7 +484,7 @@ export function AgentsPage() {
     setSubmitting(true);
     try {
       await signInWithEmailAndPassword(auth, emailInput.trim(), passwordInput);
-      toast.success("Welcome back to NexaStoreOS Agent Deck!");
+      toast.success("Welcome back to NexaStoreOS Agent Workspace!");
       setShowAuthModal(false);
     } catch (err) {
       toast.error((err as Error).message);
@@ -464,563 +543,1034 @@ export function AgentsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#FAFBFF] flex items-center justify-center font-sans">
+      <div className="min-h-screen bg-[#0B0C1E] flex items-center justify-center font-sans text-white">
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 border-4 border-[#2B5BFF] border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm font-semibold text-[#2E3152]">Synchronizing Agent Desk...</p>
+          <p className="text-sm font-semibold text-slate-300">Synchronizing Agent Portal...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="nexa-landing min-h-screen bg-[#FAFBFF] text-[#08091A] font-sans selection:bg-[#2B5BFF]/10 relative">
+    <div className="min-h-screen bg-[#0B0C1E] text-[#F1F0FF] font-sans selection:bg-[#2B5BFF]/30 relative overflow-x-hidden">
       
-      {/* BACKGROUND DECORATIONS */}
-      <div className="ambient">
-        <div className="orb orb-1" />
-        <div className="orb orb-2" />
+      {/* GRID BG & AMBIENT ORBS */}
+      <div className="grid-bg pointer-events-none fixed inset-0 z-0 opacity-80" />
+      <div className="ambient pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="orb o1" />
+        <div className="orb o2" />
+        <div className="orb o3" />
       </div>
 
-      {/* HEADER BAR (EXACT LOGO & ALIGNMENT) */}
-      <nav className="border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-40 px-6 py-3.5 flex items-center justify-between">
-        <div 
-          className="flex items-center gap-2.5 cursor-pointer hover:opacity-90 transition-opacity"
-          onClick={() => navigate({ to: "/" })}
-          title="Back to Landing Page"
-        >
-          <div className="nav-logo-box always-animated-logo">
-            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-7 w-7">
-              <defs>
-                <linearGradient id="nexaBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#083344" />
-                  <stop offset="100%" stopColor="#115e59" />
-                </linearGradient>
-                <linearGradient id="nexaTealGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#0ea5e9" />
-                  <stop offset="50%" stopColor="#0d9488" />
-                  <stop offset="100%" stopColor="#10b981" />
-                </linearGradient>
-              </defs>
-              <path d="M 38,28 C 38,14 62,14 62,28" stroke="url(#nexaTealGrad)" strokeWidth="5.5" strokeLinecap="round" fill="none" />
-              <path d="M 24,32 C 24,32 76,32 76,32 L 70,76 C 69,81 31,81 30,76 Z" fill="url(#nexaBgGrad)" stroke="url(#nexaTealGrad)" strokeWidth="3" strokeLinejoin="round" />
-              <path className="nexa-arrow-path" d="M 20,54 C 20,44 28,38 38,44 C 48,50 46,64 54,68 C 60,71 68,68 72,58 L 80,40" stroke="url(#nexaTealGrad)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              <path d="M 68,40 H 80 V 52" stroke="url(#nexaTealGrad)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            </svg>
+      {/* NAV */}
+      <nav id="nav" className={scrolled ? "scrolled" : ""}>
+        <div className="nav-inner">
+          <div className="nav-brand" onClick={() => navigate({ to: "/" })}>
+            <div className="nav-logo">
+              <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+                <path d="M4 4L10 4L14 12L10 20H4L8 12L4 4Z" fill="white" opacity=".9"/>
+                <path d="M12 4H20L16 12L20 20H12L16 12L12 4Z" fill="white" opacity=".5"/>
+              </svg>
+            </div>
+            <span className="nav-name">NexaStoreOS<span> Agent</span></span>
+            <span className="nav-tag">Growth Partner</span>
           </div>
-          <span className="font-['Bricolage_Grotesque'] text-lg font-extrabold tracking-tight text-[#08091A]">
-            Nexa<span className="text-[#2B5BFF]">StoreOS</span>
-            <span className="text-slate-400 font-normal text-xs uppercase tracking-wider ml-2 border-l border-slate-200 pl-2">
-              Growth Partner
-            </span>
-          </span>
-        </div>
 
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => navigate({ to: "/" })}
-            className="text-slate-500 hover:text-[#08091A] hover:bg-slate-100 text-xs font-semibold rounded-full"
-          >
-            Back to Web
-          </Button>
+          <ul className="nav-links hidden md:flex">
+            <li><button onClick={() => scrollToSection("#income")} className="cursor-pointer">Income</button></li>
+            <li><button onClick={() => scrollToSection("#commissions")} className="cursor-pointer">Commissions</button></li>
+            <li><button onClick={() => scrollToSection("#how-it-works")} className="cursor-pointer">How It Works</button></li>
+            <li><button onClick={() => scrollToSection("#terms")} className="cursor-pointer">T&amp;Cs</button></li>
+            <li><button onClick={() => scrollToSection("#faq")} className="cursor-pointer">FAQ</button></li>
+          </ul>
 
-          {isSuperAdmin && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => navigate({ to: "/app/super-admin/agents-network" })}
-              className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-bold rounded-full"
-            >
-              Super Admin Panel
-            </Button>
-          )}
-
-          {currentUser && agentProfile ? (
-            <div className="flex items-center gap-4">
-              <div className="text-right hidden sm:block">
-                <span className="text-xs font-bold text-[#08091A] block">{agentProfile.fullName}</span>
-                <span className="text-[10px] text-[#2B5BFF] font-extrabold uppercase tracking-wider block">ID: {agentProfile.referralCode}</span>
-              </div>
-              <Button size="sm" variant="outline" onClick={handleLogout} className="border-slate-200 text-slate-600 hover:bg-slate-100 rounded-full">
-                <LogOut className="h-3.5 w-3.5 mr-1.5" /> Logout
+          <div className="flex items-center gap-3">
+            {isSuperAdmin && (
+              <Button 
+                onClick={() => navigate({ to: "/app/super-admin/agents-network" })}
+                className="bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 text-xs rounded-full px-3 py-1"
+              >
+                Super Admin
               </Button>
-            </div>
-          ) : currentUser ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500 font-medium hidden sm:inline">Verification Pending</span>
-              <Button size="sm" variant="outline" onClick={handleLogout} className="border-slate-200 text-slate-600 hover:bg-slate-100 rounded-full">
-                <LogOut className="h-3.5 w-3.5 mr-1.5" /> Logout
+            )}
+
+            {currentUser ? (
+              <Button onClick={handleLogout} variant="outline" className="border-white/20 text-white hover:bg-white/10 text-xs rounded-full">
+                Sign Out ({agentProfile?.fullName.split(" ")[0] || "Agent"})
               </Button>
-            </div>
-          ) : (
-            <Button 
-              size="sm" 
-              onClick={() => { setAuthTab("login"); setShowAuthModal(true); }} 
-              className="bg-[#2B5BFF] hover:bg-[#1A4AEE] text-white font-bold rounded-full px-4"
-            >
-              <LogIn className="h-3.5 w-3.5 mr-1.5" /> Agent Sign In
-            </Button>
-          )}
+            ) : (
+              <>
+                <button className="nav-links text-xs text-slate-300 hover:text-white px-3 py-1.5" onClick={() => { setAuthTab("login"); setShowAuthModal(true); }}>
+                  Agent Sign In
+                </button>
+                <button className="nav-cta" onClick={() => scrollToSection("#apply")}>
+                  Apply Now — Free
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </nav>
 
-      {/* RENDER VIEW ACCORDING TO STATE */}
+      {/* RENDER VIEW: IF NOT LOGGED IN OR LANDING PAGE VIEW */}
       {!currentUser ? (
-        
-        /* 1. AGENT PROGRAM LANDING PAGE */
-        <motion.div 
-          initial="hidden"
-          animate="visible"
-          variants={{
-            hidden: { opacity: 0 },
-            visible: {
-              opacity: 1,
-              transition: {
-                staggerChildren: 0.1
-              }
-            }
-          }}
-          className="max-w-6xl mx-auto px-6 py-12 md:py-24 space-y-28 relative z-10"
-        >
+        <div className="relative z-10 space-y-0">
           
-          {/* HERO BANNER */}
-          <motion.div 
-            variants={{
-              hidden: { opacity: 0, y: 30 },
-              visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } }
-            }}
-            className="text-center space-y-8 max-w-4xl mx-auto"
-          >
-            <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 px-4 py-1.5 rounded-full font-bold text-xs tracking-wider uppercase">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              Empowering Ground Operations Across Nigeria
-            </div>
+          {/* HERO SECTION */}
+          <section className="hero" id="hero">
+            <div className="hs hs1" /><div className="hs hs2" /><div className="hs hs3" /><div className="hs hs4" />
             
-            <h1 className="text-4xl md:text-7xl font-extrabold tracking-tight text-[#08091A] leading-[1.08] font-['Bricolage_Grotesque']">
-              Onboard Local Businesses. <br />
-              <span className="grad-blue">Secure Lifetime Income.</span>
+            <div className="hero-kicker">
+              <span className="hk-live" />Agent Portal Open · Applications Live · Nigeria-Wide
+            </div>
+
+            <h1 className="xl tw text-center">
+              Earn Lifetime<br />
+              Residual Income<br />
+              <span className="gg">Selling NexaOS.</span>
             </h1>
-            
-            <p className="text-base md:text-xl text-slate-500 leading-relaxed font-sans max-w-3xl mx-auto">
-              Introduce supermarkets, boutiques, wholesale hubs, and pharmacies to NexaStoreOS. Help them automate inventory, print custom invoices, and run smoothly while you enjoy guaranteed field allowances and residual monthly income.
+
+            <p className="body-l text-center max-w-2xl mx-auto mt-6 mb-10">
+              Become a NexaStoreOS Growth Partner. Onboard local retailers, collect bonuses instantly, and earn ₦500–₦1,000 per merchant every month — forever — while they stay subscribed.
             </p>
-            
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-              <Button 
-                size="lg" 
-                onClick={() => { setAuthTab("register"); setRegisterStep(1); setShowAuthModal(true); }} 
-                className="bg-[#2B5BFF] hover:bg-[#1A4AEE] text-white font-bold h-14 px-10 rounded-full shadow-lg shadow-[#2B5BFF]/15 transition-all text-sm group cursor-pointer"
-              >
-                Apply to Become an Agent <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
-              </Button>
-              <Button 
-                size="lg" 
-                variant="outline" 
-                onClick={() => { setAuthTab("login"); setShowAuthModal(true); }} 
-                className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 h-14 px-8 rounded-full text-sm cursor-pointer"
-              >
-                Access Agent Deck
-              </Button>
-            </div>
-          </motion.div>
 
-          {/* NETWORK TRUST STATS BANNER */}
-          <motion.div 
-            variants={{
-              hidden: { opacity: 0, y: 30 },
-              visible: { opacity: 1, y: 0, transition: { duration: 0.6, delay: 0.1 } }
-            }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-y-8 gap-x-4 max-w-5xl mx-auto py-10 border border-slate-100 bg-white/60 backdrop-blur-md rounded-3xl px-6 shadow-sm"
-          >
-            <div className="text-center space-y-1">
-              <p className="text-2xl md:text-4xl font-black text-[#08091A] font-['Bricolage_Grotesque'] tracking-tight flex items-center justify-center">
-                <span className="font-sans text-xl md:text-2xl font-extrabold mr-0.5">₦</span>14.5M+
-              </p>
-              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-extrabold">Total Paid to Agents</p>
-            </div>
-            <div className="text-center space-y-1 border-l border-slate-100">
-              <p className="text-2xl md:text-4xl font-black text-[#2B5BFF] font-['Bricolage_Grotesque'] tracking-tight">480+</p>
-              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-extrabold">Stores Onboarded</p>
-            </div>
-            <div className="text-center space-y-1 border-t border-slate-100 md:border-t-0 md:border-l pt-4 md:pt-0">
-              <p className="text-2xl md:text-4xl font-black text-[#12D176] font-['Bricolage_Grotesque'] tracking-tight">12 mins</p>
-              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-extrabold">Avg. Approval Time</p>
-            </div>
-            <div className="text-center space-y-1 border-l border-slate-100 border-t border-slate-100 md:border-t-0 pt-4 md:pt-0">
-              <p className="text-2xl md:text-4xl font-black text-amber-500 font-['Bricolage_Grotesque'] tracking-tight">34 States</p>
-              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-extrabold">National Coverage</p>
-            </div>
-          </motion.div>
-
-          {/* TRIPLE COMMISSION ENGINE CARDS */}
-          <div className="space-y-12">
-            <div className="text-center space-y-3">
-              <div className="inline-flex items-center gap-1.5 bg-blue-500/10 text-[#2B5BFF] px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                <Sparkles className="h-3 w-3" /> Commission Architecture
-              </div>
-              <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight font-['Bricolage_Grotesque'] text-[#08091A]">
-                How You Get Paid
-              </h2>
-              <p className="text-base text-slate-500 max-w-xl mx-auto">
-                We cover your transport logistics and reward every successful business activation with lifetime equity.
-              </p>
+            <div className="hero-btns flex flex-wrap justify-center gap-4 mb-20">
+              <button className="btn btn-green cursor-pointer" onClick={() => scrollToSection("#apply")}>
+                <span>🚀</span>Apply as Field Agent
+              </button>
+              <button className="btn btn-ghost cursor-pointer" onClick={() => scrollToSection("#income")}>
+                See Income Potential →
+              </button>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-8">
-              
-              {/* FIELD ALLOWANCE */}
-              <motion.div 
-                whileHover={{ y: -6, boxShadow: "0 20px 40px rgba(43,91,255,0.06)" }}
-                transition={{ duration: 0.3 }}
-                className="bg-white border border-slate-100/90 p-8 rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between"
-              >
-                <div className="space-y-6">
-                  <div className="h-14 w-14 rounded-2xl bg-[#EEF1FF] border border-[#2B5BFF]/10 flex items-center justify-center shadow-inner">
-                    <Briefcase className="h-6 w-6 text-[#2B5BFF]" />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-bold text-[#08091A] font-['Bricolage_Grotesque'] tracking-tight flex items-center">
-                      <span className="font-sans text-lg font-bold mr-0.5">₦</span>10,000 Field Allowance
-                    </h3>
-                    <p className="text-[#2B5BFF] text-xs font-bold uppercase tracking-wider">Fixed Support Guarantee</p>
-                  </div>
-                  <p className="text-slate-500 text-sm leading-relaxed">
-                    Get an instant ₦10,000 on-field support allowance upon application approval to cover initial logistics, marketing materials, transportation, and data setup as you meet local retail merchants.
-                  </p>
-                </div>
-                <div className="border-t border-slate-100 pt-5 mt-6 text-[11px] text-slate-400 font-medium flex items-center gap-2">
-                  <CheckSquare className="h-4 w-4 text-emerald-500 shrink-0" /> Dispatched upon agent verification
-                </div>
-              </motion.div>
-
-              {/* PRO/BASIC PLAN */}
-              <motion.div 
-                whileHover={{ y: -6, boxShadow: "0 20px 40px rgba(43,91,255,0.06)" }}
-                transition={{ duration: 0.3 }}
-                className="bg-white border border-slate-100/90 p-8 rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between"
-              >
-                <div className="space-y-6">
-                  <div className="h-14 w-14 rounded-2xl bg-[#E6FBF2] border border-[#12D176]/10 flex items-center justify-center shadow-inner">
-                    <TrendingUp className="h-6 w-6 text-[#12D176]" />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-bold text-[#08091A] font-['Bricolage_Grotesque'] tracking-tight">Pro/Basic Onboarding</h3>
-                    <p className="text-[#12D176] text-xs font-bold uppercase tracking-wider flex items-center">
-                      <span className="font-sans mr-0.5">₦</span>1,500 Bonus + <span className="font-sans mx-0.5">₦</span>500/mo Residual
-                    </p>
-                  </div>
-                  <p className="text-slate-500 text-sm leading-relaxed">
-                    Earn ₦1,500 instantly for every supermarket, retail boutique, or pharmacy you activate onto the recommended Pro plan (₦12,000/mo) or Basic plan (₦6,500/mo). Enjoy an ongoing ₦500 monthly recurring residual.
-                  </p>
-                </div>
-                <div className="border-t border-slate-100 pt-5 mt-6 text-[11px] text-slate-400 font-medium flex items-center gap-2">
-                  <CheckSquare className="h-4 w-4 text-emerald-500 shrink-0" /> Active on subscriber conversion
-                </div>
-              </motion.div>
-
-              {/* ENTERPRISE PLAN */}
-              <motion.div 
-                whileHover={{ y: -6, boxShadow: "0 20px 40px rgba(43,91,255,0.06)" }}
-                transition={{ duration: 0.3 }}
-                className="bg-white border border-slate-100/90 p-8 rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col justify-between"
-              >
-                <div className="space-y-6">
-                  <div className="h-14 w-14 rounded-2xl bg-amber-50 border border-amber-200/40 flex items-center justify-center shadow-inner">
-                    <Award className="h-6 w-6 text-amber-500" />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-bold text-[#08091A] font-['Bricolage_Grotesque'] tracking-tight">Enterprise Onboarding</h3>
-                    <p className="text-amber-600 text-xs font-bold uppercase tracking-wider flex items-center">
-                      <span className="font-sans mr-0.5">₦</span>5,000 Bonus + <span className="font-sans mx-0.5">₦</span>1,000/mo Residual
-                    </p>
-                  </div>
-                  <p className="text-slate-500 text-sm leading-relaxed">
-                    Earn ₦5,000 flat commission instantly for high-volume warehouses or chain retailers you onboard onto the Enterprise plan (₦45,000/mo). Secure ₦1,000 monthly income residuals for life.
-                  </p>
-                </div>
-                <div className="border-t border-slate-100 pt-5 mt-6 text-[11px] text-slate-400 font-medium flex items-center gap-2">
-                  <CheckSquare className="h-4 w-4 text-emerald-500 shrink-0" /> Top-tier high ticket commissions
-                </div>
-              </motion.div>
-
-            </div>
-          </div>
-
-          {/* PLAYBOOK TIMELINE SECTION */}
-          <div className="space-y-12 max-w-5xl mx-auto">
-            <div className="text-center space-y-3">
-              <div className="inline-flex items-center gap-1.5 bg-teal-500/10 text-teal-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                <Layers className="h-3 w-3" /> Operational Framework
-              </div>
-              <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight font-['Bricolage_Grotesque'] text-[#08091A]">
-                The Onboarding Playbook
-              </h2>
-            </div>
-
-            <div className="grid md:grid-cols-4 gap-8">
-              
-              {/* Step 1 */}
-              <motion.div 
-                whileHover={{ y: -4 }}
-                className="bg-white border border-slate-100 p-8 rounded-3xl shadow-[0_4px_24px_rgba(0,0,0,0.015)] flex flex-col items-start gap-5"
-              >
-                <div className="h-10 w-10 rounded-xl bg-[#2B5BFF]/10 text-[#2B5BFF] flex items-center justify-center text-sm font-black font-mono">
-                  1
-                </div>
-                <div className="space-y-2">
-                  <h4 className="text-base font-bold font-['Bricolage_Grotesque'] text-[#08091A]">Apply Online</h4>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Enter your assigned region, verify your active contact number, and instantly lock your referral code.
-                  </p>
-                </div>
-              </motion.div>
-
-              {/* Step 2 */}
-              <motion.div 
-                whileHover={{ y: -4 }}
-                className="bg-white border border-slate-100 p-8 rounded-3xl shadow-[0_4px_24px_rgba(0,0,0,0.015)] flex flex-col items-start gap-5"
-              >
-                <div className="h-10 w-10 rounded-xl bg-[#2B5BFF]/10 text-[#2B5BFF] flex items-center justify-center text-sm font-black font-mono">
-                  2
-                </div>
-                <div className="space-y-2">
-                  <h4 className="text-base font-bold font-['Bricolage_Grotesque'] text-[#08091A]">Get Approved</h4>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Our territory manager verifies your field plan, activates your login, and dispatches your field allowance.
-                  </p>
-                </div>
-              </motion.div>
-
-              {/* Step 3 */}
-              <motion.div 
-                whileHover={{ y: -4 }}
-                className="bg-white border border-slate-100 p-8 rounded-3xl shadow-[0_4px_24px_rgba(0,0,0,0.015)] flex flex-col items-start gap-5"
-              >
-                <div className="h-10 w-10 rounded-xl bg-[#2B5BFF]/10 text-[#2B5BFF] flex items-center justify-center text-sm font-black font-mono">
-                  3
-                </div>
-                <div className="space-y-2">
-                  <h4 className="text-base font-bold font-['Bricolage_Grotesque'] text-[#08091A]">Onboard Stores</h4>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Guide local shops to sign up using your referral code. Provide demo support and set up inventory templates.
-                  </p>
-                </div>
-              </motion.div>
-
-              {/* Step 4 */}
-              <motion.div 
-                whileHover={{ y: -4 }}
-                className="bg-white border border-slate-100 p-8 rounded-3xl shadow-[0_4px_24px_rgba(0,0,0,0.015)] flex flex-col items-start gap-5"
-              >
-                <div className="h-10 w-10 rounded-xl bg-[#2B5BFF]/10 text-[#2B5BFF] flex items-center justify-center text-sm font-black font-mono">
-                  4
-                </div>
-                <div className="space-y-2">
-                  <h4 className="text-base font-bold font-['Bricolage_Grotesque'] text-[#08091A]">Collect Payouts</h4>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Watch commissions clear. Payouts are paid on the 1st of every month to any registered Nigerian bank account.
-                  </p>
-                </div>
-              </motion.div>
-
-            </div>
-          </div>
-
-          {/* COMMISSION SIMULATOR */}
-          <div className="bg-white border border-slate-100 p-8 md:p-12 max-w-5xl mx-auto rounded-3xl shadow-[0_16px_48px_rgba(43,91,255,0.03)] relative overflow-hidden">
-            <div className="grid md:grid-cols-12 gap-10 items-center">
-              
-              <div className="md:col-span-7 space-y-8">
-                <div className="space-y-2.5">
-                  <div className="flex items-center gap-2 text-[#2B5BFF] text-xs font-extrabold uppercase tracking-wider">
-                    <Calculator className="h-4 w-4 text-[#2B5BFF]" /> Real-time Income Projection
-                  </div>
-                  <h3 className="text-2xl md:text-4xl font-extrabold text-[#08091A] font-['Bricolage_Grotesque'] tracking-tight">Simulate Your Revenue</h3>
-                  <p className="text-sm text-slate-400 leading-relaxed max-w-md">
-                    Drag the slider to adjust the targeted active store count in your territory and check your prospective recurring passive stream.
-                  </p>
-                </div>
-
-                <div className="space-y-6 pt-2">
-                  <div className="space-y-4 bg-slate-50/70 p-5 rounded-2xl border border-slate-100">
-                    <div className="flex justify-between items-center text-xs text-[#2E3152] font-bold">
-                      <span>Referred Active Paid Stores</span>
-                      <span className="text-[#2B5BFF] font-black text-sm bg-blue-50 px-3 py-1 rounded-full">{simStores} Stores Onboarded</span>
-                    </div>
-                    <input 
-                      type="range" 
-                      min="1" 
-                      max="100" 
-                      value={simStores} 
-                      onChange={(e) => setSimStores(parseInt(e.target.value))}
-                      className="w-full accent-[#2B5BFF] bg-slate-200 rounded-lg appearance-none h-1.5 cursor-pointer py-1" 
-                    />
-                    <div className="flex justify-between text-[10px] text-slate-400 font-bold">
-                      <span>1 Store</span>
-                      <span>50 Stores</span>
-                      <span>100 Stores</span>
+            {/* AGENT WALLET DASHBOARD (3D TILT) */}
+            <div className="hero-wallet-scene w-full max-w-5xl mx-auto relative perspective-1200">
+              <div ref={walletCardRef} className="wallet-3d transition-transform duration-300">
+                <div className="wallet-frame bg-[#141528] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+                  
+                  {/* TOPBAR */}
+                  <div className="wf-topbar grid grid-cols-3 items-center px-6 py-4 bg-white/[0.02] border-b border-white/10 text-xs">
+                    <div className="wf-brand font-black text-white">NexaStoreOS<span className="text-[#00C4CF]"> Agent</span></div>
+                    <div className="wf-title text-center text-slate-400 font-medium">Growth Partner Dashboard · Field Agent Portal</div>
+                    <div className="wf-status flex items-center justify-end gap-1.5 text-emerald-400 font-semibold">
+                      <span className="wf-live" />Live · Synced
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <span className="text-xs text-[#2E3152] font-bold block">Typical Store Subscription Preference</span>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button 
-                        onClick={() => setSimTier("professional")}
-                        className={`py-3.5 px-4 text-xs font-extrabold rounded-xl border transition-all cursor-pointer ${
-                          simTier === "professional" 
-                            ? "bg-[#EEF1FF] border-[#2B5BFF] text-[#2B5BFF] shadow-sm" 
-                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm"
-                        }`}
-                      >
-                        Pro Plan (₦12k/mo)
-                      </button>
-                      <button 
-                        onClick={() => setSimTier("enterprise")}
-                        className={`py-3.5 px-4 text-xs font-extrabold rounded-xl border transition-all cursor-pointer ${
-                          simTier === "enterprise" 
-                            ? "bg-[#EEF1FF] border-[#2B5BFF] text-[#2B5BFF] shadow-sm" 
-                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm"
-                        }`}
-                      >
-                        Enterprise Plan (₦45k/mo)
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* SIMULATION SUMMARY PANEL (PREMIUM FINTECH WALLET LOOK) */}
-              <div className="md:col-span-5 bg-[#0B0C1E] text-white p-8 rounded-3xl border border-[#1E203C]/30 space-y-6 shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[380px]">
-                <div className="absolute top-0 right-0 w-36 h-36 bg-gradient-to-br from-[#2B5BFF]/15 to-transparent blur-3xl rounded-full"></div>
-                
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                    <span className="text-[10px] uppercase tracking-widest font-extrabold text-slate-400">Yield Statement</span>
-                    <span className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider animate-pulse">
-                      <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full"></span> Live Calculation
-                    </span>
-                  </div>
-
-                  <div className="space-y-5 text-xs">
-                    <div className="flex justify-between items-center text-slate-400">
-                      <span className="font-semibold">Fixed Field Logistics</span>
-                      <span className="font-mono font-bold text-white flex items-center">
-                        <span className="font-sans text-sm mr-0.5 font-normal">₦</span>{projectedEarnings.flatAllowance.toLocaleString()}
-                      </span>
-                    </div>
+                  {/* BODY */}
+                  <div className="wf-body grid md:grid-cols-[260px_1fr] min-h-[420px]">
                     
-                    <div className="space-y-1.5 border-t border-white/5 pt-4">
-                      <span className="text-[10px] text-slate-400 uppercase tracking-widest font-extrabold block">One-time Activation Bonuses</span>
-                      <p className="text-2xl font-extrabold font-mono text-white flex items-center tracking-tight">
-                        <span className="font-sans text-xl mr-0.5 font-normal">₦</span>{projectedEarnings.onboardingBonus.toLocaleString()}
-                      </p>
+                    {/* SIDEBAR */}
+                    <div className="wf-side bg-white/[0.018] border-r border-white/10 p-5 flex flex-col gap-3">
+                      <div className="wfs-agent p-3.5 rounded-xl bg-gradient-to-br from-[#2B5BFF]/15 to-[#00C4CF]/5 border border-[#2B5BFF]/20">
+                        <div className="wfs-avatar w-9 h-9 rounded-full bg-gradient-to-br from-[#2B5BFF] to-[#00C4CF] flex items-center justify-center text-base mb-2">👤</div>
+                        <div className="wfs-name font-bold text-white text-sm">Aminu Lawal</div>
+                        <div className="wfs-id font-mono text-[10px] text-[#00C4CF] tracking-wider">ID: LAGOSDEALS-2024</div>
+                        <div className="wfs-state text-[10px] text-slate-400 mt-0.5">Taraba State · Field Agent</div>
+                      </div>
+
+                      <div className="wf-nav flex flex-col gap-1 text-xs">
+                        <div className="wfn on flex items-center gap-2 p-2.5 rounded-lg bg-[#2B5BFF]/15 text-[#7B9FFF] border border-[#2B5BFF]/20 font-semibold">
+                          <span className="wfn-ico wi-g font-bold">₦</span>Earnings
+                        </div>
+                        <div className="wfn flex items-center gap-2 p-2.5 rounded-lg text-slate-300 hover:bg-white/5">
+                          <span className="wfn-ico wi-b">👥</span>My Merchants
+                        </div>
+                        <div className="wfn flex items-center gap-2 p-2.5 rounded-lg text-slate-300 hover:bg-white/5">
+                          <span className="wfn-ico wi-t">📊</span>Performance
+                        </div>
+                        <div className="wfn flex items-center gap-2 p-2.5 rounded-lg text-slate-300 hover:bg-white/5">
+                          <span className="wfn-ico wi-a">🔗</span>Referral Link
+                        </div>
+                        <div className="wfn flex items-center gap-2 p-2.5 rounded-lg text-slate-300 hover:bg-white/5">
+                          <span className="wfn-ico wi-v">📋</span>Disbursements
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="space-y-1.5 border-t border-white/5 pt-4">
-                      <span className="text-[10px] text-emerald-400 uppercase tracking-widest font-extrabold block">Monthly Recurring Residual</span>
-                      <p className="text-2xl font-extrabold font-mono text-[#12D176] flex items-center tracking-tight">
-                        <span className="font-sans text-xl mr-0.5 font-normal">₦</span>{projectedEarnings.monthlyResidual.toLocaleString()}<span className="text-xs text-slate-400 font-normal ml-1">/mo</span>
-                      </p>
+                    {/* MAIN DASHBOARD PREVIEW */}
+                    <div className="wf-main p-6 space-y-5">
+                      <div className="wfm-head flex justify-between items-start">
+                        <div>
+                          <div className="wfm-title font-bold text-white text-base">Earnings Dashboard</div>
+                          <div className="wfm-sub text-xs text-slate-400">Aminu Lawal · July 2025</div>
+                        </div>
+                        <span className="wfm-month bg-emerald-500/10 border border-emerald-500/20 text-[#4DE89A] px-3 py-1 rounded-full text-xs font-bold">
+                          July 2025
+                        </span>
+                      </div>
+
+                      {/* KPI ROW */}
+                      <div className="income-row grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                        <div className="ic bg-white/[0.04] border border-white/10 rounded-xl p-3">
+                          <div className="ic-lbl text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1">Total Earnings</div>
+                          <div className="ic-val font-mono text-base font-bold text-white">₦47,500</div>
+                          <span className="ic-delta up text-[9px] font-bold bg-emerald-500/10 text-[#4DE89A] px-1.5 py-0.5 rounded-full">↑ +23%</span>
+                        </div>
+                        <div className="ic bg-white/[0.04] border border-white/10 rounded-xl p-3">
+                          <div className="ic-lbl text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1">Active Merchants</div>
+                          <div className="ic-val font-mono text-base font-bold text-white">38</div>
+                          <span className="ic-delta up text-[9px] font-bold bg-emerald-500/10 text-[#4DE89A] px-1.5 py-0.5 rounded-full">+6 this month</span>
+                        </div>
+                        <div className="ic bg-white/[0.04] border border-white/10 rounded-xl p-3">
+                          <div className="ic-lbl text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1">Monthly Residuals</div>
+                          <div className="ic-val font-mono text-base font-bold text-white">₦22,000</div>
+                          <span className="ic-delta up text-[9px] font-bold bg-emerald-500/10 text-[#4DE89A] px-1.5 py-0.5 rounded-full">↑ +₦3,000</span>
+                        </div>
+                        <div className="ic bg-white/[0.04] border border-white/10 rounded-xl p-3">
+                          <div className="ic-lbl text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1">Field Allowance</div>
+                          <div className="ic-val font-mono text-base font-bold text-white">₦10,000</div>
+                          <span className="ic-delta neutral text-[9px] font-bold bg-blue-500/10 text-[#7B9FFF] px-1.5 py-0.5 rounded-full">Paid ✓</span>
+                        </div>
+                      </div>
+
+                      {/* TRANSACTION LEDGER */}
+                      <div className="ledger bg-white/[0.025] border border-white/10 rounded-xl">
+                        <div className="ledger-head flex justify-between items-center p-3 border-b border-white/10 text-xs font-bold text-slate-300">
+                          <span>Transaction Ledger</span>
+                          <span className="text-[10px] text-slate-400 font-normal">July 2025</span>
+                        </div>
+                        <div className="ledger-body text-xs divide-y divide-white/5">
+                          <div className="l-row flex items-center p-2.5">
+                            <span className="l-type l-green" />
+                            <span className="l-desc text-slate-200 font-medium flex-1 pl-2">Merchant Onboarding Bonus — Hassan Bala Store</span>
+                            <span className="l-code font-mono text-[10px] text-slate-400 px-3">TXN-00481</span>
+                            <span className="l-amount pos font-mono font-bold text-[#4DE89A]">+₦1,500</span>
+                          </div>
+                          <div className="l-row flex items-center p-2.5">
+                            <span className="l-type l-blue" />
+                            <span className="l-desc text-slate-200 font-medium flex-1 pl-2">Monthly Residual — 22 Pro Plan Merchants</span>
+                            <span className="l-code font-mono text-[10px] text-slate-400 px-3">RES-07-PRO</span>
+                            <span className="l-amount pos font-mono font-bold text-[#4DE89A]">+₦11,000</span>
+                          </div>
+                          <div className="l-row flex items-center p-2.5">
+                            <span className="l-type l-blue" />
+                            <span className="l-desc text-slate-200 font-medium flex-1 pl-2">Monthly Residual — 10 Pro Plan Merchants</span>
+                            <span className="l-code font-mono text-[10px] text-slate-400 px-3">RES-07-PRO</span>
+                            <span className="l-amount pos font-mono font-bold text-[#4DE89A]">+₦5,000</span>
+                          </div>
+                          <div className="l-row flex items-center p-2.5">
+                            <span className="l-type l-amber" />
+                            <span className="l-desc text-slate-200 font-medium flex-1 pl-2">Enterprise Onboarding — Jalingo Superstore</span>
+                            <span className="l-code font-mono text-[10px] text-slate-400 px-3">ENT-00092</span>
+                            <span className="l-amount pos font-mono font-bold text-[#4DE89A]">+₦5,000</span>
+                          </div>
+                        </div>
+                      </div>
+
                     </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* FLOATING NOTIFS */}
+              <div className="wf-notif wn1 hidden lg:flex">
+                <span className="wno-ico">💰</span>
+                <div>
+                  <div className="wno-txt text-[10px] text-slate-400">Bonus credited</div>
+                  <div className="wno-val wno-green font-mono font-bold text-xs text-[#4DE89A]">+₦1,500 onboarding</div>
+                </div>
+              </div>
+              <div className="wf-notif wn2 hidden lg:flex">
+                <span className="wno-ico">📅</span>
+                <div>
+                  <div className="wno-txt text-[10px] text-slate-400">Monthly settlement</div>
+                  <div className="wno-val font-mono font-bold text-xs text-white">₦22,000 — Aug 1st</div>
+                </div>
+              </div>
+              <div className="wf-notif wn3 hidden lg:flex">
+                <span className="wno-ico">🆕</span>
+                <div>
+                  <div className="wno-txt text-[10px] text-slate-400">New merchant onboarded</div>
+                  <div className="wno-val wno-blue font-mono font-bold text-xs text-[#7B9FFF]">Fatima's Store ✓</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* PROOF STRIP */}
+          <div className="proof-strip my-12">
+            <div className="proof-inner">
+              <div className="proof-item"><div className="proof-num" style={{ color: "#4DE89A" }}>₦10k</div><div className="proof-lbl">Field allowance on verification</div></div>
+              <div className="proof-sep" />
+              <div className="proof-item"><div className="proof-num" style={{ color: "#7B9FFF" }}>₦1,500</div><div className="proof-lbl">Per Pro/Basic onboarding bonus</div></div>
+              <div className="proof-sep" />
+              <div className="proof-item"><div className="proof-num" style={{ color: "#F5C842" }}>₦5,000</div><div className="proof-lbl">Per Enterprise onboarding bonus</div></div>
+              <div className="proof-sep" />
+              <div className="proof-item"><div className="proof-num" style={{ color: "#4DE89A" }}>₦500/mo</div><div className="proof-lbl">Residual per Pro merchant forever</div></div>
+              <div className="proof-sep" />
+              <div className="proof-item"><div className="proof-num" style={{ color: "#4DD9E0" }}>₦1k/mo</div><div className="proof-lbl">Residual per Enterprise merchant</div></div>
+              <div className="proof-sep" />
+              <div className="proof-item"><div className="proof-num" style={{ color: "#fff" }}>1st</div><div className="proof-lbl">Monthly bank transfer date</div></div>
+            </div>
+          </div>
+
+          {/* INCOME CALCULATOR */}
+          <section className="sec" id="income">
+            <div className="wrap">
+              <div className="center text-center mb-12">
+                <div className="eye eye-g inline-flex items-center gap-2"><span className="ey-dot" />Income Calculator</div>
+                <h2 className="lg tw text-3xl md:text-5xl font-extrabold mt-3">
+                  Calculate Your<br /><span className="gg">Monthly Earnings.</span>
+                </h2>
+                <p className="body-m text-slate-400 max-w-xl mx-auto mt-3">
+                  Move the sliders to see exactly how much you'll earn based on the merchants you onboard and the plans they choose.
+                </p>
+              </div>
+
+              <div className="calc-wrap max-w-5xl mx-auto">
+                <div className="calc-grid grid md:grid-cols-2 gap-10 items-start">
+                  
+                  {/* INPUTS */}
+                  <div className="calc-inputs space-y-6">
+                    <div className="plan-toggle flex gap-2">
+                      <button 
+                        className={`pt-btn flex-1 py-2.5 px-3 rounded-xl border text-xs font-bold transition-all ${calcPlan === "pro" ? "on bg-[#2B5BFF]/15 border-[#2B5BFF]/40 text-[#7B9FFF]" : "border-white/10 text-slate-400"}`}
+                        onClick={() => setCalcPlan("pro")}
+                      >
+                        Pro / Basic Plan
+                      </button>
+                      <button 
+                        className={`pt-btn flex-1 py-2.5 px-3 rounded-xl border text-xs font-bold transition-all ${calcPlan === "enterprise" ? "on bg-[#2B5BFF]/15 border-[#2B5BFF]/40 text-[#7B9FFF]" : "border-white/10 text-slate-400"}`}
+                        onClick={() => setCalcPlan("enterprise")}
+                      >
+                        Enterprise Plan
+                      </button>
+                      <button 
+                        className={`pt-btn flex-1 py-2.5 px-3 rounded-xl border text-xs font-bold transition-all ${calcPlan === "mix" ? "on bg-[#2B5BFF]/15 border-[#2B5BFF]/40 text-[#7B9FFF]" : "border-white/10 text-slate-400"}`}
+                        onClick={() => setCalcPlan("mix")}
+                      >
+                        Mixed Plans
+                      </button>
+                    </div>
+
+                    {calcPlan === "pro" && (
+                      <div className="calc-input-group space-y-2">
+                        <div className="calc-label flex justify-between text-xs font-bold text-slate-300">
+                          <span>Pro/Basic Merchants Onboarded</span>
+                          <span className="calc-val-display font-mono text-[#00C4CF]">{calcProCount} Stores</span>
+                        </div>
+                        <input 
+                          type="range" min="1" max="100" value={calcProCount} 
+                          onChange={(e) => setCalcProCount(parseInt(e.target.value))}
+                          className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#2B5BFF]"
+                        />
+                      </div>
+                    )}
+
+                    {calcPlan === "enterprise" && (
+                      <div className="calc-input-group space-y-2">
+                        <div className="calc-label flex justify-between text-xs font-bold text-slate-300">
+                          <span>Enterprise Merchants Onboarded</span>
+                          <span className="calc-val-display font-mono text-[#00C4CF]">{calcEntCount} Stores</span>
+                        </div>
+                        <input 
+                          type="range" min="1" max="30" value={calcEntCount} 
+                          onChange={(e) => setCalcEntCount(parseInt(e.target.value))}
+                          className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#2B5BFF]"
+                        />
+                      </div>
+                    )}
+
+                    {calcPlan === "mix" && (
+                      <div className="space-y-4">
+                        <div className="calc-input-group space-y-2">
+                          <div className="calc-label flex justify-between text-xs font-bold text-slate-300">
+                            <span>Pro/Basic Merchants</span>
+                            <span className="calc-val-display font-mono text-[#00C4CF]">{calcMixPro} Stores</span>
+                          </div>
+                          <input 
+                            type="range" min="1" max="80" value={calcMixPro} 
+                            onChange={(e) => setCalcMixPro(parseInt(e.target.value))}
+                            className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#2B5BFF]"
+                          />
+                        </div>
+
+                        <div className="calc-input-group space-y-2">
+                          <div className="calc-label flex justify-between text-xs font-bold text-slate-300">
+                            <span>Enterprise Merchants</span>
+                            <span className="calc-val-display font-mono text-[#00C4CF]">{calcMixEnt} Stores</span>
+                          </div>
+                          <input 
+                            type="range" min="1" max="20" value={calcMixEnt} 
+                            onChange={(e) => setCalcMixEnt(parseInt(e.target.value))}
+                            className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#2B5BFF]"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="calc-input-group space-y-2">
+                      <div className="calc-label flex justify-between text-xs font-bold text-slate-300">
+                        <span>Months Active (for residual projection)</span>
+                        <span className="calc-val-display font-mono text-[#00C4CF]">{calcMonths} Months</span>
+                      </div>
+                      <input 
+                        type="range" min="1" max="36" value={calcMonths} 
+                        onChange={(e) => setCalcMonths(parseInt(e.target.value))}
+                        className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#2B5BFF]"
+                      />
+                    </div>
+
+                    <div className="bg-[#2B5BFF]/10 border border-[#2B5BFF]/20 rounded-xl p-4">
+                      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">Your Referral Code Preview</div>
+                      <div className="font-mono text-base font-bold text-[#00C4CF] tracking-widest">
+                        NEXAAGENT-FIELD2025
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-1">Generated upon registration — unique to you</div>
+                    </div>
+                  </div>
+
+                  {/* RESULT PANEL */}
+                  <div className="income-panel bg-[#0F1020] border border-emerald-500/20 rounded-2xl p-6 space-y-5">
+                    <div className="ip-title text-xs font-bold text-slate-400 uppercase tracking-wider">Projected Monthly Residual</div>
+                    <div className="ip-main-val font-mono text-4xl font-bold text-[#4DE89A]">
+                      ₦{calculatedIncome.residual.toLocaleString()}
+                    </div>
+                    <div className="ip-main-lbl text-xs text-slate-400">Per month (at full residual maturity)</div>
+
+                    <div className="ip-rows space-y-2 text-xs">
+                      <div className="ip-row flex justify-between items-center p-2.5 rounded-lg bg-white/5 border border-white/5">
+                        <span className="ip-row-lbl text-slate-300">🎁 Field Logistics Allowance</span>
+                        <span className="ip-row-val green font-mono font-bold text-[#4DE89A]">₦10,000</span>
+                      </div>
+                      <div className="ip-row flex justify-between items-center p-2.5 rounded-lg bg-white/5 border border-white/5">
+                        <span className="ip-row-lbl text-slate-300">⚡ One-time Onboarding Bonuses</span>
+                        <span className="ip-row-val font-mono font-bold text-white">₦{calculatedIncome.bonus.toLocaleString()}</span>
+                      </div>
+                      <div className="ip-row flex justify-between items-center p-2.5 rounded-lg bg-white/5 border border-white/5">
+                        <span className="ip-row-lbl text-slate-300">🔄 Monthly Residual Income</span>
+                        <span className="ip-row-val green font-mono font-bold text-[#4DE89A]">₦{calculatedIncome.residual.toLocaleString()}</span>
+                      </div>
+                      <div className="ip-row flex justify-between items-center p-2.5 rounded-lg bg-white/5 border border-white/5">
+                        <span className="ip-row-lbl text-slate-300">📅 Settlement Date</span>
+                        <span className="ip-row-val font-mono font-bold text-white">1st of every month</span>
+                      </div>
+                    </div>
+
+                    <div className="ip-year bg-[#2B5BFF]/10 border border-[#2B5BFF]/20 rounded-xl p-4 text-center">
+                      <div className="ip-year-lbl text-[10px] text-slate-400 mb-1">Projected First-Year Total Earnings</div>
+                      <div className="ip-year-val font-mono text-2xl font-bold text-[#7B9FFF]">
+                        ₦{calculatedIncome.yearTotal.toLocaleString()}
+                      </div>
+                    </div>
+
+                    <button className="btn btn-green w-full py-3.5 text-sm cursor-pointer" onClick={() => scrollToSection("#apply")}>
+                      Apply Now — Start Earning
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* COMMISSIONS TABLE & ALLOWANCE */}
+          <section className="sec" id="commissions">
+            <div className="wrap max-w-5xl mx-auto">
+              <div className="center text-center mb-12">
+                <div className="eye eye-a inline-flex items-center gap-2"><span className="ey-dot" />Commission Structure</div>
+                <h2 className="lg tw text-3xl md:text-5xl font-extrabold mt-3">
+                  Every Merchant You<br />Onboard <span className="gp">Pays You Forever.</span>
+                </h2>
+                <p className="body-m text-slate-400 max-w-xl mx-auto mt-3">
+                  Fixed bonuses on signup. Monthly residuals for the lifetime of the merchant's subscription. No cap. No expiry.
+                </p>
+              </div>
+
+              {/* TABLE */}
+              <div className="comm-table bg-[#141528] border border-white/10 rounded-2xl overflow-hidden mb-12">
+                <div className="ct-head grid grid-cols-4 p-4 bg-white/5 border-b border-white/10 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <div>Plan Type</div><div>Onboarding Bonus</div><div>Monthly Residual</div><div>Annual Residual</div>
+                </div>
+                <div className="ct-row grid grid-cols-4 p-5 border-b border-white/5 items-center">
+                  <div>
+                    <div className="ct-plan font-bold text-white text-base">Pro / Basic Plan</div>
+                    <div className="ct-plan-sub text-xs text-slate-400">Standard retail &amp; provision stores</div>
+                  </div>
+                  <div>
+                    <div className="ct-val blue font-mono font-bold text-[#7B9FFF] text-base">₦1,500</div>
+                    <div className="text-[10px] text-slate-400">One-time on first payment</div>
+                  </div>
+                  <div>
+                    <div className="ct-val green font-mono font-bold text-[#4DE89A] text-base">₦500/mo</div>
+                    <div className="text-[10px] text-slate-400">Lifetime while subscribed</div>
+                  </div>
+                  <div>
+                    <div className="ct-val font-mono font-bold text-[#F5C842] text-base">₦6,000</div>
+                    <div className="text-[10px] text-slate-400">Per merchant per year</div>
                   </div>
                 </div>
 
-                <div className="space-y-2 border-t border-white/5 pt-5 mt-6 bg-white/[0.02] p-5 rounded-2xl border border-white/5 shadow-inner">
-                  <span className="text-[10px] text-slate-300 uppercase tracking-widest font-bold block">12-Month Total Projected Payout</span>
-                  <p className="text-3xl font-black text-[#2B5BFF] flex items-center tracking-tight font-['Bricolage_Grotesque']">
-                    <span className="font-sans text-2xl mr-0.5 font-normal">₦</span>{projectedEarnings.annualProjected.toLocaleString()}
-                  </p>
-                  <p className="text-[9px] text-slate-400 leading-relaxed mt-1">
-                    Includes the fixed field logistics support + active merchant conversion earnings. Paid directly to bank.
-                  </p>
+                <div className="ct-row grid grid-cols-4 p-5 items-center bg-[#2B5BFF]/5">
+                  <div>
+                    <div className="ct-plan font-bold text-white text-base">Enterprise Plan</div>
+                    <div className="ct-plan-sub text-xs text-slate-400">Warehouses, chains &amp; multi-branch</div>
+                  </div>
+                  <div>
+                    <div className="ct-val blue font-mono font-bold text-[#7B9FFF] text-base">₦5,000</div>
+                    <div className="text-[10px] text-slate-400">One-time on activation</div>
+                  </div>
+                  <div>
+                    <div className="ct-val green font-mono font-bold text-[#4DE89A] text-base">₦1,000/mo</div>
+                    <div className="text-[10px] text-slate-400">Lifetime while subscribed</div>
+                  </div>
+                  <div>
+                    <div className="ct-val font-mono font-bold text-[#F5C842] text-base">₦12,000</div>
+                    <div className="text-[10px] text-slate-400">Per merchant per year</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ALLOWANCE CARD */}
+              <div className="allowance-card bg-gradient-to-br from-[#2B5BFF]/12 to-[#6E40C9]/8 border border-[#2B5BFF]/20 rounded-3xl p-8 mb-12">
+                <div className="ac-grid grid md:grid-cols-2 gap-8 items-center">
+                  <div>
+                    <div className="eye eye-v inline-flex items-center gap-2 mb-3"><span className="ey-dot" />Logistics Allowance</div>
+                    <div className="ac-val font-mono text-5xl font-bold text-[#7B9FFF] mb-1">₦10,000</div>
+                    <div className="ac-label text-xs font-bold text-slate-400 uppercase tracking-wider mb-6">Fixed Field Logistics Allowance</div>
+                    <div className="ac-list space-y-3 text-sm text-slate-300">
+                      <div className="ac-item flex items-center gap-3"><span className="ac-check text-[#7B9FFF] font-extrabold">✓</span>Paid upon successful field profile verification by your State Lead</div>
+                      <div className="ac-item flex items-center gap-3"><span className="ac-check text-[#7B9FFF] font-extrabold">✓</span>Covers transportation costs to merchant locations</div>
+                      <div className="ac-item flex items-center gap-3"><span className="ac-check text-[#7B9FFF] font-extrabold">✓</span>Covers printing of promotional materials &amp; brochures</div>
+                      <div className="ac-item flex items-center gap-3"><span className="ac-check text-[#7B9FFF] font-extrabold">✓</span>Covers mobile data subscriptions for demo sessions</div>
+                      <div className="ac-item flex items-center gap-3"><span className="ac-check text-[#7B9FFF] font-extrabold">✓</span>One-time disbursement — separate from commissions</div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Verification Requirements</div>
+                    <div className="t-items space-y-2 text-xs">
+                      <div className="t-item p-3 bg-white/5 rounded-xl flex gap-3"><div className="t-ico-b text-[#7B9FFF] font-bold">1</div><div>Complete online agent registration form</div></div>
+                      <div className="t-item p-3 bg-white/5 rounded-xl flex gap-3"><div className="t-ico-b text-[#7B9FFF] font-bold">2</div><div>Submit valid Nigerian national ID or NIN slip</div></div>
+                      <div className="t-item p-3 bg-white/5 rounded-xl flex gap-3"><div className="t-ico-b text-[#7B9FFF] font-bold">3</div><div>Attend mandatory State Lead orientation session</div></div>
+                      <div className="t-item p-3 bg-white/5 rounded-xl flex gap-3"><div className="t-ico-b text-[#7B9FFF] font-bold">4</div><div>Submit active Nigerian bank account details</div></div>
+                      <div className="t-item p-3 bg-white/5 rounded-xl flex gap-3"><div className="t-ico-b text-[#7B9FFF] font-bold">5</div><div>Allowance disbursed within 3–5 business days of approval</div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* TIMELINE CARDS */}
+              <div className="disburse-timeline grid sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="dt-card bg-[#141528] border border-white/10 rounded-2xl p-6 text-center space-y-3">
+                  <div className="dt-ico text-3xl">🏦</div>
+                  <div className="dt-title font-bold text-white text-sm">Bank Transfer</div>
+                  <div className="dt-body text-xs text-slate-400">Direct electronic bank transfer to your verified Nigerian bank account. No cash. No delays.</div>
+                  <div className="dt-date font-mono text-xs text-[#4DE89A] font-bold">Secure &amp; Instant</div>
+                </div>
+                <div className="dt-card bg-[#141528] border border-white/10 rounded-2xl p-6 text-center space-y-3">
+                  <div className="dt-ico text-3xl">📅</div>
+                  <div className="dt-title font-bold text-white text-sm">Monthly Settlement</div>
+                  <div className="dt-body text-xs text-slate-400">All monthly residuals and pending bonuses are settled on the 1st day of every month.</div>
+                  <div className="dt-date font-mono text-xs text-[#4DE89A] font-bold">1st of Every Month</div>
+                </div>
+                <div className="dt-card bg-[#141528] border border-white/10 rounded-2xl p-6 text-center space-y-3">
+                  <div className="dt-ico text-3xl">⚡</div>
+                  <div className="dt-title font-bold text-white text-sm">Instant Bonuses</div>
+                  <div className="dt-body text-xs text-slate-400">Onboarding bonuses (₦1,500 / ₦5,000) are queued immediately upon merchant verification.</div>
+                  <div className="dt-date font-mono text-xs text-[#4DE89A] font-bold">Within 24–48 Hours</div>
+                </div>
+                <div className="dt-card bg-[#141528] border border-white/10 rounded-2xl p-6 text-center space-y-3">
+                  <div className="dt-ico text-3xl">🛡️</div>
+                  <div className="dt-title font-bold text-white text-sm">Verified Accounts Only</div>
+                  <div className="dt-body text-xs text-slate-400">Bank details verified by State Lead before first disbursement. NIN + account number required.</div>
+                  <div className="dt-date font-mono text-xs text-[#4DE89A] font-bold">Secure &amp; Compliant</div>
                 </div>
               </div>
 
             </div>
+          </section>
+
+          {/* HOW IT WORKS */}
+          <section className="sec" id="how-it-works">
+            <div className="wrap max-w-5xl mx-auto">
+              <div className="center text-center mb-12">
+                <div className="eye eye-t inline-flex items-center gap-2"><span className="ey-dot" />Mode of Operation</div>
+                <h2 className="lg tw text-3xl md:text-5xl font-extrabold mt-3">
+                  How the Agent<br /><span className="gb">Program Works.</span>
+                </h2>
+                <p className="body-m text-slate-400 max-w-xl mx-auto mt-3">
+                  Five clear steps from registration to your first bank transfer. Every step is supported by your State Lead.
+                </p>
+              </div>
+
+              <div className="steps-row grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-6 text-center mb-16">
+                <div className="step space-y-3">
+                  <div className="step-circle s-1 w-16 h-16 rounded-full mx-auto flex items-center justify-center text-2xl border border-white/10 bg-[#2B5BFF]/20">📝</div>
+                  <div className="step-title font-bold text-white text-sm">1. Apply Online</div>
+                  <div className="step-body text-xs text-slate-400">Fill in the agent application form with NIN, bank details, and state.</div>
+                </div>
+                <div className="step space-y-3">
+                  <div className="step-circle s-2 w-16 h-16 rounded-full mx-auto flex items-center justify-center text-2xl border border-white/10 bg-[#00C4CF]/20">✅</div>
+                  <div className="step-title font-bold text-white text-sm">2. State Lead Verifies</div>
+                  <div className="step-body text-xs text-slate-400">State Lead reviews application &amp; conducts orientation within 48 hours.</div>
+                </div>
+                <div className="step space-y-3">
+                  <div className="step-circle s-3 w-16 h-16 rounded-full mx-auto flex items-center justify-center text-2xl border border-white/10 bg-[#12D176]/20">₦</div>
+                  <div className="step-title font-bold text-white text-sm">3. Receive ₦10k Allowance</div>
+                  <div className="step-body text-xs text-slate-400">₦10,000 field logistics allowance transferred to your account in 3–5 days.</div>
+                </div>
+                <div className="step space-y-3">
+                  <div className="step-circle s-4 w-16 h-16 rounded-full mx-auto flex items-center justify-center text-2xl border border-white/10 bg-[#F5A623]/20">🏪</div>
+                  <div className="step-title font-bold text-white text-sm">4. Onboard Merchants</div>
+                  <div className="step-body text-xs text-slate-400">Visit retailers, demo NexaStoreOS, and help them subscribe.</div>
+                </div>
+                <div className="step space-y-3">
+                  <div className="step-circle s-5 w-16 h-16 rounded-full mx-auto flex items-center justify-center text-2xl border border-white/10 bg-[#12D176]/30">🔄</div>
+                  <div className="step-title font-bold text-white text-sm">5. Earn Every Month</div>
+                  <div className="step-body text-xs text-slate-400">Earn ₦500–₦1,000 per merchant every month. Automatically. Forever.</div>
+                </div>
+              </div>
+
+              {/* CODE OF CONDUCT */}
+              <div className="space-y-6">
+                <div className="text-center">
+                  <div className="eye eye-b inline-flex items-center gap-2 mb-2"><span className="ey-dot" />Agent Code of Conduct</div>
+                  <h3 className="md tw text-2xl font-extrabold">What's Expected of Every Growth Partner.</h3>
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="bg-[#141528] border border-white/10 rounded-2xl p-6 space-y-3">
+                    <div className="text-3xl">🤝</div>
+                    <div className="sm tw font-bold text-white text-base">Honest Representation</div>
+                    <p className="body-s text-xs text-slate-400 leading-relaxed">Always represent NexaStoreOS accurately. Do not make income claims or promises not contained in official materials.</p>
+                  </div>
+                  <div className="bg-[#141528] border border-white/10 rounded-2xl p-6 space-y-3">
+                    <div className="text-3xl">📊</div>
+                    <div className="sm tw font-bold text-white text-base">Active Field Engagement</div>
+                    <p className="body-s text-xs text-slate-400 leading-relaxed">Conduct at least 4 merchant visits per week and maintain active WhatsApp communication with your State Lead.</p>
+                  </div>
+                  <div className="bg-[#141528] border border-white/10 rounded-2xl p-6 space-y-3">
+                    <div className="text-3xl">🔐</div>
+                    <div className="sm tw font-bold text-white text-base">Data Confidentiality</div>
+                    <p className="body-s text-xs text-slate-400 leading-relaxed">All merchant information and Nexa business data shared with agents is strictly confidential.</p>
+                  </div>
+                  <div className="bg-[#141528] border border-white/10 rounded-2xl p-6 space-y-3">
+                    <div className="text-3xl">📱</div>
+                    <div className="sm tw font-bold text-white text-base">Merchant Onboarding Support</div>
+                    <p className="body-s text-xs text-slate-400 leading-relaxed">Assist each onboarded merchant through their first login, basic product setup, and first sales entry.</p>
+                  </div>
+                  <div className="bg-[#141528] border border-white/10 rounded-2xl p-6 space-y-3">
+                    <div className="text-3xl">🚫</div>
+                    <div className="sm tw font-bold text-white text-base">No Unauthorized Sub-Agents</div>
+                    <p className="body-s text-xs text-slate-400 leading-relaxed">Agents may not recruit or pay sub-agents without explicit written authorization from a Regional Manager.</p>
+                  </div>
+                  <div className="bg-[#141528] border border-white/10 rounded-2xl p-6 space-y-3">
+                    <div className="text-3xl">📋</div>
+                    <div className="sm tw font-bold text-white text-base">Weekly Activity Reporting</div>
+                    <p className="body-s text-xs text-slate-400 leading-relaxed">Submit a weekly field activity report via the agent portal every Friday before 6 PM.</p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+          {/* TERMS & CONDITIONS LEGAL AGREEMENT */}
+          <section className="sec" id="terms">
+            <div className="wrap max-w-5xl mx-auto">
+              <div className="center text-center mb-12">
+                <div className="eye eye-r inline-flex items-center gap-2"><span className="ey-dot" />Legal Agreement</div>
+                <h2 className="lg tw text-3xl md:text-5xl font-extrabold mt-3">
+                  Terms &amp; <span className="gv">Conditions.</span>
+                </h2>
+                <p className="body-m text-slate-400 max-w-xl mx-auto mt-3">
+                  Please read the full Agent Partnership Agreement before applying. By submitting your application, you agree to all terms below.
+                </p>
+              </div>
+
+              <div className="terms-wrap bg-[#141528] border border-white/10 rounded-3xl overflow-hidden">
+                <div className="terms-header p-6 bg-white/[0.02] border-b border-white/10">
+                  <div className="terms-title text-xl font-extrabold text-white">NexaStoreOS Growth Partner Agent Agreement</div>
+                  <div className="terms-sub text-xs text-slate-400 mt-1">Nexa Digital Solutions LTD · Jalingo, Taraba State, Nigeria</div>
+                  <div className="terms-version font-mono text-[10px] text-[#00C4CF] mt-1">Version 1.0 · Effective: 2025 · RC: Federal Republic of Nigeria</div>
+                </div>
+
+                <div className="terms-body p-8 space-y-8 text-xs text-slate-300 leading-relaxed">
+                  
+                  {/* SECTION 1 */}
+                  <div className="t-section border-b border-white/10 pb-6 space-y-3">
+                    <div className="t-section-num font-mono text-[11px] text-[#7B9FFF] font-bold">SECTION 01</div>
+                    <div className="t-section-title font-bold text-white text-base">Definitions &amp; Parties</div>
+                    <p>
+                      In this Agreement: <strong className="text-white">"Company"</strong> refers to Nexa Digital Solutions LTD, a duly registered Nigerian limited liability company located at Lamurde Street, Barade, Jalingo, Taraba State. <strong className="text-white">"Agent"</strong> or <strong className="text-white">"Growth Partner"</strong> refers to any individual accepted into the NexaStoreOS Field Agent Program. <strong className="text-white">"Merchant"</strong> refers to any retail business subscribing to NexaStoreOS through the Agent's referral.
+                    </p>
+                    <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[#4DE89A]">
+                      This agreement governs your relationship with Nexa Digital Solutions LTD as an independent field agent — not as an employee or partner of the Company.
+                    </div>
+                  </div>
+
+                  {/* SECTION 2 */}
+                  <div className="t-section border-b border-white/10 pb-6 space-y-3">
+                    <div className="t-section-num font-mono text-[11px] text-[#7B9FFF] font-bold">SECTION 02</div>
+                    <div className="t-section-title font-bold text-white text-base">Field Logistics Allowance (₦10,000)</div>
+                    <p>
+                      The Company shall pay a one-time fixed Field Logistics Allowance of ₦10,000 to each verified Agent upon successful completion of the verification and orientation process.
+                    </p>
+                    <ul className="space-y-1.5 pl-4 list-disc text-slate-300">
+                      <li><strong>Eligibility:</strong> Complete online registration, submit NIN, and attend mandatory State Lead orientation.</li>
+                      <li><strong>Purpose:</strong> Transport, promotional printing, and mobile internet data for demos.</li>
+                      <li><strong>Timeline:</strong> Disbursed within 3–5 working days of approval.</li>
+                    </ul>
+                  </div>
+
+                  {/* SECTION 3 */}
+                  <div className="t-section border-b border-white/10 pb-6 space-y-3">
+                    <div className="t-section-num font-mono text-[11px] text-[#7B9FFF] font-bold">SECTION 03</div>
+                    <div className="t-section-title font-bold text-white text-base">Merchant Onboarding Bonuses</div>
+                    <p>
+                      Upon each merchant's first subscription payment, the Agent responsible receives a one-time activation bonus: <strong>₦1,500</strong> for Pro/Basic plans and <strong>₦5,000</strong> for Enterprise plans.
+                    </p>
+                  </div>
+
+                  {/* SECTION 4 */}
+                  <div className="t-section border-b border-white/10 pb-6 space-y-3">
+                    <div className="t-section-num font-mono text-[11px] text-[#7B9FFF] font-bold">SECTION 04</div>
+                    <div className="t-section-title font-bold text-white text-base">Monthly Recurring Residuals</div>
+                    <p>
+                      Agents earn a monthly recurring residual income for every active paying merchant: <strong>₦500/month</strong> for Pro/Basic merchants and <strong>₦1,000/month</strong> for Enterprise merchants, for life.
+                    </p>
+                  </div>
+
+                  {/* SECTION 5 */}
+                  <div className="t-section border-b border-white/10 pb-6 space-y-3">
+                    <div className="t-section-num font-mono text-[11px] text-[#7B9FFF] font-bold">SECTION 05</div>
+                    <div className="t-section-title font-bold text-white text-base">Disbursement Cycle &amp; Payment Terms</div>
+                    <p>
+                      All earnings are settled monthly on the <strong>1st day of every month</strong> via direct bank transfer to verified Nigerian commercial bank accounts.
+                    </p>
+                  </div>
+
+                  {/* SECTION 6 */}
+                  <div className="t-section border-b border-white/10 pb-6 space-y-3">
+                    <div className="t-section-num font-mono text-[11px] text-[#7B9FFF] font-bold">SECTION 06</div>
+                    <div className="t-section-title font-bold text-white text-base">Agent Conduct &amp; Program Integrity</div>
+                    <p>
+                      Agents must represent NexaStoreOS honestly, submit weekly reports, and refrain from fraudulent registrations. Fraud results in immediate termination and forfeiture of pending earnings.
+                    </p>
+                  </div>
+
+                  {/* SECTION 7 & 8 */}
+                  <div className="t-section space-y-3">
+                    <div className="t-section-num font-mono text-[11px] text-[#7B9FFF] font-bold">SECTION 07 &amp; 08</div>
+                    <div className="t-section-title font-bold text-white text-base">Termination &amp; Governing Law</div>
+                    <p>
+                      Either party may terminate with 14 days notice. Governed by the laws of the Federal Republic of Nigeria.
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* FAQ */}
+          <section className="sec" id="faq">
+            <div className="wrap max-w-4xl mx-auto">
+              <div className="center text-center mb-12">
+                <div className="eye eye-t inline-flex items-center gap-2"><span className="ey-dot" />Frequently Asked Questions</div>
+                <h2 className="lg tw text-3xl md:text-5xl font-extrabold mt-3">
+                  Agent Program <span className="gb">FAQ.</span>
+                </h2>
+              </div>
+
+              <div className="space-y-3">
+                {[
+                  { q: "How soon do I get the ₦10,000 field allowance?", a: "Within 3–5 working days after your State Lead confirms your verification and you have attended the mandatory orientation session." },
+                  { q: "Do my residuals ever expire or stop?", a: "No. Your monthly residuals are lifetime passive income tied to each merchant's active subscription." },
+                  { q: "What if a merchant I onboarded cancels their subscription?", a: "If a merchant cancels, their monthly residual contribution stops from the next billing cycle. Your other merchants are not affected." },
+                  { q: "Can I be an agent in multiple states?", a: "Yes. However, you will only receive one Field Logistics Allowance in total — not one per state." },
+                  { q: "How many merchants do I need to onboard to be successful?", a: "There's no minimum. As a guide: 20 active Pro merchants = ₦10,000/month in residuals alone. Top agents onboard 5–8 merchants per month." },
+                  { q: "Is there a cost to join the agent program?", a: "Absolutely not. Joining the NexaStoreOS Growth Partner Program is completely free. We pay you!" },
+                  { q: "When Data/Money is transferred to my account?", a: "Monthly residuals and pending bonuses are settled on the 1st day of every calendar month via direct bank transfer." }
+                ].map((item, idx) => (
+                  <div key={idx} className="bg-[#141528] border border-white/10 rounded-xl overflow-hidden">
+                    <button 
+                      onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
+                      className="w-full flex items-center justify-between p-4 text-left font-semibold text-sm text-slate-200 hover:text-white"
+                    >
+                      <span>{item.q}</span>
+                      <span className="text-lg font-bold text-[#2B5BFF]">{openFaq === idx ? "−" : "+"}</span>
+                    </button>
+                    {openFaq === idx && (
+                      <div className="p-4 pt-0 text-xs text-slate-400 border-t border-white/5 leading-relaxed">
+                        {item.a}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* APPLICATION FORM SECTION */}
+          <section className="sec" id="apply">
+            <div className="wrap max-w-4xl mx-auto">
+              <div className="center text-center mb-12">
+                <div className="eye eye-g inline-flex items-center gap-2"><span className="ey-dot" />Join the Program</div>
+                <h2 className="lg tw text-3xl md:text-5xl font-extrabold mt-3">
+                  Apply to Become a<br /><span className="gg">Growth Partner Agent.</span>
+                </h2>
+              </div>
+
+              <div className="apply-card bg-[#141528] border border-white/10 rounded-3xl p-8 md:p-12">
+                
+                {appSubmittedSuccess ? (
+                  <div className="text-center space-y-6 py-8">
+                    <div className="text-6xl animate-bounce">🎉</div>
+                    <h3 className="text-2xl font-extrabold text-[#4DE89A] font-['Bricolage_Grotesque']">Application Submitted!</h3>
+                    <p className="text-sm text-slate-300 leading-relaxed max-w-xl mx-auto">
+                      {appSubmittedSuccess.message}
+                    </p>
+                    <div className="font-mono text-lg font-bold text-[#00C4CF] bg-white/5 p-4 rounded-xl border border-white/10 inline-block">
+                      Your Agent ID: {appSubmittedSuccess.agentId}
+                    </div>
+                    <div className="pt-4">
+                      <Button onClick={() => setAppSubmittedSuccess(null)} variant="outline" className="border-white/20 text-white rounded-full">
+                        Submit Another Application
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleApplyFormSubmit} className="space-y-5 text-xs">
+                    
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="fg space-y-1.5">
+                        <label className="block text-slate-400 font-bold uppercase tracking-wider text-[10px]">Full Name *</label>
+                        <Input 
+                          placeholder="e.g. Aminu Lawal" 
+                          value={nameInput} 
+                          onChange={(e) => setNameInput(e.target.value)}
+                          className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-11"
+                        />
+                      </div>
+                      <div className="fg space-y-1.5">
+                        <label className="block text-slate-400 font-bold uppercase tracking-wider text-[10px]">Phone Number *</label>
+                        <Input 
+                          placeholder="08012345678" 
+                          value={phoneInput} 
+                          onChange={(e) => setPhoneInput(e.target.value)}
+                          className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-11"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="fg space-y-1.5">
+                        <label className="block text-slate-400 font-bold uppercase tracking-wider text-[10px]">Email Address</label>
+                        <Input 
+                          type="email"
+                          placeholder="aminu@example.com" 
+                          value={emailInput} 
+                          onChange={(e) => setEmailInput(e.target.value)}
+                          className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-11"
+                        />
+                      </div>
+                      <div className="fg space-y-1.5">
+                        <label className="block text-slate-400 font-bold uppercase tracking-wider text-[10px]">NIN / National ID No.</label>
+                        <Input 
+                          placeholder="Your 11-digit NIN number" 
+                          value={ninInput} 
+                          onChange={(e) => setNinInput(e.target.value)}
+                          className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-11"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="fg space-y-1.5">
+                        <label className="block text-slate-400 font-bold uppercase tracking-wider text-[10px]">State of Operation *</label>
+                        <select 
+                          value={stateInput}
+                          onChange={(e) => setStateInput(e.target.value)}
+                          className="w-full bg-[#0F1020] border border-white/10 text-white rounded-xl h-11 px-3 text-xs outline-none focus:border-[#2B5BFF]"
+                        >
+                          <option value="">Select your state...</option>
+                          {NIGERIAN_STATES.map((st) => (
+                            <option key={st} value={st}>{st}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="fg space-y-1.5">
+                        <label className="block text-slate-400 font-bold uppercase tracking-wider text-[10px]">LGA / City *</label>
+                        <Input 
+                          placeholder="e.g. Jalingo, Wukari, Ikeja..." 
+                          value={lgaInput} 
+                          onChange={(e) => setLgaInput(e.target.value)}
+                          className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-11"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="fg space-y-1.5">
+                        <label className="block text-slate-400 font-bold uppercase tracking-wider text-[10px]">Bank Name *</label>
+                        <select 
+                          value={bankInput}
+                          onChange={(e) => setBankInput(e.target.value)}
+                          className="w-full bg-[#0F1020] border border-white/10 text-white rounded-xl h-11 px-3 text-xs outline-none focus:border-[#2B5BFF]"
+                        >
+                          <option value="">Select your bank...</option>
+                          {NIGERIAN_BANKS.map((b) => (
+                            <option key={b} value={b}>{b}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="fg space-y-1.5">
+                        <label className="block text-slate-400 font-bold uppercase tracking-wider text-[10px]">Bank Account Number *</label>
+                        <Input 
+                          maxLength={10}
+                          placeholder="10-digit account number" 
+                          value={accountNoInput} 
+                          onChange={(e) => setAccountNoInput(e.target.value)}
+                          className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-11 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="fg space-y-1.5">
+                      <label className="block text-slate-400 font-bold uppercase tracking-wider text-[10px]">Why do you want to be a NexaOS Agent? *</label>
+                      <textarea 
+                        rows={3}
+                        placeholder="Tell us about your experience selling to local businesses, your network in your area, and why you'd be a great NexaStoreOS Growth Partner..." 
+                        value={whyInput} 
+                        onChange={(e) => setWhyInput(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 text-white placeholder-slate-500 rounded-xl p-3 text-xs outline-none focus:border-[#2B5BFF]"
+                      />
+                    </div>
+
+                    <div className="fg space-y-1.5">
+                      <label className="block text-slate-400 font-bold uppercase tracking-wider text-[10px]">Preferred Referral Code (Optional)</label>
+                      <Input 
+                        placeholder="e.g. LAGOSDEALS" 
+                        value={customRefCodeInput} 
+                        onChange={(e) => setCustomRefCodeInput(e.target.value.toUpperCase())}
+                        className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-11 font-mono uppercase"
+                      />
+                    </div>
+
+                    <div className="flex items-start gap-2 pt-2">
+                      <input 
+                        type="checkbox" 
+                        id="termsApply"
+                        checked={acceptedTerms}
+                        onChange={(e) => setAcceptedTerms(e.target.checked)}
+                        className="mt-1 rounded border-white/20 text-[#2B5BFF] cursor-pointer" 
+                      />
+                      <label htmlFor="termsApply" className="text-slate-400 text-xs cursor-pointer leading-normal">
+                        By submitting this application, I confirm that I have read and agreed to the <a href="#terms" onClick={() => scrollToSection("#terms")} className="text-[#7B9FFF] underline">NexaStoreOS Growth Partner Terms &amp; Conditions</a>, I am a resident of Nigeria, I am at least 18 years old, and all information provided is true and accurate.
+                      </label>
+                    </div>
+
+                    <button 
+                      type="submit" 
+                      disabled={submitting}
+                      className="btn btn-green w-full py-4 text-base font-bold cursor-pointer shadow-lg shadow-emerald-500/20"
+                    >
+                      {submitting ? "Processing Application..." : "🚀 Submit Application — Join for Free"}
+                    </button>
+
+                  </form>
+                )}
+
+              </div>
+            </div>
+          </section>
+
+          {/* CTA STRIP */}
+          <div className="cta-strip text-center py-24 relative overflow-hidden">
+            <div className="cta-inner max-w-3xl mx-auto space-y-6 relative z-10 px-4">
+              <h2 className="lg tw text-3xl md:text-5xl font-extrabold">
+                Every Month You Wait<br />Is <span className="gg">Residuals Left Behind.</span>
+              </h2>
+              <p className="body-l text-slate-300">
+                Hundreds of store owners across Nigeria need NexaStoreOS right now. Be the agent that brings it to them — and earn from every one of them, forever.
+              </p>
+              <div className="flex justify-center gap-4">
+                <button className="btn btn-green cursor-pointer" onClick={() => scrollToSection("#apply")}>
+                  Apply Now — It's Free
+                </button>
+                <button className="btn btn-ghost cursor-pointer" onClick={() => scrollToSection("#commissions")}>
+                  View Commission Rates →
+                </button>
+              </div>
+            </div>
           </div>
 
-        </motion.div>
+        </div>
       ) : agentProfile && agentProfile.status === "pending" ? (
         
-        /* 2. APPLICATION PENDING STATE (LUXURIOUS STATUS TRACKER) */
+        /* APPLICATION PENDING STATE */
         <div className="max-w-xl mx-auto px-6 py-20 relative z-10 space-y-8">
-          
           <div className="text-center space-y-4">
-            <div className="h-16 w-16 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto animate-bounce">
-              <Clock className="h-7 w-7 text-amber-500" />
+            <div className="h-16 w-16 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center mx-auto animate-bounce text-amber-400">
+              <Clock className="h-7 w-7" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-3xl font-extrabold text-[#08091A] font-['Bricolage_Grotesque']">Application Under Review</h2>
-              <p className="text-sm text-slate-500 leading-relaxed">
-                Thank you for applying, <span className="font-bold text-[#08091A]">{agentProfile.fullName}</span>! Our field operations lead is currently reviewing your operational territory assignment.
+              <h2 className="text-3xl font-extrabold text-white font-['Bricolage_Grotesque']">Application Under Review</h2>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Thank you for applying, <span className="font-bold text-white">{agentProfile.fullName}</span>! Our field operations lead is currently reviewing your operational territory assignment.
               </p>
             </div>
           </div>
 
-          {/* PROGRESS CHIPS */}
           <div className="grid grid-cols-3 gap-2 text-center text-[10px] uppercase font-extrabold tracking-wider">
-            <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl">
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-[#4DE89A] rounded-xl">
               1. Submitted
             </div>
-            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl animate-pulse">
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-xl animate-pulse">
               2. Reviewing Territory
             </div>
-            <div className="p-3 bg-slate-50 border border-slate-200 text-slate-400 rounded-xl">
+            <div className="p-3 bg-white/5 border border-white/10 text-slate-400 rounded-xl">
               3. Dispatch Welcome kit
             </div>
           </div>
 
-          <Card className="bg-white border border-[#08091A]/05 shadow-sm p-6 space-y-4 rounded-2xl">
-            <h4 className="text-xs font-bold text-[#2E3152] uppercase tracking-wider">Submitted Onboarding Profile:</h4>
+          <Card className="bg-[#141528] border border-white/10 p-6 space-y-4 rounded-2xl text-white">
+            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Submitted Onboarding Profile:</h4>
             
-            <div className="space-y-3 text-xs border-b border-slate-50 pb-4">
+            <div className="space-y-3 text-xs border-b border-white/10 pb-4">
               <div className="flex justify-between">
                 <span className="text-slate-400">Logistics Phone:</span>
-                <span className="font-mono text-slate-800 font-semibold">{agentProfile.phone || "Not Specified"}</span>
+                <span className="font-mono text-white font-semibold">{agentProfile.phone || "Not Specified"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Target Region:</span>
-                <span className="text-slate-800 font-semibold">{agentProfile.region || "Not Specified"}</span>
+                <span className="text-white font-semibold">{agentProfile.region || "Not Specified"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Assigned Referral Link:</span>
-                <span className="font-mono text-slate-800 font-semibold">{agentProfile.referralCode}</span>
+                <span className="font-mono text-[#00C4CF] font-semibold">{agentProfile.referralCode}</span>
               </div>
             </div>
 
             <div className="space-y-3 pt-1">
-              <h5 className="text-[11px] font-bold text-[#08091A] uppercase tracking-wider flex items-center gap-1.5">
-                <ShieldCheck className="h-4 w-4 text-emerald-500" /> Pending Benefits Locked:
+              <h5 className="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4 text-[#4DE89A]" /> Pending Benefits Locked:
               </h5>
-              <ul className="text-xs space-y-2 text-slate-500 pl-5 list-disc">
+              <ul className="text-xs space-y-2 text-slate-300 pl-5 list-disc">
                 <li>₦10,000 Fixed Field Support Allowance (On Approval)</li>
-                <li>Professional conversions: ₦1,500 onboarding + ₦500/mo lifetime income</li>
+                <li>Pro conversions: ₦1,500 onboarding + ₦500/mo lifetime income</li>
                 <li>Enterprise conversions: ₦5,000 onboarding + ₦1,000/mo lifetime income</li>
               </ul>
             </div>
           </Card>
-
-          <p className="text-center text-xs text-slate-400">
-            A confirmation email and WhatsApp outreach will be made to <span className="font-semibold text-slate-600">{agentProfile.email}</span> shortly.
-          </p>
         </div>
       ) : agentProfile && agentProfile.status === "approved" ? (
         
-        /* 3. FULL APPROVED AGENT DASHBOARD (PRISTINE LIGHT CARD THEME) */
+        /* APPROVED AGENT WORKSPACE / DASHBOARD */
         <div className="max-w-6xl mx-auto px-6 py-10 space-y-8 relative z-10">
           
-          {/* WELCOME BLOCK WITH REFERRAL LINK */}
-          <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.01)] flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="bg-[#141528] border border-white/10 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-extrabold text-[#08091A] font-['Bricolage_Grotesque']">Agent Workspace: {agentProfile.fullName}</h2>
-                <Badge className="bg-[#E6FBF2] text-[#12D176] font-bold border-none px-2.5 py-0.5 text-[10px] rounded-full uppercase tracking-wider">
+                <h2 className="text-2xl font-extrabold text-white font-['Bricolage_Grotesque']">Agent Workspace: {agentProfile.fullName}</h2>
+                <Badge className="bg-emerald-500/20 text-[#4DE89A] font-bold border-none px-2.5 py-0.5 text-[10px] rounded-full uppercase tracking-wider">
                   Active Partner
                 </Badge>
               </div>
@@ -1028,624 +1578,366 @@ export function AgentsPage() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex items-center justify-between gap-2 bg-slate-50 px-4 py-2.5 rounded-full border border-slate-100 text-xs text-slate-600 font-mono">
+              <div className="flex items-center justify-between gap-2 bg-white/5 px-4 py-2.5 rounded-full border border-white/10 text-xs text-slate-300 font-mono">
                 <span>Code: {agentProfile.referralCode}</span>
-                <button onClick={copyReferralCode} className="text-slate-400 hover:text-[#2B5BFF] transition-all pl-2 border-l border-slate-200">
-                  {copiedCode ? <Check className="h-3.5 w-3.5 text-[#12D176]" /> : <Copy className="h-3.5 w-3.5" />}
+                <button onClick={copyReferralCode} className="text-slate-400 hover:text-[#00C4CF] transition-all pl-2 border-l border-white/10">
+                  {copiedCode ? <Check className="h-3.5 w-3.5 text-[#4DE89A]" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               </div>
 
-              <div className="flex items-center justify-between gap-2 bg-slate-50 px-4 py-2.5 rounded-full border border-slate-100 text-xs text-slate-600 font-mono">
+              <div className="flex items-center justify-between gap-2 bg-white/5 px-4 py-2.5 rounded-full border border-white/10 text-xs text-slate-300 font-mono">
                 <span className="truncate max-w-[180px]">{agentProfile.referralLink}</span>
-                <button onClick={copyReferralLink} className="text-slate-400 hover:text-[#2B5BFF] transition-all pl-2 border-l border-slate-200">
-                  {copiedLink ? <Check className="h-3.5 w-3.5 text-[#12D176]" /> : <Copy className="h-3.5 w-3.5" />}
+                <button onClick={copyReferralLink} className="text-slate-400 hover:text-[#00C4CF] transition-all pl-2 border-l border-white/10">
+                  {copiedLink ? <Check className="h-3.5 w-3.5 text-[#4DE89A]" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               </div>
             </div>
           </div>
 
-          {/* KPI CARDS GRID */}
+          {/* KPI CARDS */}
           <div className="grid gap-4 md:grid-cols-4 sm:grid-cols-2">
-            <Card className="bg-white border border-[#08091A]/05 shadow-sm p-5 flex items-center justify-between rounded-2xl">
+            <Card className="bg-[#141528] border border-white/10 p-5 flex items-center justify-between rounded-2xl text-white">
               <div className="space-y-1">
                 <span className="text-xs text-slate-400 font-semibold uppercase block">Total Referrals</span>
-                <p className="text-2xl font-black text-[#08091A]">{referrals.length}</p>
+                <p className="text-2xl font-black text-white">{referrals.length}</p>
                 <span className="text-[10px] text-slate-400">Stores on tracking list</span>
               </div>
-              <div className="h-10 w-10 bg-[#EEF1FF] rounded-xl flex items-center justify-center">
-                <Users className="h-5 w-5 text-[#2B5BFF]" />
+              <div className="h-10 w-10 bg-[#2B5BFF]/20 rounded-xl flex items-center justify-center text-[#7B9FFF]">
+                <Users className="h-5 w-5" />
               </div>
             </Card>
 
-            <Card className="bg-white border border-[#08091A]/05 shadow-sm p-5 flex items-center justify-between rounded-2xl">
+            <Card className="bg-[#141528] border border-white/10 p-5 flex items-center justify-between rounded-2xl text-white">
               <div className="space-y-1">
                 <span className="text-xs text-slate-400 font-semibold uppercase block">Conversions</span>
-                <p className="text-2xl font-black text-[#08091A]">{referrals.filter(r => r.status === "converted").length}</p>
-                <span className="text-[10px] text-[#12D176] font-bold block">
+                <p className="text-2xl font-black text-white">{referrals.filter(r => r.status === "converted").length}</p>
+                <span className="text-[10px] text-[#4DE89A] font-bold block">
                   {referrals.length > 0 
                     ? Math.round((referrals.filter(r => r.status === "converted").length / referrals.length) * 100)
                     : 0}% Onboarding rate
                 </span>
               </div>
-              <div className="h-10 w-10 bg-[#E6FBF2] rounded-xl flex items-center justify-center">
-                <CheckCircle2 className="h-5 w-5 text-[#12D176]" />
+              <div className="h-10 w-10 bg-emerald-500/20 rounded-xl flex items-center justify-center text-[#4DE89A]">
+                <CheckCircle2 className="h-5 w-5" />
               </div>
             </Card>
 
-            <Card className="bg-white border border-[#08091A]/05 shadow-sm p-5 flex items-center justify-between rounded-2xl">
+            <Card className="bg-[#141528] border border-white/10 p-5 flex items-center justify-between rounded-2xl text-white">
               <div className="space-y-1">
                 <span className="text-xs text-slate-400 font-semibold uppercase block">Pending Clearance</span>
-                <p className="text-2xl font-black text-amber-600 font-sans">₦{(agentProfile.earnings?.pending || 0).toLocaleString()}</p>
+                <p className="text-2xl font-black text-amber-400 font-sans">₦{(agentProfile.earnings?.pending || 0).toLocaleString()}</p>
                 <span className="text-[10px] text-slate-400 block">Payouts in 30-day clearing</span>
               </div>
-              <div className="h-10 w-10 bg-amber-50 rounded-xl flex items-center justify-center">
-                <Clock className="h-5 w-5 text-amber-500" />
+              <div className="h-10 w-10 bg-amber-500/20 rounded-xl flex items-center justify-center text-amber-400">
+                <Clock className="h-5 w-5" />
               </div>
             </Card>
 
-            <Card className="bg-white border border-[#08091A]/05 shadow-sm p-5 flex items-center justify-between rounded-2xl">
+            <Card className="bg-[#141528] border border-white/10 p-5 flex items-center justify-between rounded-2xl text-white">
               <div className="space-y-1">
                 <span className="text-xs text-slate-400 font-semibold uppercase block">Settled Earnings</span>
-                <p className="text-2xl font-black text-[#12D176] font-sans">₦{(agentProfile.earnings?.paid || 0).toLocaleString()}</p>
+                <p className="text-2xl font-black text-[#4DE89A] font-sans">₦{(agentProfile.earnings?.paid || 0).toLocaleString()}</p>
                 <span className="text-[10px] text-slate-400 block">Directly dispatched to bank</span>
               </div>
-              <div className="h-10 w-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-[#12D176]" />
+              <div className="h-10 w-10 bg-emerald-500/20 rounded-xl flex items-center justify-center text-[#4DE89A]">
+                <DollarSign className="h-5 w-5" />
               </div>
             </Card>
           </div>
 
-          {/* MAIN TABS BAR */}
-          <div className="border-b border-slate-100 flex items-center gap-5">
+          {/* DASHBOARD TABS */}
+          <div className="border-b border-white/10 flex items-center gap-5">
             <button 
               onClick={() => setActiveTab("performance")}
-              className={`pb-3 text-sm font-bold border-b-2 transition-all ${
-                activeTab === "performance" ? "border-[#2B5BFF] text-[#2B5BFF]" : "border-transparent text-slate-400 hover:text-[#08091A]"
+              className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === "performance" ? "border-[#00C4CF] text-[#00C4CF]" : "border-transparent text-slate-400 hover:text-white"
               }`}
             >
-              Overview & Analytics
+              Overview &amp; Analytics
             </button>
             <button 
               onClick={() => setActiveTab("referrals")}
-              className={`pb-3 text-sm font-bold border-b-2 transition-all ${
-                activeTab === "referrals" ? "border-[#2B5BFF] text-[#2B5BFF]" : "border-transparent text-slate-400 hover:text-[#08091A]"
+              className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === "referrals" ? "border-[#00C4CF] text-[#00C4CF]" : "border-transparent text-slate-400 hover:text-white"
               }`}
             >
               Onboarded Stores ({referrals.length})
             </button>
             <button 
               onClick={() => setActiveTab("earnings")}
-              className={`pb-3 text-sm font-bold border-b-2 transition-all ${
-                activeTab === "earnings" ? "border-[#2B5BFF] text-[#2B5BFF]" : "border-transparent text-slate-400 hover:text-[#08091A]"
+              className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === "earnings" ? "border-[#00C4CF] text-[#00C4CF]" : "border-transparent text-slate-400 hover:text-white"
               }`}
             >
               Payout Records ({earnings.length})
             </button>
             <button 
               onClick={() => setActiveTab("settings")}
-              className={`pb-3 text-sm font-bold border-b-2 transition-all ${
-                activeTab === "settings" ? "border-[#2B5BFF] text-[#2B5BFF]" : "border-transparent text-slate-400 hover:text-[#08091A]"
+              className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === "settings" ? "border-[#00C4CF] text-[#00C4CF]" : "border-transparent text-slate-400 hover:text-white"
               }`}
             >
               Territory Profile
             </button>
           </div>
 
-          {/* ACTIVE TAB RENDERER */}
+          {/* ACTIVE TAB CONTENT */}
           <div className="space-y-6">
-            
-            {/* OVERVIEW TAB */}
             {activeTab === "performance" && (
               <div className="grid md:grid-cols-3 gap-6">
-                
-                {/* ACTIVE RULES CARD */}
-                <Card className="bg-white border border-slate-100 shadow-sm md:col-span-1 rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                      <Award className="h-4 w-4 text-[#2B5BFF]" /> Active Commission Structure
-                    </CardTitle>
-                    <CardDescription className="text-[11px] text-slate-400">Guaranteed operational rates.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4 text-xs">
-                    <div className="flex justify-between border-b border-slate-50 pb-2.5">
-                      <span className="text-slate-500">Fixed Support Allowance:</span>
-                      <span className="font-bold text-slate-800">₦10,000 (Fixed flat)</span>
-                    </div>
-                    <div className="flex justify-between border-b border-slate-50 pb-2.5">
-                      <span className="text-slate-500">Professional Onboarding:</span>
-                      <span className="font-bold text-slate-800">₦1,500 (+₦500/mo)</span>
-                    </div>
-                    <div className="flex justify-between border-b border-slate-50 pb-2.5">
-                      <span className="text-slate-500">Enterprise Onboarding:</span>
-                      <span className="font-bold text-slate-800">₦5,000 (+₦1,000/mo)</span>
-                    </div>
-                    <div className="flex justify-between pb-1">
-                      <span className="text-slate-500">Territory Status:</span>
-                      <Badge className="bg-[#E6FBF2] text-[#12D176] text-[9px] font-bold border-none uppercase rounded-full">APPROVED_FIELD</Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* EARNINGS PROJECTION PREVIEW */}
-                <Card className="bg-white border border-slate-100 shadow-sm md:col-span-2 rounded-2xl p-6 flex flex-col justify-between">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-1.5 text-xs text-[#2B5BFF] font-extrabold uppercase tracking-wider">
-                      <Sparkles className="h-4 w-4" /> Logistics & Clearances
-                    </div>
-                    <h3 className="text-lg font-bold text-[#08091A] font-['Bricolage_Grotesque']">Regular Disbursement Cycle</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed font-sans">
-                      All accrued onboarding bonuses (₦1,500/₦5,000) and recurring residual commissions (₦500/₦1,000) are compiled instantly and disbursed to your designated banking profile on the 1st day of each month. Your fixed on-field support allowance is released within 3 working days of profile approval.
-                    </p>
+                <Card className="bg-[#141528] border border-white/10 text-white rounded-2xl p-6 md:col-span-1 space-y-4">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                    <Award className="h-4 w-4 text-[#00C4CF]" /> Active Rates
                   </div>
-                  <div className="bg-[#FAFBFF] p-4 rounded-xl border border-slate-100 flex justify-between items-center text-xs mt-4">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-[#2B5BFF]" />
-                      <span className="text-slate-500 font-semibold">Next Disbursement Run:</span>
+                  <div className="space-y-3 text-xs divide-y divide-white/10">
+                    <div className="flex justify-between pt-2">
+                      <span className="text-slate-400">Logistics Allowance:</span>
+                      <span className="font-bold text-white">₦10,000</span>
                     </div>
-                    <span className="font-extrabold text-[#08091A] uppercase tracking-wide">August 1, 2026</span>
+                    <div className="flex justify-between pt-2">
+                      <span className="text-slate-400">Pro Bonus:</span>
+                      <span className="font-bold text-white">₦1,500 (+₦500/mo)</span>
+                    </div>
+                    <div className="flex justify-between pt-2">
+                      <span className="text-slate-400">Enterprise Bonus:</span>
+                      <span className="font-bold text-white">₦5,000 (+₦1,000/mo)</span>
+                    </div>
                   </div>
                 </Card>
 
+                <Card className="bg-[#141528] border border-white/10 text-white rounded-2xl p-6 md:col-span-2 space-y-4">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-[#4DE89A]" /> Regular Settlement Run
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    All accrued onboarding bonuses and recurring residual commissions are aggregated and paid automatically on the 1st day of every calendar month via direct electronic bank transfer.
+                  </p>
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-xs flex justify-between items-center">
+                    <span className="text-slate-400">Next Scheduled Payout Run:</span>
+                    <span className="font-mono font-bold text-[#4DE89A]">August 1, 2026</span>
+                  </div>
+                </Card>
               </div>
             )}
 
-            {/* REFERRALS TAB */}
             {activeTab === "referrals" && (
-              <Card className="bg-white border border-slate-100 shadow-sm rounded-2xl overflow-hidden">
-                <CardContent className="p-0 overflow-x-auto">
-                  {referrals.length === 0 ? (
-                    <div className="p-12 text-center space-y-3">
-                      <Users className="h-8 w-8 text-slate-300 mx-auto" />
-                      <p className="text-sm text-slate-500 font-bold">No active referred stores found.</p>
-                      <p className="text-xs text-slate-400">Share your referral link on social channels or WhatsApp groups of merchant leads.</p>
-                    </div>
-                  ) : (
-                    <table className="w-full text-left border-collapse text-xs">
+              <Card className="bg-[#141528] border border-white/10 text-white rounded-2xl p-6">
+                {referrals.length === 0 ? (
+                  <div className="text-center py-12 space-y-2">
+                    <Users className="h-8 w-8 text-slate-500 mx-auto" />
+                    <p className="text-sm font-bold text-slate-300">No active referred stores found.</p>
+                    <p className="text-xs text-slate-400">Share your referral link with store owners to begin onboarding.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="border-b border-slate-100 text-slate-400 uppercase tracking-wider font-semibold bg-slate-50/50">
-                          <th className="p-4">Store Name</th>
-                          <th className="p-4">Signup Date</th>
-                          <th className="p-4">Active Plan</th>
-                          <th className="p-4">Status</th>
+                        <tr className="border-b border-white/10 text-slate-400 uppercase">
+                          <th className="p-3">Store Name</th>
+                          <th className="p-3">Signup Date</th>
+                          <th className="p-3">Active Plan</th>
+                          <th className="p-3">Status</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-50 text-slate-600">
-                        {referrals.map((ref) => (
-                          <tr key={ref.id} className="hover:bg-slate-50/50">
-                            <td className="p-4 font-bold text-[#08091A]">{ref.storeName}</td>
-                            <td className="p-4">{new Date(ref.createdAt).toLocaleDateString()}</td>
-                            <td className="p-4 uppercase font-bold text-[#2B5BFF]">{ref.planName}</td>
-                            <td className="p-4">
-                              {ref.status === "pending" && (
-                                <Badge className="bg-amber-50 text-amber-700 text-[9px] uppercase font-bold border-none rounded-full">
-                                  Pending Activation (Free)
-                                </Badge>
-                              )}
-                              {ref.status === "converted" && (
-                                <Badge className="bg-[#E6FBF2] text-[#12D176] text-[9px] uppercase font-bold border-none rounded-full">
-                                  Converted (Active Paid)
-                                </Badge>
-                              )}
-                              {ref.status === "churned" && (
-                                <Badge className="bg-red-50 text-red-700 text-[9px] uppercase font-bold border-none rounded-full">
-                                  Churned (Cancelled)
-                                </Badge>
-                              )}
+                      <tbody className="divide-y divide-white/5">
+                        {referrals.map((r) => (
+                          <tr key={r.id}>
+                            <td className="p-3 font-bold text-white">{r.storeName}</td>
+                            <td className="p-3 text-slate-400">{new Date(r.createdAt).toLocaleDateString()}</td>
+                            <td className="p-3 uppercase font-bold text-[#00C4CF]">{r.planName}</td>
+                            <td className="p-3">
+                              <Badge className="bg-emerald-500/20 text-[#4DE89A] border-none text-[10px]">
+                                {r.status}
+                              </Badge>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                  )}
-                </CardContent>
+                  </div>
+                )}
               </Card>
             )}
 
-            {/* PAYOUT RECORDS TAB */}
             {activeTab === "earnings" && (
-              <Card className="bg-white border border-slate-100 shadow-sm rounded-2xl overflow-hidden">
-                <CardContent className="p-0 overflow-x-auto">
-                  {earnings.length === 0 ? (
-                    <div className="p-12 text-center space-y-3">
-                      <ArrowRightLeft className="h-8 w-8 text-slate-300 mx-auto" />
-                      <p className="text-sm text-slate-500 font-bold">Your ledger is currently empty.</p>
-                      <p className="text-xs text-slate-400">Onboarding payouts and monthly residual streams will log here live as transactions occur.</p>
-                    </div>
-                  ) : (
-                    <table className="w-full text-left border-collapse text-xs">
+              <Card className="bg-[#141528] border border-white/10 text-white rounded-2xl p-6">
+                {earnings.length === 0 ? (
+                  <div className="text-center py-12 space-y-2">
+                    <ArrowRightLeft className="h-8 w-8 text-slate-500 mx-auto" />
+                    <p className="text-sm font-bold text-slate-300">Your ledger is currently empty.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="border-b border-slate-100 text-slate-400 uppercase tracking-wider font-semibold bg-slate-50/50">
-                          <th className="p-4">Date</th>
-                          <th className="p-4">Store Onboarded</th>
-                          <th className="p-4">Compensation Stream</th>
-                          <th className="p-4">Amount</th>
-                          <th className="p-4">Status</th>
+                        <tr className="border-b border-white/10 text-slate-400 uppercase">
+                          <th className="p-3">Date</th>
+                          <th className="p-3">Store</th>
+                          <th className="p-3">Type</th>
+                          <th className="p-3">Amount</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-50 text-slate-600">
-                        {earnings.map((ear) => (
-                          <tr key={ear.id} className="hover:bg-slate-50/50">
-                            <td className="p-4">{new Date(ear.timestamp).toLocaleDateString()}</td>
-                            <td className="p-4 font-bold text-[#08091A]">{ear.storeName}</td>
-                            <td className="p-4 font-semibold text-slate-500">
-                              {ear.commissionType === "onboarding_bonus" && (
-                                <span className="text-[#2B5BFF]">Instant Activation Bonus</span>
-                              )}
-                              {ear.commissionType === "recurring_residual" && (
-                                <span className="text-[#12D176]">Monthly Residual Stream</span>
-                              )}
-                              {ear.commissionType === "clawback" && (
-                                <span className="text-red-500">Early Cancellation Clawback</span>
-                              )}
-                            </td>
-                            <td className="p-4 font-mono font-bold">
-                              {ear.amount < 0 ? (
-                                <span className="text-red-500">-₦{Math.abs(ear.amount).toLocaleString()}</span>
-                              ) : (
-                                <span className="text-emerald-600">+₦{ear.amount.toLocaleString()}</span>
-                              )}
-                            </td>
-                            <td className="p-4">
-                              {ear.status === "pending" && (
-                                <Badge className="bg-amber-50 text-amber-700 text-[9px] uppercase font-bold border-none rounded-full">
-                                  Pending Clearance
-                                </Badge>
-                              )}
-                              {ear.status === "paid" && (
-                                <Badge className="bg-[#E6FBF2] text-[#12D176] text-[9px] uppercase font-bold border-none rounded-full">
-                                  Cleared & Paid
-                                </Badge>
-                              )}
-                              {ear.status === "reversed" && (
-                                <Badge className="bg-red-50 text-red-700 text-[9px] uppercase font-bold border-none rounded-full">
-                                  Reversed
-                                </Badge>
-                              )}
-                            </td>
+                      <tbody className="divide-y divide-white/5">
+                        {earnings.map((e) => (
+                          <tr key={e.id}>
+                            <td className="p-3 text-slate-400">{new Date(e.timestamp).toLocaleDateString()}</td>
+                            <td className="p-3 font-bold text-white">{e.storeName}</td>
+                            <td className="p-3 text-slate-300">{e.commissionType}</td>
+                            <td className="p-3 font-mono font-bold text-[#4DE89A]">₦{e.amount.toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                  )}
-                </CardContent>
+                  </div>
+                )}
               </Card>
             )}
 
-            {/* PROFILE & SETTINGS TAB */}
             {activeTab === "settings" && (
-              <Card className="bg-white border border-slate-100 shadow-sm max-w-xl rounded-2xl">
-                <CardHeader>
-                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                    <Settings className="h-4 w-4 text-[#2B5BFF]" /> Partner Information
-                  </CardTitle>
-                  <CardDescription className="text-[11px] text-slate-400 font-sans">Modify your registered field partner profile details.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSaveSettings} className="space-y-4">
-                    <div className="space-y-1">
-                      <Label htmlFor="settingsName" className="text-xs text-slate-500">Full Name</Label>
-                      <Input 
-                        id="settingsName" 
-                        value={settingsName} 
-                        onChange={(e) => setSettingsName(e.target.value)} 
-                        className="bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-[#2B5BFF] text-xs h-10 rounded-lg"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label htmlFor="settingsPhone" className="text-xs text-slate-500">Logistics WhatsApp/Phone Number</Label>
-                      <Input 
-                        id="settingsPhone" 
-                        value={settingsPhone} 
-                        onChange={(e) => setSettingsPhone(e.target.value)} 
-                        className="bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-[#2B5BFF] text-xs h-10 rounded-lg"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label htmlFor="settingsRegion" className="text-xs text-slate-500">Active Operating Region / City</Label>
-                      <Input 
-                        id="settingsRegion" 
-                        value={settingsRegion} 
-                        onChange={(e) => setSettingsRegion(e.target.value)} 
-                        className="bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-[#2B5BFF] text-xs h-10 rounded-lg"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label htmlFor="settingsCode" className="text-xs text-slate-500">Exclusive Referral Code (Uppercase only)</Label>
-                      <Input 
-                        id="settingsCode" 
-                        value={settingsRefCode} 
-                        onChange={(e) => setSettingsRefCode(e.target.value.toUpperCase())} 
-                        className="bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-[#2B5BFF] font-mono text-xs h-10 rounded-lg"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs text-slate-400">Registered Email Address</Label>
-                      <Input 
-                        value={agentProfile.email} 
-                        disabled 
-                        className="bg-slate-50 border-slate-100 text-slate-400 font-mono text-xs cursor-not-allowed h-10 rounded-lg"
-                      />
-                    </div>
-
-                    <Button type="submit" className="bg-[#2B5BFF] hover:bg-[#1A4AEE] text-white font-bold text-xs h-10 rounded-full px-5 mt-2">
-                      Save Profile Changes
-                    </Button>
-                  </form>
-                </CardContent>
+              <Card className="bg-[#141528] border border-white/10 text-white rounded-2xl p-6 max-w-xl">
+                <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
+                  <div className="space-y-1">
+                    <Label className="text-slate-400">Full Name</Label>
+                    <Input 
+                      value={settingsName} 
+                      onChange={(e) => setSettingsName(e.target.value)} 
+                      className="bg-white/5 border-white/10 text-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-slate-400">Phone</Label>
+                    <Input 
+                      value={settingsPhone} 
+                      onChange={(e) => setSettingsPhone(e.target.value)} 
+                      className="bg-white/5 border-white/10 text-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-slate-400">Operating Territory</Label>
+                    <Input 
+                      value={settingsRegion} 
+                      onChange={(e) => setSettingsRegion(e.target.value)} 
+                      className="bg-white/5 border-white/10 text-white"
+                    />
+                  </div>
+                  <Button type="submit" className="bg-[#2B5BFF] hover:bg-[#1A4AEE] text-white rounded-full">
+                    Save Territory Settings
+                  </Button>
+                </form>
               </Card>
             )}
-
           </div>
 
         </div>
-      ) : (
-        
-        /* 4. EXPLICIT NOT REGISTERED STATE */
-        <div className="max-w-md mx-auto px-6 py-24 text-center space-y-6 relative z-10">
-          <div className="h-16 w-16 rounded-full bg-red-50 border border-red-200 flex items-center justify-center mx-auto">
-            <ShieldAlert className="h-8 w-8 text-red-500" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-bold text-[#08091A] font-['Bricolage_Grotesque']">Account Unregistered</h2>
-            <p className="text-sm text-slate-500 leading-relaxed font-sans">
-              The currently logged-in account is not configured as an authorized NexaStoreOS Agent Partner. Become an authorized agent to start earning!
-            </p>
-          </div>
-          <Button 
-            onClick={() => { setAuthTab("register"); setRegisterStep(1); setShowAuthModal(true); }} 
-            className="bg-[#2B5BFF] hover:bg-[#1A4AEE] text-white font-bold rounded-full px-6"
-          >
-            <UserPlus className="h-4 w-4 mr-2" /> Apply Now
-          </Button>
-        </div>
-      )}
+      ) : null}
 
-      {/* AUTH & STEPPED ONBOARDING WIZARD MODAL */}
+      {/* FOOTER */}
+      <footer>
+        <div className="f-shimmer" />
+        <div className="f-top max-w-6xl mx-auto px-6 py-12 border-t border-white/10">
+          <div className="f-grid grid md:grid-cols-4 gap-8 text-xs text-slate-400">
+            <div>
+              <div className="f-brand-row flex items-center gap-2 text-white font-bold text-sm mb-3">
+                <div className="f-brand-ico bg-[#2B5BFF] p-1.5 rounded-lg">
+                  <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
+                    <path d="M4 4L10 4L14 12L10 20H4L8 12L4 4Z" fill="white"/>
+                  </svg>
+                </div>
+                NexaStoreOS Agent
+              </div>
+              <p className="mb-4 leading-relaxed">
+                Official NexaStoreOS Growth Partner Agent Portal. Operated by Nexa Digital Solutions LTD, Jalingo, Taraba State, Nigeria.
+              </p>
+              <div className="space-y-1 text-slate-300">
+                <div>📞 090-380-26109</div>
+                <div>💬 081-323-21056 (WhatsApp)</div>
+                <div>📍 Lamurde St, Barade, Jalingo, Taraba</div>
+              </div>
+            </div>
+
+            <div>
+              <div className="f-col-head font-bold text-white uppercase mb-3">Agent Navigation</div>
+              <ul className="space-y-2">
+                <li><button onClick={() => scrollToSection("#income")} className="hover:text-white">Income Calculator</button></li>
+                <li><button onClick={() => scrollToSection("#commissions")} className="hover:text-white">Commission Rates</button></li>
+                <li><button onClick={() => scrollToSection("#how-it-works")} className="hover:text-white">How It Works</button></li>
+                <li><button onClick={() => scrollToSection("#terms")} className="hover:text-white">Terms &amp; Conditions</button></li>
+                <li><button onClick={() => scrollToSection("#apply")} className="hover:text-white">Apply Now</button></li>
+              </ul>
+            </div>
+
+            <div>
+              <div className="f-col-head font-bold text-white uppercase mb-3">Nexa Digital Solutions</div>
+              <p className="leading-relaxed">
+                Empowering Nigerian retail merchants with Next-Gen Point of Sale, Inventory Management, and Cloud Analytics.
+              </p>
+            </div>
+
+            <div>
+              <div className="f-col-head font-bold text-white uppercase mb-3">Support</div>
+              <ul className="space-y-2">
+                <li><button onClick={() => scrollToSection("#faq")} className="hover:text-white">FAQ</button></li>
+                <li><a href="tel:09038026109" className="hover:text-white">Call State Lead</a></li>
+                <li><a href="https://wa.me/2348132321056" target="_blank" rel="noreferrer" className="hover:text-white">WhatsApp Support</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div className="f-bottom border-t border-white/5 py-6 px-6 text-center text-xs text-slate-500">
+          © 2025 Nexa Digital Solutions LTD · NexaStoreOS Growth Partner Program · All Rights Reserved · Nigeria
+        </div>
+      </footer>
+
+      {/* SIGN IN MODAL */}
       <AnimatePresence>
         {showAuthModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#08091A]/60 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white border border-slate-100 w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-6 text-[#08091A]"
+              className="bg-[#141528] border border-white/10 w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5 text-white"
             >
-              <div className="flex justify-between items-center border-b border-slate-50 pb-3">
-                <div>
-                  <h3 className="text-lg font-bold font-['Bricolage_Grotesque']">
-                    {authTab === "login" ? "Partner Portal Sign In" : "Growth Partner Application"}
-                  </h3>
-                  {authTab === "register" && (
-                    <p className="text-[10px] text-[#2B5BFF] font-extrabold uppercase tracking-wider mt-0.5">
-                      Step {registerStep} of 3 • {registerStep === 1 ? "Credentials" : registerStep === 2 ? "Logistics Territory" : "Benefits Review"}
-                    </p>
-                  )}
-                </div>
+              <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                <h3 className="text-base font-bold font-['Bricolage_Grotesque']">Partner Portal Sign In</h3>
                 <button 
-                  onClick={() => { setShowAuthModal(false); setRegisterStep(1); }} 
-                  className="text-slate-400 hover:text-[#08091A] text-xs font-semibold bg-slate-50 hover:bg-slate-100 p-1.5 rounded-full"
+                  onClick={() => setShowAuthModal(false)}
+                  className="text-slate-400 hover:text-white text-xs bg-white/5 px-2.5 py-1 rounded-full"
                 >
                   Close
                 </button>
               </div>
 
-              {authTab === "login" ? (
-                /* LOGIN FORM */
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-1">
-                    <Label htmlFor="email" className="text-xs text-slate-500">Registered Email Address</Label>
-                    <Input 
-                      id="email"
-                      type="email"
-                      placeholder="e.g. partner@nexaos.io"
-                      value={emailInput}
-                      onChange={(e) => setEmailInput(e.target.value)}
-                      className="bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-[#2B5BFF] text-xs h-10 rounded-lg"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label htmlFor="pass" className="text-xs text-slate-500">Security Password</Label>
-                    <Input 
-                      id="pass"
-                      type="password"
-                      placeholder="••••••••"
-                      value={passwordInput}
-                      onChange={(e) => setPasswordInput(e.target.value)}
-                      className="bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-[#2B5BFF] text-xs h-10 rounded-lg"
-                    />
-                  </div>
-
-                  <Button type="submit" disabled={submitting} className="w-full bg-[#2B5BFF] hover:bg-[#1A4AEE] text-white font-bold h-10 text-xs rounded-full mt-2 shadow-sm">
-                    {submitting ? "Signing in..." : "Access Deck Workspace"}
-                  </Button>
-                </form>
-              ) : (
-                /* REGISTER STEPPED WIZARD */
-                <div className="space-y-4">
-                  
-                  {registerStep === 1 && (
-                    <div className="space-y-4">
-                      <div className="space-y-1">
-                        <Label htmlFor="name" className="text-xs text-slate-500">Full Name</Label>
-                        <Input 
-                          id="name"
-                          type="text"
-                          placeholder="e.g. Chukwuma Obi"
-                          value={nameInput}
-                          onChange={(e) => setNameInput(e.target.value)}
-                          className="bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-[#2B5BFF] text-xs h-10 rounded-lg"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label htmlFor="reg-email" className="text-xs text-slate-500">Email Address</Label>
-                        <Input 
-                          id="reg-email"
-                          type="email"
-                          placeholder="e.g. obi.field@nexa.io"
-                          value={emailInput}
-                          onChange={(e) => setEmailInput(e.target.value)}
-                          className="bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-[#2B5BFF] text-xs h-10 rounded-lg"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label htmlFor="reg-pass" className="text-xs text-slate-500">Security Password</Label>
-                        <Input 
-                          id="reg-pass"
-                          type="password"
-                          placeholder="Minimum 6 characters"
-                          value={passwordInput}
-                          onChange={(e) => setPasswordInput(e.target.value)}
-                          className="bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-[#2B5BFF] text-xs h-10 rounded-lg"
-                        />
-                      </div>
-
-                      <Button 
-                        type="button" 
-                        onClick={handleNextStep} 
-                        className="w-full bg-[#2B5BFF] hover:bg-[#1A4AEE] text-white font-bold h-10 text-xs rounded-full mt-2"
-                      >
-                        Continue to Logistics <ArrowRight className="h-3.5 w-3.5 ml-1.5 inline" />
-                      </Button>
-                    </div>
-                  )}
-
-                  {registerStep === 2 && (
-                    <div className="space-y-4">
-                      <div className="space-y-1">
-                        <Label htmlFor="phone" className="text-xs text-slate-500 flex items-center gap-1">
-                          <Phone className="h-3.5 w-3.5 text-[#2B5BFF]" /> Logistics WhatsApp / Mobile Phone
-                        </Label>
-                        <Input 
-                          id="phone"
-                          type="tel"
-                          placeholder="e.g. +234 803 123 4567"
-                          value={phoneInput}
-                          onChange={(e) => setPhoneInput(e.target.value)}
-                          className="bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-[#2B5BFF] text-xs h-10 rounded-lg"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label htmlFor="region" className="text-xs text-slate-500 flex items-center gap-1">
-                          <MapPin className="h-3.5 w-3.5 text-[#2B5BFF]" /> Target Operating Territory
-                        </Label>
-                        <Input 
-                          id="region"
-                          type="text"
-                          placeholder="e.g. Lagos Mainland / Ikeja Hub"
-                          value={regionInput}
-                          onChange={(e) => setRegionInput(e.target.value)}
-                          className="bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-[#2B5BFF] text-xs h-10 rounded-lg"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label htmlFor="customCode" className="text-xs text-slate-500">Preferred Referral Code (Optional)</Label>
-                        <Input 
-                          id="customCode"
-                          type="text"
-                          placeholder="e.g. LAGOSDEALS"
-                          value={customRefCodeInput}
-                          onChange={(e) => setCustomRefCodeInput(e.target.value.toUpperCase())}
-                          className="bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-[#2B5BFF] font-mono text-xs h-10 rounded-lg"
-                        />
-                        <span className="text-[10px] text-slate-400 block mt-0.5">Custom code used for tracking store attribution.</span>
-                      </div>
-
-                      <div className="flex gap-2 pt-2">
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          onClick={() => setRegisterStep(1)} 
-                          className="border-slate-200 text-slate-600 h-10 text-xs rounded-full"
-                        >
-                          <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
-                        </Button>
-                        <Button 
-                          type="button" 
-                          onClick={handleNextStep} 
-                          className="flex-1 bg-[#2B5BFF] hover:bg-[#1A4AEE] text-white font-bold h-10 text-xs rounded-full"
-                        >
-                          Review Benefits <ArrowRight className="h-3.5 w-3.5 ml-1.5 inline" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {registerStep === 3 && (
-                    <form onSubmit={handleSignUp} className="space-y-4">
-                      <div className="bg-[#FAFBFF] p-4 rounded-2xl border border-slate-100 space-y-3 text-xs text-slate-600">
-                        <p className="font-bold text-[#08091A] border-b border-slate-50 pb-1.5 text-center">Locked Commission Schedule</p>
-                        <ul className="space-y-2 pl-4 list-disc text-[11px]">
-                          <li>
-                            <span className="font-bold text-[#08091A]">₦10,000 Field Allowance:</span> Guaranteed fixed support logistics allowance paid on approval.
-                          </li>
-                          <li>
-                            <span className="font-bold text-[#08091A]">Professional Conversion:</span> ₦1,500 onboarding bonus + ₦500 recurring monthly lifetime residual income.
-                          </li>
-                          <li>
-                            <span className="font-bold text-[#08091A]">Enterprise Conversion:</span> ₦5,000 onboarding bonus + ₦1,000 recurring monthly lifetime residual income.
-                          </li>
-                          <li>
-                            <span className="font-bold text-[#08091A]">Monthly Settlement:</span> Regular payouts on the 1st of every month via direct deposit.
-                          </li>
-                        </ul>
-                      </div>
-
-                      <div className="flex items-start gap-2.5 pt-2">
-                        <input 
-                          type="checkbox" 
-                          id="terms" 
-                          checked={acceptedTerms}
-                          onChange={(e) => setAcceptedTerms(e.target.checked)}
-                          className="h-4.5 w-4.5 rounded text-[#2B5BFF] border-slate-200 focus:ring-[#2B5BFF] cursor-pointer mt-0.5" 
-                        />
-                        <Label htmlFor="terms" className="text-xs text-slate-500 leading-normal cursor-pointer select-none">
-                          I agree to represent NexaStoreOS professionally, verify local merchants, and accept direct payouts.
-                        </Label>
-                      </div>
-
-                      <div className="flex gap-2 pt-1">
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          onClick={() => setRegisterStep(2)} 
-                          className="border-slate-200 text-slate-600 h-10 text-xs rounded-full"
-                        >
-                          <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
-                        </Button>
-                        <Button 
-                          type="submit" 
-                          disabled={submitting} 
-                          className="flex-1 bg-[#2B5BFF] hover:bg-[#1A4AEE] text-white font-bold h-10 text-xs rounded-full"
-                        >
-                          {submitting ? "Submitting..." : "Submit Application"}
-                        </Button>
-                      </div>
-                    </form>
-                  )}
-
+              <form onSubmit={handleLogin} className="space-y-4 text-xs">
+                <div className="space-y-1">
+                  <Label htmlFor="loginEmail" className="text-slate-400">Registered Email Address</Label>
+                  <Input 
+                    id="loginEmail"
+                    type="email"
+                    placeholder="e.g. partner@nexaagent.ng"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-10"
+                  />
                 </div>
-              )}
 
-              <div className="text-center pt-2 border-t border-slate-50">
-                <button 
-                  onClick={() => {
-                    setAuthTab(authTab === "login" ? "register" : "login");
-                    setRegisterStep(1);
-                  }}
-                  className="text-xs text-[#2B5BFF] hover:underline transition-all font-bold"
-                >
-                  {authTab === "login" ? "Create an Agent Account" : "Back to Agent Sign In"}
-                </button>
-              </div>
+                <div className="space-y-1">
+                  <Label htmlFor="loginPass" className="text-slate-400">Security Password</Label>
+                  <Input 
+                    id="loginPass"
+                    type="password"
+                    placeholder="••••••••"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-10"
+                  />
+                </div>
+
+                <Button type="submit" disabled={submitting} className="w-full bg-[#2B5BFF] hover:bg-[#1A4AEE] text-white font-bold h-10 rounded-full mt-2">
+                  {submitting ? "Signing in..." : "Access Agent Workspace"}
+                </Button>
+              </form>
             </motion.div>
           </div>
         )}

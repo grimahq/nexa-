@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { Item } from "@/types/inventory";
 import { resolvePrice } from "@/utils/pricing";
+import { getEffectiveUnitConversions } from "@/utils/unitConversions";
 
 const NAIRA = "₦";
 const USD_TO_NGN = 1;
@@ -233,41 +234,47 @@ export function SalesStepCart({
                       />
                     </div>
                     
-                    {ci.item.unitConversions && ci.item.unitConversions.length > 0 ? (
-                      <select
-                        value={displayUnit}
-                        onChange={(e) => {
-                          const newUnit = e.target.value;
-                          const oldUnit = ci.selectedUnit || ci.item.unit;
-                          
-                          if (newUnit === oldUnit) return;
+                    {(() => {
+                      const conversions = getEffectiveUnitConversions(ci.item);
+                      if (conversions.length > 0) {
+                        return (
+                          <select
+                            value={displayUnit}
+                            onChange={(e) => {
+                              const newUnit = e.target.value;
+                              const oldUnit = ci.selectedUnit || ci.item.unit;
+                              
+                              if (newUnit === oldUnit) return;
 
-                          // Calculate conversion
-                          const oldConv = ci.item.unitConversions?.find(c => c.unitId === oldUnit)?.multiplier || 1;
-                          const newConv = ci.item.unitConversions?.find(c => c.unitId === newUnit)?.multiplier || 1;
-                          let newQty = Number((ci.quantity * (oldConv / newConv)).toFixed(2));
+                              // Calculate conversion
+                              const oldConv = conversions.find(c => c.unitId === oldUnit)?.multiplier || 1;
+                              const newConv = conversions.find(c => c.unitId === newUnit)?.multiplier || 1;
+                              let newQty = Number((ci.quantity * (oldConv / newConv)).toFixed(2));
 
-                          // Ensure transition doesn't exceed maximum stock limits
-                          const maxAllowed = getAvailableTargetQty(ci.item, newUnit, ci.configStr);
-                          if (newQty > maxAllowed) {
-                            newQty = Number(maxAllowed.toFixed(2));
-                          }
+                              // Ensure transition doesn't exceed maximum stock limits
+                              const maxAllowed = getAvailableTargetQty(ci.item, newUnit, ci.configStr);
+                              if (newQty > maxAllowed) {
+                                newQty = Number(maxAllowed.toFixed(2));
+                              }
 
-                          onRemove(ci.item.id, ci.selectedUnit, ci.configStr);
-                          onAdd(ci.item.id, newQty, newUnit, ci.configStr);
-                        }}
-                        className="h-5 px-1.5 text-[9px] uppercase font-extrabold bg-muted border border-muted-foreground/30 rounded outline-none focus:ring-1 focus:ring-primary text-foreground"
-                      >
-                        <option value={ci.item.unit}>{ci.item.unit}</option>
-                        {ci.item.unitConversions.map(c => (
-                          <option key={c.unitId} value={c.unitId}>{c.unitId}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <Badge variant="outline" className="h-5 px-1 text-[9px] uppercase font-bold text-muted-foreground border-muted-foreground/30">
-                        {displayUnit}
-                      </Badge>
-                    )}
+                              onRemove(ci.item.id, ci.selectedUnit, ci.configStr);
+                              onAdd(ci.item.id, newQty, newUnit, ci.configStr);
+                            }}
+                            className="h-5 px-1.5 text-[9px] uppercase font-extrabold bg-muted border border-muted-foreground/30 rounded outline-none focus:ring-1 focus:ring-primary text-foreground"
+                          >
+                            <option value={ci.item.unit}>{ci.item.unit}</option>
+                            {conversions.map(c => (
+                              <option key={c.unitId} value={c.unitId}>{c.unitId}</option>
+                            ))}
+                          </select>
+                        );
+                      }
+                      return (
+                        <Badge variant="outline" className="h-5 px-1 text-[9px] uppercase font-bold text-muted-foreground border-muted-foreground/30">
+                          {displayUnit}
+                        </Badge>
+                      );
+                    })()}
 
                     {isOverridden ? (
                       <div className="flex items-center gap-1 bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 px-1.5 py-0.5 rounded text-[8px] font-bold text-amber-700 dark:text-amber-300 whitespace-nowrap">

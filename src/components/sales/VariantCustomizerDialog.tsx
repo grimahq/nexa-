@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Plus, Minus, Check, Tag } from "lucide-react";
+import { Plus, Minus, Check, Tag, Layers } from "lucide-react";
 import type { Item } from "@/types/inventory";
 import { cn } from "@/lib/utils";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { useDemo } from "@/hooks/useDemo";
 import { useUpdateItem } from "@/hooks/useInventoryMutations";
+import { getEffectiveUnitConversions } from "@/utils/unitConversions";
 import { toast } from "sonner";
 
 const NAIRA = "₦";
@@ -26,6 +27,7 @@ export function VariantCustomizerDialog({
 }: VariantCustomizerDialogProps) {
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedSize, setSelectedSize] = useState<string>("");
+  const [selectedUnit, setSelectedUnit] = useState<string>("");
   const [qty, setQty] = useState(1);
 
   // Tiered pricing customizer states
@@ -44,6 +46,8 @@ export function VariantCustomizerDialog({
   );
 
   const updateItem = useUpdateItem();
+
+  const effectiveConversions = item ? getEffectiveUnitConversions(item) : [];
 
   const colors = item?.color 
     ? item.color.split(",").map(c => c.trim()).filter(Boolean)
@@ -64,6 +68,7 @@ export function VariantCustomizerDialog({
 
       setSelectedColor(colorsList[0] || "");
       setSelectedSize(sizesList[0] || "");
+      setSelectedUnit(item.unit);
       setQty(1);
 
       setRetailPrice(item.pricingTiers?.retail?.toString() || item.sellingPrice.toString());
@@ -116,11 +121,13 @@ export function VariantCustomizerDialog({
       size: selectedSize || undefined,
     };
     const configString = JSON.stringify(config);
-    onAddConfigured(item.id, qty, item.unit, configString);
+    const unitToUse = selectedUnit || item.unit;
+    onAddConfigured(item.id, qty, unitToUse, configString);
     onOpenChange(false);
   };
 
   const getVariantPrice = () => {
+    let basePrice = item.sellingPrice;
     if (item.fineTunedVariants) {
       const parts: string[] = [];
       if (colors.length > 0 && selectedColor) parts.push(selectedColor);
@@ -129,10 +136,24 @@ export function VariantCustomizerDialog({
       const key = parts.join(" - ");
       const match = item.fineTunedVariants[key];
       if (match && typeof match.price === "number") {
-        return match.price;
+        basePrice = match.price;
+      } else {
+        basePrice = isTieredMode ? (Number(retailPrice) || item.sellingPrice) : item.sellingPrice;
+      }
+    } else {
+      basePrice = isTieredMode ? (Number(retailPrice) || item.sellingPrice) : item.sellingPrice;
+    }
+
+    // Apply unit conversion factor if selected unit is not the base unit
+    const activeUnit = selectedUnit || item.unit;
+    if (activeUnit !== item.unit) {
+      const conv = effectiveConversions.find(c => c.unitId === activeUnit);
+      if (conv) {
+        basePrice = conv.priceNgn !== undefined ? conv.priceNgn : basePrice * conv.multiplier;
       }
     }
-    return isTieredMode ? (Number(retailPrice) || item.sellingPrice) : item.sellingPrice;
+
+    return basePrice;
   };
 
   const currentBasePrice = getVariantPrice();
@@ -157,6 +178,55 @@ export function VariantCustomizerDialog({
         </DialogHeader>
 
         <div className="space-y-5 py-4">
+          {/* Unit Selection for Bulk & Small Units */}
+          {effectiveConversions.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <Layers className="h-3.5 w-3.5 text-primary" />
+                <span>Selling Unit (Bulk & Small Units)</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  id={`variant-unit-${item.unit}`}
+                  onClick={() => setSelectedUnit(item.unit)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-tight transition-all duration-200 active:scale-95 shadow-sm",
+                    (selectedUnit || item.unit) === item.unit
+                      ? "border-primary bg-primary/5 text-primary ring-1 ring-primary/30 font-extrabold"
+                      : "border-border bg-card text-foreground hover:bg-muted/50"
+                  )}
+                >
+                  <span>{item.unit} (Bulk Base)</span>
+                  {(selectedUnit || item.unit) === item.unit && <Check className="h-3 w-3 text-primary animate-in fade-in duration-200" />}
+                </button>
+                {effectiveConversions.map((conv) => {
+                  const isSel = selectedUnit === conv.unitId;
+                  const unitPriceNgn = conv.priceNgn !== undefined
+                    ? conv.priceNgn
+                    : item.sellingPrice * conv.multiplier;
+                  return (
+                    <button
+                      key={conv.unitId}
+                      id={`variant-unit-${conv.unitId}`}
+                      type="button"
+                      onClick={() => setSelectedUnit(conv.unitId)}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-tight transition-all duration-200 active:scale-95 shadow-sm",
+                        isSel
+                          ? "border-primary bg-primary/5 text-primary ring-1 ring-primary/30 font-extrabold"
+                          : "border-border bg-card text-foreground hover:bg-muted/50"
+                      )}
+                    >
+                      <span>{conv.unitId} (₦{unitPriceNgn.toLocaleString()})</span>
+                      {isSel && <Check className="h-3 w-3 text-primary animate-in fade-in duration-200" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Colors Selection */}
           {colors.length > 0 && (
             <div className="space-y-2">

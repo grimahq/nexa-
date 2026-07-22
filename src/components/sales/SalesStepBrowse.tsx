@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from "react";
-import { Plus, Minus, Package, Search, X, TrendingUp, UserCheck, ShoppingCart, ChevronDown, CheckCircle2, Pill, SlidersHorizontal, Zap } from "lucide-react";
+import { Plus, Minus, Package, Search, X, TrendingUp, UserCheck, ShoppingCart, ChevronDown, CheckCircle2, Pill, SlidersHorizontal, Zap, Layers } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ import { SUPPORTED_UNITS, type Item } from "@/types/inventory";
 import { DishCustomizerDialog } from "./DishCustomizerDialog";
 import { VariantCustomizerDialog } from "./VariantCustomizerDialog";
 import { resolvePrice } from "@/utils/pricing";
+import { getEffectiveUnitConversions } from "@/utils/unitConversions";
 
 const NAIRA = "₦";
 const USD_TO_NGN = 1;
@@ -86,6 +87,7 @@ export function SalesStepBrowse({
   const getAvailableTargetQty = useCallback((item: Item, targetUnitId: string, currentCart: Map<string, number>): number => {
     if (isRestaurant || item.restaurant) return 999999;
     let consumedBaseUnits = 0;
+    const conversions = getEffectiveUnitConversions(item);
     currentCart.forEach((qty, compositeKey) => {
       let itemId = compositeKey;
       let unitId = "";
@@ -99,7 +101,7 @@ export function SalesStepBrowse({
       if (itemId === item.id && unitId !== targetUnitId) {
         const multiplier = unitId === item.unit
           ? 1
-          : item.unitConversions?.find(c => c.unitId === unitId)?.multiplier || 1;
+          : conversions.find(c => c.unitId === unitId)?.multiplier || 1;
         consumedBaseUnits += qty * multiplier;
       }
     });
@@ -107,7 +109,7 @@ export function SalesStepBrowse({
     const availableBaseStock = Math.max(0, item.currentStock - consumedBaseUnits);
     const targetMultiplier = targetUnitId === item.unit
       ? 1
-      : item.unitConversions?.find(c => c.unitId === targetUnitId)?.multiplier || 1;
+      : conversions.find(c => c.unitId === targetUnitId)?.multiplier || 1;
     
     return availableBaseStock / targetMultiplier;
   }, [isRestaurant]);
@@ -116,25 +118,27 @@ export function SalesStepBrowse({
   const getAvailableForUnitInInlineMode = useCallback((item: Item, targetUnitId: string, qtyState: Record<string, number>): number => {
     if (isRestaurant || item.restaurant) return 999999;
     let localConsumedBase = 0;
+    const conversions = getEffectiveUnitConversions(item);
     Object.entries(qtyState).forEach(([uId, qty]) => {
       if (uId !== targetUnitId) {
         const multiplier = uId === item.unit
           ? 1
-          : item.unitConversions?.find(c => c.unitId === uId)?.multiplier || 1;
+          : conversions.find(c => c.unitId === uId)?.multiplier || 1;
         localConsumedBase += (qty || 0) * multiplier;
       }
     });
     const availableBase = Math.max(0, item.currentStock - localConsumedBase);
     const targetMultiplier = targetUnitId === item.unit
       ? 1
-      : item.unitConversions?.find(c => c.unitId === targetUnitId)?.multiplier || 1;
+      : conversions.find(c => c.unitId === targetUnitId)?.multiplier || 1;
     return availableBase / targetMultiplier;
   }, [isRestaurant]);
 
   const handleOpenInlineAllUnits = useCallback((item: Item) => {
     const initial: Record<string, number> = {};
     initial[item.unit] = cart.get(`${item.id}:${item.unit}`) ?? 0;
-    item.unitConversions?.forEach(c => {
+    const conversions = getEffectiveUnitConversions(item);
+    conversions.forEach(c => {
       initial[c.unitId] = cart.get(`${item.id}:${c.unitId}`) ?? 0;
     });
     setInlineQtyState(initial);
@@ -142,7 +146,8 @@ export function SalesStepBrowse({
   }, [cart]);
 
   const handleApplyInlineAllUnits = useCallback((item: Item) => {
-    const unitsToSave = [item.unit, ...(item.unitConversions?.map(c => c.unitId) ?? [])];
+    const conversions = getEffectiveUnitConversions(item);
+    const unitsToSave = [item.unit, ...conversions.map(c => c.unitId)];
     unitsToSave.forEach(unitId => {
       const qty = inlineQtyState[unitId] ?? 0;
       onAdd(item.id, qty, unitId);
@@ -190,8 +195,9 @@ export function SalesStepBrowse({
       if (!item) return;
 
       let price = resolvePrice(item, pricingMode, activeTier);
-      if (unitId && unitId !== item.unit && item.unitConversions) {
-        const conv = item.unitConversions.find(c => c.unitId === unitId);
+      if (unitId && unitId !== item.unit) {
+        const conversions = getEffectiveUnitConversions(item);
+        const conv = conversions.find(c => c.unitId === unitId);
         if (conv) {
           price = conv.priceNgn !== undefined ? conv.priceNgn / USD_TO_NGN : resolvePrice(item, pricingMode, activeTier) * conv.multiplier;
         }
@@ -726,6 +732,7 @@ export function SalesStepBrowse({
       <div className="flex-1 overflow-y-auto px-4 pb-4">
         <div className="grid grid-cols-2 gap-2.5 sm:gap-4 py-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((item) => {
+            const effectiveConversions = getEffectiveUnitConversions(item);
             const currentUnit = selectedUnits[item.id] || item.unit;
             const compositeKey = `${item.id}:${currentUnit}`;
             const qty = cart.get(compositeKey) ?? 0;
@@ -734,8 +741,8 @@ export function SalesStepBrowse({
 
             // Price calculation for unit
             let displayPrice = resolvePrice(item, pricingMode, activeTier);
-            if (currentUnit !== item.unit && item.unitConversions) {
-              const conv = item.unitConversions.find(c => c.unitId === currentUnit);
+            if (currentUnit !== item.unit && effectiveConversions.length > 0) {
+              const conv = effectiveConversions.find(c => c.unitId === currentUnit);
               if (conv) {
                 displayPrice = conv.priceNgn !== undefined 
                   ? conv.priceNgn / USD_TO_NGN 
@@ -754,7 +761,7 @@ export function SalesStepBrowse({
               (item.restaurant?.spiceLevels && item.restaurant.spiceLevels.length > 0) ||
               item.restaurant?.isCombo
             );
-            const hasVariants = !!(item.color || item.sizes);
+            const hasVariants = !!(item.color || item.sizes) || effectiveConversions.length > 0;
 
             // Render inline multi-unit panel if editing mode is active for this item
             if (inlineEditingItemId === item.id) {
@@ -762,7 +769,7 @@ export function SalesStepBrowse({
                 let subtotal = 0;
                 const baseQty = inlineQtyState[item.unit] ?? 0;
                 subtotal += baseQty * resolvePrice(item, pricingMode, activeTier);
-                item.unitConversions?.forEach(conv => {
+                effectiveConversions.forEach(conv => {
                   const qty = inlineQtyState[conv.unitId] ?? 0;
                   const price = conv.priceNgn !== undefined 
                     ? conv.priceNgn / USD_TO_NGN 
@@ -916,7 +923,7 @@ export function SalesStepBrowse({
                       })()}
 
                       {/* Conversion Units Qty Blocks */}
-                      {item.unitConversions?.map((conv) => {
+                      {effectiveConversions.map((conv) => {
                         const unitId = conv.unitId;
                         const localQty = inlineQtyState[unitId] ?? 0;
                         const unitPrice = conv.priceNgn !== undefined 
@@ -1026,13 +1033,18 @@ export function SalesStepBrowse({
                     } else if (hasVariants) {
                       setVariantConfigItem(item);
                       setVariantConfigOpen(true);
-                    } else if (item.unitConversions && item.unitConversions.length > 0) {
+                    } else if (effectiveConversions.length > 0) {
                       handleOpenInlineAllUnits(item);
                     } else {
                       handleAdd(item.id, undefined, currentUnit);
                     }
                   }}
                 >
+                  {effectiveConversions.length > 0 && (
+                    <span className="absolute top-1.5 left-1.5 rounded-full bg-emerald-600/90 text-white px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-wider backdrop-blur-sm z-10 flex items-center gap-1 shadow-sm">
+                      <Layers className="h-2.5 w-2.5" /> Bulk & Small Units
+                    </span>
+                  )}
                   {item.imageUrl ? (
                     <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
                   ) : (
@@ -1063,7 +1075,7 @@ export function SalesStepBrowse({
                           unitId = secondColon !== -1 ? remaining.substring(0, secondColon) : remaining;
                         }
                         if (id === item.id) {
-                          const conv = item.unitConversions?.find(c => c.unitId === unitId)?.multiplier || 1;
+                          const conv = effectiveConversions.find(c => c.unitId === unitId)?.multiplier || 1;
                           inCartBase += q * conv;
                         }
                       });
@@ -1144,7 +1156,7 @@ export function SalesStepBrowse({
                   )}
                   
                   <div className="mt-auto pt-1.5">
-                    {item.unitConversions && item.unitConversions.length > 0 ? (
+                    {effectiveConversions && effectiveConversions.length > 0 ? (
                       <div className="space-y-1.5">
                         <div className="relative">
                           <select
@@ -1157,16 +1169,19 @@ export function SalesStepBrowse({
                               const q = cart.get(baseKey) ?? 0;
                               return (
                                 <option value={item.unit}>
-                                  {item.unit} (Base){q > 0 ? ` [${q} in cart]` : ""}
+                                  {item.unit} (Bulk Base){q > 0 ? ` [${q} in cart]` : ""}
                                 </option>
                               );
                             })()}
-                            {item.unitConversions.map(conv => {
+                            {effectiveConversions.map(conv => {
                               const key = `${item.id}:${conv.unitId}`;
                               const q = cart.get(key) ?? 0;
+                              const uPrice = conv.priceNgn !== undefined 
+                                ? conv.priceNgn 
+                                : item.sellingPrice * conv.multiplier;
                               return (
                                 <option key={conv.unitId} value={conv.unitId}>
-                                  {conv.unitId} (={conv.multiplier} {item.unit}){q > 0 ? ` [${q} in cart]` : ""}
+                                  {conv.unitId} (₦{uPrice.toLocaleString()}){q > 0 ? ` [${q} in cart]` : ""}
                                 </option>
                               );
                             })}
@@ -1175,6 +1190,38 @@ export function SalesStepBrowse({
                             <ChevronDown className="h-3 w-3" />
                           </div>
                         </div>
+
+                        {/* Quick Unit Pills */}
+                        <div className="flex flex-wrap gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedUnits({...selectedUnits, [item.id]: item.unit})}
+                            className={cn(
+                              "px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase transition-all border",
+                              currentUnit === item.unit
+                                ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
+                            )}
+                          >
+                            {item.unit}
+                          </button>
+                          {effectiveConversions.map(conv => (
+                            <button
+                              key={conv.unitId}
+                              type="button"
+                              onClick={() => setSelectedUnits({...selectedUnits, [item.id]: conv.unitId})}
+                              className={cn(
+                                "px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase transition-all border",
+                                currentUnit === conv.unitId
+                                  ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                  : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
+                              )}
+                            >
+                              {conv.unitId}
+                            </button>
+                          ))}
+                        </div>
+
                         <div className="flex items-center justify-between pt-0.5">
                           <p className="text-xs font-bold text-foreground">
                             {formatNaira(displayPrice)}
@@ -1182,7 +1229,7 @@ export function SalesStepBrowse({
                           <button
                             type="button"
                             onClick={() => handleOpenInlineAllUnits(item)}
-                            className="inline-flex items-center gap-1 text-[9px] font-bold uppercase text-primary bg-primary/10 hover:bg-primary/15 border border-primary/20 px-2.5 py-0.5 rounded-full transition-all duration-200"
+                            className="inline-flex items-center gap-1 text-[9px] font-bold uppercase text-primary bg-primary/10 hover:bg-primary/15 border border-primary/20 px-2 py-0.5 rounded-full transition-all duration-200"
                           >
                             <SlidersHorizontal className="h-2 w-2" />
                             <span>All Units</span>

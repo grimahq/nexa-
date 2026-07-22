@@ -1,11 +1,22 @@
 import { useState, useMemo, useEffect } from "react";
-import { Plus, Trash2, Package, Tag, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Package, Tag, ChevronDown, ChevronRight, Pill, PlusCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SUPPORTED_UNITS } from "@/types/inventory";
+import { SUPPORTED_UNITS, type Category } from "@/types/inventory";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { type DrugLibraryItem } from "@/data/drugLibrary";
+import { useDrugLibrary } from "@/hooks/useDrugLibrary";
+import { 
+  predictCategoryAndUnit, 
+  getCategorySupportedUnits, 
+  getBuiltInProductSuggestions, 
+  type BuiltInProduct,
+  CATEGORY_PRESETS 
+} from "@/utils/categorySuggestions";
+import { db } from "@/lib/firebase";
+import { collection, addDoc } from "firebase/firestore";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +38,9 @@ export interface PendingProduct {
   enableColours?: boolean;
   enableSizes?: boolean;
   fineTunedVariants?: Record<string, { price: number; stock: number }>;
+  isPrescriptionOnly?: boolean;
+  verificationStatus?: "verified" | "pending_review" | "rejected";
+  source?: "nafdac_seed_v2" | "merchant_submitted" | "who_essential";
 }
 
 interface OnboardingVariantDialogProps {
@@ -95,335 +109,268 @@ export function OnboardingVariantDialog({ open, onClose, product, onSave }: Onbo
     return combined.map(arr => arr.join(" - "));
   }, [enableColours, availColours, enableSizes, availSizes]);
 
-  // Handle setting default pricing and stock for new variants
   useEffect(() => {
     if (activeVariants.length === 0) return;
-    setFineTunedVariants((prev) => {
-      const nextFineTuned = { ...prev };
-      let changed = false;
-      const basePrice = Number(product.price) || 0;
-      const baseStock = Number(product.stock) || 0;
-      
-      const defaultStockEach = activeVariants.length > 0 ? Math.floor(baseStock / activeVariants.length) : 0;
 
-      activeVariants.forEach((vName) => {
-        if (!nextFineTuned[vName]) {
-          nextFineTuned[vName] = {
+    const basePrice = Number(product.price) || 0;
+    const baseStock = Number(product.stock) || 0;
+
+    setFineTunedVariants((prev) => {
+      const next: Record<string, { price: number; stock: number }> = {};
+      activeVariants.forEach((vKey) => {
+        if (prev[vKey]) {
+          next[vKey] = prev[vKey];
+        } else {
+          next[vKey] = {
             price: basePrice,
-            stock: defaultStockEach || 10,
+            stock: baseStock,
           };
-          changed = true;
         }
       });
-
-      if (changed) {
-        return nextFineTuned;
-      }
-      return prev;
+      return next;
     });
   }, [activeVariants, product.price, product.stock]);
 
+  const handleAddColour = () => {
+    const trimmed = newColourInput.trim();
+    if (!trimmed) return;
+    if (availColours.includes(trimmed)) {
+      toast.error("Colour already added");
+      return;
+    }
+    setAvailColours((prev) => [...prev, trimmed]);
+    setNewColourInput("");
+  };
+
+  const handleRemoveColour = (c: string) => {
+    setAvailColours((prev) => prev.filter((item) => item !== c));
+  };
+
+  const handleAddSize = () => {
+    const trimmed = newSizeInput.trim();
+    if (!trimmed) return;
+    if (availSizes.includes(trimmed)) {
+      toast.error("Size already added");
+      return;
+    }
+    setAvailSizes((prev) => [...prev, trimmed]);
+    setNewSizeInput("");
+  };
+
+  const handleRemoveSize = (s: string) => {
+    setAvailSizes((prev) => prev.filter((item) => item !== s));
+  };
+
+  const handleUpdateVariantPrice = (key: string, val: string) => {
+    const num = Number(val) || 0;
+    setFineTunedVariants((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], price: num },
+    }));
+  };
+
+  const handleUpdateVariantStock = (key: string, val: string) => {
+    const num = Number(val) || 0;
+    setFineTunedVariants((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], stock: num },
+    }));
+  };
+
   const handleSave = () => {
-    if (!enableColours && !enableSizes) {
-      toast.error("Please enable at least Colours or Sizes, or cancel.");
-      return;
+    let finalFineTuned: Record<string, { price: number; stock: number }> | undefined = undefined;
+
+    if (enableColours || enableSizes) {
+      if (activeVariants.length === 0) {
+        toast.error("Please add at least one color or size, or disable variants");
+        return;
+      }
+      finalFineTuned = fineTunedVariants;
     }
-    
-    if (activeVariants.length === 0) {
-      toast.error("Please add at least one Colour or Size option.");
-      return;
-    }
 
-    const filteredFineTuned: Record<string, { price: number; stock: number }> = {};
-    let totalStock = 0;
-    const basePrice = Number(product.price) || 0;
-
-    activeVariants.forEach((vName) => {
-      const val = fineTunedVariants[vName] || { price: basePrice, stock: 10 };
-      const priceToSave = samePriceForVariants ? basePrice : (val.price || basePrice);
-      filteredFineTuned[vName] = {
-        price: priceToSave,
-        stock: val.stock || 0
-      };
-      totalStock += val.stock || 0;
-    });
-
-    onSave({
+    const updated: PendingProduct = {
       ...product,
-      price: samePriceForVariants ? product.price : (filteredFineTuned[activeVariants[0]]?.price?.toString() || product.price),
-      stock: totalStock.toString(),
-      color: enableColours ? availColours.join(", ") : "",
-      sizes: enableSizes ? availSizes.join(", ") : "",
       enableColours,
       enableSizes,
-      fineTunedVariants: filteredFineTuned,
-    });
+      color: enableColours ? availColours.join(", ") : undefined,
+      sizes: enableSizes ? availSizes.join(", ") : undefined,
+      fineTunedVariants: finalFineTuned,
+    };
 
-    toast.success("Variants configured successfully!");
+    onSave(updated);
+    toast.success("Variants saved for " + product.name);
     onClose();
   };
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-md md:max-w-lg p-5 rounded-2xl bg-background border border-border">
+    <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold text-foreground">Configure Variants</DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
-            Create colour and size options with dynamic stock matrices for <strong>{product.name || "this product"}</strong>.
+          <DialogTitle className="text-base font-bold flex items-center gap-2">
+            <Tag className="h-4 w-4 text-primary" />
+            Configure Variants: <span className="text-primary">{product.name}</span>
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Add colors, sizes, or custom dimensions for this product.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2 max-h-[380px] overflow-y-auto pr-1">
-          {/* Toggles */}
-          <div className="p-3 bg-muted/30 border border-border rounded-xl space-y-3">
-            <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider block">Enable Option Dimensions</span>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setEnableColours(!enableColours)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-all cursor-pointer",
-                  enableColours
-                    ? "bg-primary border-primary text-primary-foreground shadow-sm"
-                    : "bg-background border-border text-muted-foreground hover:bg-muted"
-                )}
-              >
-                <span className={cn("h-1.5 w-1.5 rounded-full", enableColours ? "bg-background" : "bg-muted-foreground")} />
-                Colours
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setEnableSizes(!enableSizes)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-all cursor-pointer",
-                  enableSizes
-                    ? "bg-primary border-primary text-primary-foreground shadow-sm"
-                    : "bg-background border-border text-muted-foreground hover:bg-muted"
-                )}
-              >
-                <span className={cn("h-1.5 w-1.5 rounded-full", enableSizes ? "bg-background" : "bg-muted-foreground")} />
-                Sizes
-              </button>
+        <div className="space-y-5 py-2">
+          {/* Colours Toggle */}
+          <div className="space-y-3 border border-border/60 rounded-xl p-3 bg-muted/20">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold">Enable Colours</span>
+              <input
+                type="checkbox"
+                checked={enableColours}
+                onChange={(e) => setEnableColours(e.target.checked)}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+              />
             </div>
+
+            {enableColours && (
+              <div className="space-y-2 pt-1 border-t border-border/40">
+                <div className="flex gap-2">
+                  <Input
+                    value={newColourInput}
+                    onChange={(e) => setNewColourInput(e.target.value)}
+                    placeholder="e.g. Navy Blue"
+                    className="h-8 text-xs"
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddColour())}
+                  />
+                  <Button size="sm" onClick={handleAddColour} className="h-8 px-3 text-xs">
+                    Add
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {availColours.map((c) => (
+                    <span
+                      key={c}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-accent text-accent-foreground"
+                    >
+                      {c}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveColour(c)}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Colours Chips */}
-          {enableColours && (
-            <div className="space-y-2 animate-in fade-in duration-200 p-3 border border-border rounded-xl bg-background">
-              <span className="text-xs font-bold text-foreground">Colours Available</span>
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {availColours.map((color, idx) => (
-                  <span key={idx} className="bg-background border border-border rounded-full pl-3 pr-2 py-1 text-xs font-medium text-foreground inline-flex items-center gap-1.5 shadow-sm">
-                    <span className="w-2.5 h-2.5 rounded-full border" style={{ backgroundColor: color.toLowerCase() }} />
-                    {color}
-                    <button
-                      type="button"
-                      className="text-muted-foreground hover:text-destructive ml-0.5 text-xs font-bold"
-                      onClick={() => setAvailColours(availColours.filter(c => c !== color))}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  value={newColourInput}
-                  onChange={e => setNewColourInput(e.target.value)}
-                  className="h-8 text-xs bg-background"
-                  placeholder="e.g. Red, Black, Navy..."
-                  onKeyDown={e => {
-                    if (e.key === "Enter" && newColourInput.trim()) {
-                      e.preventDefault();
-                      if (!availColours.includes(newColourInput.trim())) {
-                        setAvailColours([...availColours, newColourInput.trim()]);
-                      }
-                      setNewColourInput("");
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-8 px-3"
-                  onClick={() => {
-                    if (newColourInput.trim()) {
-                      if (!availColours.includes(newColourInput.trim())) {
-                        setAvailColours([...availColours, newColourInput.trim()]);
-                      }
-                      setNewColourInput("");
-                    }
-                  }}
-                >
-                  Add
-                </Button>
-              </div>
+          {/* Sizes Toggle */}
+          <div className="space-y-3 border border-border/60 rounded-xl p-3 bg-muted/20">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold">Enable Sizes</span>
+              <input
+                type="checkbox"
+                checked={enableSizes}
+                onChange={(e) => setEnableSizes(e.target.checked)}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+              />
             </div>
-          )}
 
-          {/* Sizes Chips */}
-          {enableSizes && (
-            <div className="space-y-2 animate-in fade-in duration-200 p-3 border border-border rounded-xl bg-background">
-              <span className="text-xs font-bold text-foreground">Sizes Available</span>
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {availSizes.map((sz, idx) => (
-                  <span key={idx} className="bg-background border border-border rounded-full px-3 py-1 text-xs font-medium text-foreground inline-flex items-center gap-1.5 shadow-sm">
-                    {sz}
-                    <button
-                      type="button"
-                      className="text-muted-foreground hover:text-destructive text-xs font-bold"
-                      onClick={() => setAvailSizes(availSizes.filter(s => s !== sz))}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  value={newSizeInput}
-                  onChange={e => setNewSizeInput(e.target.value)}
-                  className="h-8 text-xs bg-background"
-                  placeholder="e.g. S, XL, 42..."
-                  onKeyDown={e => {
-                    if (e.key === "Enter" && newSizeInput.trim()) {
-                      e.preventDefault();
-                      if (!availSizes.includes(newSizeInput.trim())) {
-                        setAvailSizes([...availSizes, newSizeInput.trim()]);
-                      }
-                      setNewSizeInput("");
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-8 px-3"
-                  onClick={() => {
-                    if (newSizeInput.trim()) {
-                      if (!availSizes.includes(newSizeInput.trim())) {
-                        setAvailSizes([...availSizes, newSizeInput.trim()]);
-                      }
-                      setNewSizeInput("");
-                    }
-                  }}
-                >
-                  Add
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Fine-Tuning Price Toggle & Matrix */}
-          {activeVariants.length > 0 && (
-            <div className="space-y-3 pt-2 border-t border-border">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="samePriceOnboarding"
-                    checked={samePriceForVariants}
-                    onChange={(e) => setSamePriceForVariants(e.target.checked)}
-                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+            {enableSizes && (
+              <div className="space-y-2 pt-1 border-t border-border/40">
+                <div className="flex gap-2">
+                  <Input
+                    value={newSizeInput}
+                    onChange={(e) => setNewSizeInput(e.target.value)}
+                    placeholder="e.g. XL"
+                    className="h-8 text-xs"
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddSize())}
                   />
-                  <label htmlFor="samePriceOnboarding" className="text-xs font-semibold text-foreground cursor-pointer select-none">
-                    Same price for all variants
-                  </label>
+                  <Button size="sm" onClick={handleAddSize} className="h-8 px-3 text-xs">
+                    Add
+                  </Button>
                 </div>
-                <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold font-mono">
-                  {activeVariants.length} Variants
+
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {availSizes.map((s) => (
+                    <span
+                      key={s}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-accent text-accent-foreground"
+                    >
+                      {s}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSize(s)}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Active Variants Fine-tuning */}
+          {activeVariants.length > 0 && (
+            <div className="space-y-3 border border-border/60 rounded-xl p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-foreground">
+                  Generated Variants ({activeVariants.length})
                 </span>
-              </div>
-
-              {/* Collapsible fine-tune header */}
-              <div className="pt-1">
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setShowFineTune(!showFineTune)}
-                  className="flex items-center justify-between w-full text-xs font-bold text-primary pb-2"
+                  className="h-7 text-[11px] gap-1"
                 >
-                  <span>📊 Fine-tune Variant Matrices</span>
-                  {showFineTune ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </button>
-
-                {showFineTune && (
-                  <div className="max-h-[180px] overflow-y-auto space-y-2 mt-1 pr-1 border border-border rounded-xl p-2 bg-muted/10">
-                    {activeVariants.map((vName, vIdx) => {
-                      const isExpanded = !!expandedVariants[vName];
-                      const currentVal = fineTunedVariants[vName] || {
-                        price: Number(product.price) || 0,
-                        stock: 10,
-                      };
-
-                      return (
-                        <div key={vIdx} className="border border-border rounded-lg overflow-hidden bg-background shadow-sm">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedVariants(prev => ({ ...prev, [vName]: !prev[vName] }))}
-                            className="flex items-center justify-between w-full p-2 text-xs hover:bg-accent/10 transition-colors border-b border-border"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="font-bold text-foreground truncate text-left">{vName}</span>
-                              <span className="text-[10px] text-primary font-mono font-bold shrink-0">
-                                ₦{samePriceForVariants ? (Number(product.price) || 0) : currentVal.price} · Stock: {currentVal.stock}
-                              </span>
-                            </div>
-                            <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", isExpanded ? "rotate-180" : "")} />
-                          </button>
-
-                          {isExpanded && (
-                            <div className="p-3 space-y-2 border-t border-border bg-muted/5 animate-in slide-in-from-top-1 duration-150">
-                              <div className="grid grid-cols-2 gap-2.5">
-                                {!samePriceForVariants && (
-                                  <div>
-                                    <label className="text-[9px] font-bold uppercase text-muted-foreground block mb-1">Price (₦)</label>
-                                    <Input
-                                      type="number"
-                                      value={currentVal.price || ""}
-                                      onChange={(e) => {
-                                        setFineTunedVariants({
-                                          ...fineTunedVariants,
-                                          [vName]: { ...currentVal, price: Number(e.target.value) || 0 }
-                                        });
-                                      }}
-                                      className="h-8 text-xs font-mono bg-background"
-                                    />
-                                  </div>
-                                )}
-                                <div className={cn(samePriceForVariants ? "col-span-2" : "")}>
-                                  <label className="text-[9px] font-bold uppercase text-muted-foreground block mb-1">Stock</label>
-                                  <Input
-                                    type="number"
-                                    value={currentVal.stock ?? ""}
-                                    onChange={(e) => {
-                                      setFineTunedVariants({
-                                        ...fineTunedVariants,
-                                        [vName]: { ...currentVal, stock: Number(e.target.value) || 0 }
-                                      });
-                                    }}
-                                    className="h-8 text-xs font-mono bg-background"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                  {showFineTune ? "Collapse" : "Expand"}
+                  {showFineTune ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                </Button>
               </div>
+
+              {showFineTune && (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1 text-xs">
+                  {activeVariants.map((vKey) => (
+                    <div
+                      key={vKey}
+                      className="flex items-center justify-between gap-2 p-2 bg-muted/30 rounded-lg"
+                    >
+                      <span className="font-medium text-foreground truncate w-1/3">{vKey}</span>
+                      <div className="flex items-center gap-2 w-2/3">
+                        <div className="relative flex-1">
+                          <Input
+                            type="number"
+                            value={fineTunedVariants[vKey]?.price ?? ""}
+                            onChange={(e) => handleUpdateVariantPrice(vKey, e.target.value)}
+                            placeholder="Price"
+                            className="h-7 text-xs pl-5"
+                          />
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">₦</span>
+                        </div>
+                        <Input
+                          type="number"
+                          value={fineTunedVariants[vKey]?.stock ?? ""}
+                          onChange={(e) => handleUpdateVariantStock(vKey, e.target.value)}
+                          placeholder="Stock"
+                          className="h-7 text-xs flex-1"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        <DialogFooter className="pt-3 border-t border-border flex items-center justify-between gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose} className="rounded-xl h-9">
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="outline" size="sm" onClick={onClose} className="h-9 text-xs">
             Cancel
           </Button>
-          <Button size="sm" onClick={handleSave} className="rounded-xl h-9 px-4">
-            Save Options
+          <Button size="sm" onClick={handleSave} className="h-9 text-xs">
+            Save Variants
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -432,13 +379,30 @@ export function OnboardingVariantDialog({ open, onClose, product, onSave }: Onbo
 }
 
 interface BulkProductEntryProps {
+  categories: { id: string; label: string; emoji: string; supportedUnits?: string[] }[];
   products: PendingProduct[];
   setProducts: React.Dispatch<React.SetStateAction<PendingProduct[]>>;
-  categories: { id: string; label: string; emoji: string; supportedUnits?: string[] }[];
+  businessType?: string;
 }
 
-export function BulkProductEntry({ products, setProducts, categories }: BulkProductEntryProps) {
+export function BulkProductEntry({ products, setProducts, categories, businessType }: BulkProductEntryProps) {
   const [selectedProductForVariants, setSelectedProductForVariants] = useState<PendingProduct | null>(null);
+  const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
+  
+  const isPharmacy = businessType === "pharmacy";
+  const { searchDrugs } = useDrugLibrary(isPharmacy);
+  
+  // Custom Drug Modal state
+  const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
+  const [customDrugName, setCustomDrugName] = useState("");
+  const [customGenericName, setCustomGenericName] = useState("");
+  const [customStrength, setCustomStrength] = useState("");
+  const [customDosageForm, setCustomDosageForm] = useState("Tablet");
+  const [customCategory, setCustomCategory] = useState("Analgesic");
+  const [customDescription, setCustomDescription] = useState("");
+  const [customManufacturer, setCustomManufacturer] = useState("");
+  const [customIsRx, setCustomIsRx] = useState(false);
+  const [isSubmittingCustom, setIsSubmittingCustom] = useState(false);
 
   const addRow = () => {
     const firstCat = categories[0];
@@ -462,7 +426,7 @@ export function BulkProductEntry({ products, setProducts, categories }: BulkProd
     setProducts((prev) => prev.filter((p) => p.id !== id));
   };
 
-  const updateRow = (id: string, field: keyof PendingProduct, value: string) => {
+  const updateRow = (id: string, field: keyof PendingProduct, value: unknown) => {
     setProducts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
     );
@@ -483,8 +447,145 @@ export function BulkProductEntry({ products, setProducts, categories }: BulkProd
     setProducts((prev) => prev.map((p) => p.id === updatedProduct.id ? updatedProduct : p));
   };
 
+  const handleSelectDrugSuggestion = (rowId: string, drug: DrugLibraryItem) => {
+    const matchCat = categories.find(c => 
+      c.label.toLowerCase().includes(drug.category.toLowerCase()) || 
+      drug.category.toLowerCase().includes(c.label.toLowerCase())
+    );
+
+    setProducts(prev => prev.map(p => {
+      if (p.id === rowId) {
+        return {
+          ...p,
+          name: drug.name + (drug.strength ? ` (${drug.strength})` : ""),
+          categoryId: matchCat ? matchCat.id : p.categoryId,
+          unit: drug.dosageForm === "Syrup" || drug.dosageForm === "Liquid" ? "bottle" : "pcs",
+          isPrescriptionOnly: drug.isPrescriptionOnly ?? drug.requiresPrescription ?? false,
+          verificationStatus: drug.verificationStatus,
+          source: drug.source,
+        };
+      }
+      return p;
+    }));
+    setFocusedRowId(null);
+    toast.success(`Autofilled details for ${drug.name}!`);
+  };
+
+  const handleSubmitCustomDrug = async () => {
+    if (!customDrugName.trim()) {
+      toast.error("Please enter drug name");
+      return;
+    }
+    setIsSubmittingCustom(true);
+    try {
+      const newDrug: Partial<DrugLibraryItem> = {
+        name: customDrugName.trim(),
+        genericName: customGenericName.trim() || customDrugName.trim(),
+        strength: customStrength.trim() || "Standard",
+        dosageForm: customDosageForm,
+        category: customCategory,
+        description: customDescription.trim() || "Custom merchant drug entry.",
+        manufacturer: customManufacturer.trim() || "Local Merchant",
+        isPrescriptionOnly: customIsRx,
+        requiresPrescription: customIsRx,
+        source: "merchant_submitted",
+        verificationStatus: "pending_review",
+        createdAt: new Date().toISOString(),
+      };
+
+      const docRef = await addDoc(collection(db, "drugLibrary"), newDrug);
+      toast.success("Custom drug submitted for review and added to current list!");
+
+      // Add as pending product row
+      const firstCat = categories[0];
+      setProducts(prev => [
+        ...prev,
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          name: `${customDrugName} (${customStrength || "Custom"})`,
+          price: "1000",
+          stock: "10",
+          unit: customDosageForm === "Syrup" ? "bottle" : "pcs",
+          categoryId: firstCat?.id || "",
+          isPrescriptionOnly: customIsRx,
+          verificationStatus: "pending_review",
+          source: "merchant_submitted"
+        }
+      ]);
+
+      setIsCustomModalOpen(false);
+      setCustomDrugName("");
+      setCustomGenericName("");
+      setCustomStrength("");
+      setCustomDescription("");
+      setCustomManufacturer("");
+    } catch (err) {
+      console.error("Failed to submit custom drug:", err);
+      toast.error("Failed to submit custom drug to database.");
+    } finally {
+      setIsSubmittingCustom(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      {/* Top Banner for Pharmacy Mode */}
+      {isPharmacy && (
+        <div className="flex items-center justify-between p-3 bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 rounded-xl text-xs">
+          <div className="flex items-center gap-2 text-teal-900 dark:text-teal-200 font-semibold">
+            <Pill className="h-4 w-4 text-teal-600 dark:text-teal-400 shrink-0" />
+            <span>NAFDAC/WHO Drug Library active for pharmacy autofill.</span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsCustomModalOpen(true)}
+            className="h-7 text-xs bg-white dark:bg-teal-900 border-teal-300 text-teal-800 dark:text-teal-100 hover:bg-teal-100 font-bold gap-1"
+          >
+            <PlusCircle className="h-3.5 w-3.5" /> Add Custom Product
+          </Button>
+        </div>
+      )}
+
+      {/* Built-in Category Suggestions Bar */}
+      <div className="p-3 bg-muted/20 border border-border/80 rounded-2xl space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-bold text-foreground flex items-center gap-1.5">
+            <Sparkles className="h-4 w-4 text-amber-500" /> Pre-built Category Product Templates (One-tap add)
+          </span>
+          <span className="text-[10px] text-muted-foreground font-medium">Click to append to list</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto pr-1">
+          {getBuiltInProductSuggestions().slice(0, 15).map((template, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => {
+                const matchCat = categories.find(c => c.label.toLowerCase().includes(template.categoryName.toLowerCase().split(" ")[0]) || template.categoryName.toLowerCase().includes(c.label.toLowerCase().split(" ")[0]));
+                setProducts(prev => [
+                  ...prev,
+                  {
+                    id: Math.random().toString(36).substring(2, 9),
+                    name: template.name,
+                    price: template.estimatedPrice ? String(template.estimatedPrice) : "1500",
+                    stock: "50",
+                    unit: template.defaultUnit,
+                    categoryId: matchCat?.id || categories[0]?.id || "",
+                  }
+                ]);
+                toast.success(`Added ${template.name} (${template.defaultUnit}) to products!`);
+              }}
+              className="text-[11px] px-2.5 py-1 rounded-xl border bg-card hover:bg-teal-50 hover:border-teal-300 dark:hover:bg-teal-950/40 text-foreground transition-all flex items-center gap-1 font-medium shadow-2xs"
+            >
+              <span>{template.emoji || "📦"}</span>
+              <span>{template.name}</span>
+              <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono ml-0.5 uppercase">({template.defaultUnit})</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Scrollable Container with Custom Styling */}
       <div className="max-h-[380px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
         {products.length > 0 && (
@@ -504,10 +605,28 @@ export function BulkProductEntry({ products, setProducts, categories }: BulkProd
             {products.map((p) => {
               const currentCategoryVal = p.categoryId || categories[0]?.id || "";
               const catObj = categories.find(c => c.id === currentCategoryVal);
-              const allowedUnits = catObj?.supportedUnits && catObj.supportedUnits.length > 0
-                ? SUPPORTED_UNITS.filter((u) => catObj.supportedUnits!.includes(u.id))
-                : SUPPORTED_UNITS;
               
+              // Convert categories list to Category type format for utility
+              const categoryListFormatted: Category[] = categories.map(c => ({
+                id: c.id,
+                name: c.label,
+                description: null,
+                parentId: null,
+                createdAt: "",
+                updatedAt: "",
+                supportedUnits: c.supportedUnits
+              }));
+
+              const allowedUnits = getCategorySupportedUnits(catObj?.label || currentCategoryVal, catObj ? { id: catObj.id, name: catObj.label, description: null, parentId: null, createdAt: "", updatedAt: "", supportedUnits: catObj.supportedUnits } : null);
+              
+              const rowPrediction = p.name.trim().length >= 2 
+                ? predictCategoryAndUnit(p.name, categoryListFormatted) 
+                : null;
+
+              const matchedSuggestions = isPharmacy && p.name.trim().length >= 2
+                ? searchDrugs(p.name)
+                : [];
+
               return (
                 <div 
                   key={p.id} 
@@ -527,14 +646,67 @@ export function BulkProductEntry({ products, setProducts, categories }: BulkProd
                   </div>
 
                   {/* Product Name File */}
-                  <div className="space-y-1 md:space-y-0">
+                  <div className="space-y-1 md:space-y-0 relative">
                     <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground block md:hidden">Product Name</span>
                     <Input
                       value={p.name}
                       onChange={(e) => updateRow(p.id, "name", e.target.value)}
-                      placeholder="e.g. Silk Shirt"
+                      onFocus={() => setFocusedRowId(p.id)}
+                      onBlur={() => setTimeout(() => setFocusedRowId(null), 250)}
+                      placeholder={isPharmacy ? "e.g. Paracetamol or Coartem" : "e.g. Silk Shirt"}
                       className="h-10 text-sm rounded-xl focus-visible:ring-primary/20"
                     />
+
+                    {/* Smart Auto-Category Prediction Pill */}
+                    {rowPrediction && rowPrediction.confidence !== "low" && (
+                      <button
+                        type="button"
+                        onMouseDown={() => {
+                          const catId = rowPrediction.matchedCategory ? rowPrediction.matchedCategory.id : currentCategoryVal;
+                          updateRow(p.id, "categoryId", catId);
+                          updateRow(p.id, "unit", rowPrediction.suggestedUnit);
+                          if (rowPrediction.builtInProduct?.estimatedPrice) {
+                            updateRow(p.id, "price", String(rowPrediction.builtInProduct.estimatedPrice));
+                          }
+                          toast.success(`Set Category: ${rowPrediction.suggestedCategoryName} (${rowPrediction.suggestedUnit})`);
+                        }}
+                        className="mt-1 text-[10px] px-2 py-0.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-900 dark:bg-teal-950/70 dark:text-teal-200 dark:hover:bg-teal-900 border border-teal-200 dark:border-teal-800 font-bold flex items-center gap-1 transition-all shadow-2xs"
+                      >
+                        <Sparkles className="h-3 w-3 text-amber-500 shrink-0" />
+                        <span>Category: {rowPrediction.suggestedCategoryName} ({rowPrediction.suggestedUnit})</span>
+                      </button>
+                    )}
+
+                    {/* Onboarding Pharmacy Drug Suggestions Dropdown */}
+                    {isPharmacy && focusedRowId === p.id && matchedSuggestions.length > 0 && (
+                      <div className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white dark:bg-slate-900 border border-teal-200 rounded-lg shadow-xl divide-y divide-slate-100 dark:divide-slate-800">
+                        <div className="p-1.5 bg-teal-50 dark:bg-teal-950/40 text-[9px] font-extrabold text-teal-800 dark:text-teal-300 flex items-center justify-between">
+                          <span>💡 NAFDAC DRUG AUTOFILL MATCHES</span>
+                          <span>{matchedSuggestions.length} items</span>
+                        </div>
+                        {matchedSuggestions.map((drug, idx) => (
+                          <button
+                            key={`${drug.id || drug.name}-${idx}`}
+                            type="button"
+                            onMouseDown={() => handleSelectDrugSuggestion(p.id, drug)}
+                            className="w-full text-left p-2 hover:bg-teal-50/50 dark:hover:bg-teal-950/30 flex items-center justify-between transition-colors"
+                          >
+                            <div>
+                              <p className="text-xs font-bold text-foreground">{drug.name}</p>
+                              <p className="text-[9px] text-muted-foreground">{drug.genericName} · {drug.strength}</p>
+                            </div>
+                            <span className={cn(
+                              "text-[8px] font-bold px-1.5 py-0.5 rounded uppercase",
+                              drug.isPrescriptionOnly || drug.requiresPrescription 
+                                ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+                                : "bg-teal-100 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300"
+                            )}>
+                              {drug.isPrescriptionOnly || drug.requiresPrescription ? "Rx Only" : "OTC"}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Category dropdown */}
@@ -618,18 +790,13 @@ export function BulkProductEntry({ products, setProducts, categories }: BulkProd
                       disabled={p.name.trim() === ""}
                       className={cn(
                         "h-10 text-xs rounded-xl flex items-center justify-center gap-1 w-full md:w-full",
-                        p.enableColours || p.enableSizes
-                          ? "border-emerald-500/30 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/50"
-                          : "border-muted-foreground/20 text-muted-foreground hover:bg-muted/10"
+                        (p.enableColours || p.enableSizes) ? "border-primary text-primary font-semibold" : "text-muted-foreground"
                       )}
                     >
                       <Tag className="h-3.5 w-3.5" />
-                      {p.enableColours || p.enableSizes ? (
-                        <span>
-                          {p.fineTunedVariants ? Object.keys(p.fineTunedVariants).length : 0} Var
-                        </span>
-                      ) : (
-                        <span>Add Var</span>
+                      <span>Variants</span>
+                      {(p.enableColours || p.enableSizes) && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                       )}
                     </Button>
                   </div>
@@ -638,29 +805,32 @@ export function BulkProductEntry({ products, setProducts, categories }: BulkProd
             })}
           </div>
         )}
+      </div>
 
-        {products.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border rounded-2xl bg-muted/12">
-            <Package className="h-10 w-10 text-muted-foreground/30 mb-3 animate-pulse" />
-            <p className="text-sm font-medium text-foreground">No products added yet.</p>
-            <p className="text-xs text-muted-foreground mt-1 mb-4">Click below to start populating your catalog manually.</p>
-            <Button variant="outline" size="sm" onClick={addRow} className="rounded-xl">
-              Add first product
-            </Button>
-          </div>
+      <div className="flex items-center justify-between pt-1">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={addRow}
+          className="h-9 px-4 text-xs font-semibold rounded-xl border-dashed border-primary/40 hover:border-primary text-primary hover:bg-primary/5 transition-all gap-1.5"
+        >
+          <Plus className="h-4 w-4" /> Add Row
+        </Button>
+
+        {isPharmacy && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setIsCustomModalOpen(true)}
+            className="h-9 text-xs text-teal-700 dark:text-teal-300 font-bold gap-1 hover:bg-teal-50 dark:hover:bg-teal-950/40"
+          >
+            <PlusCircle className="h-3.5 w-3.5 text-teal-600" />
+            Add Custom Drug Entry
+          </Button>
         )}
       </div>
 
-      {/* Styled Add Row Button */}
-      <button
-        type="button"
-        onClick={addRow}
-        className="w-full h-11 py-2 px-4 flex items-center justify-center gap-2 border border-dashed border-muted-foreground/30 hover:border-primary/50 rounded-xl bg-background hover:bg-accent/40 active:scale-[0.98] transition-all text-xs font-semibold shadow-sm text-foreground/80 hover:text-foreground"
-      >
-        <Plus className="h-4 w-4 text-muted-foreground" /> Add Row
-      </button>
-
-      {/* Onboarding Variant Configuration Dialog */}
+      {/* Variant Modal */}
       {selectedProductForVariants && (
         <OnboardingVariantDialog
           open={!!selectedProductForVariants}
@@ -669,6 +839,113 @@ export function BulkProductEntry({ products, setProducts, categories }: BulkProd
           onSave={handleSaveVariants}
         />
       )}
+
+      {/* Custom Drug Modal for Pharmacy Onboarding */}
+      <Dialog open={isCustomModalOpen} onOpenChange={setIsCustomModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-teal-800 dark:text-teal-200">
+              <Pill className="h-4 w-4 text-teal-600" />
+              Add Custom Drug / Product
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Can't find a medicine in the standard library? Add custom product details. It will be sent for review and added to your store.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <div>
+              <label className="font-semibold block mb-1">Brand / Product Name *</label>
+              <Input
+                value={customDrugName}
+                onChange={(e) => setCustomDrugName(e.target.value)}
+                placeholder="e.g. Lonart Forte"
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="font-semibold block mb-1">Active Ingredient</label>
+                <Input
+                  value={customGenericName}
+                  onChange={(e) => setCustomGenericName(e.target.value)}
+                  placeholder="e.g. Artemether/Lumefantrine"
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div>
+                <label className="font-semibold block mb-1">Strength</label>
+                <Input
+                  value={customStrength}
+                  onChange={(e) => setCustomStrength(e.target.value)}
+                  placeholder="e.g. 80mg/480mg"
+                  className="h-9 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="font-semibold block mb-1">Dosage Form</label>
+                <Select value={customDosageForm} onValueChange={setCustomDosageForm}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Tablet" className="text-xs">Tablet</SelectItem>
+                    <SelectItem value="Capsule" className="text-xs">Capsule</SelectItem>
+                    <SelectItem value="Syrup" className="text-xs">Syrup/Liquid</SelectItem>
+                    <SelectItem value="Injection" className="text-xs">Injection</SelectItem>
+                    <SelectItem value="Ointment" className="text-xs">Ointment/Cream</SelectItem>
+                    <SelectItem value="Sachet" className="text-xs">Sachet</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-1">Category</label>
+                <Select value={customCategory} onValueChange={setCustomCategory}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Analgesic" className="text-xs">Analgesic</SelectItem>
+                    <SelectItem value="Antibiotic" className="text-xs">Antibiotic</SelectItem>
+                    <SelectItem value="Antimalarial" className="text-xs">Antimalarial</SelectItem>
+                    <SelectItem value="Antihistamine" className="text-xs">Antihistamine</SelectItem>
+                    <SelectItem value="Antacid/Gastro" className="text-xs">Antacid/Gastro</SelectItem>
+                    <SelectItem value="Vitamin/Supplement" className="text-xs">Vitamin/Supplement</SelectItem>
+                    <SelectItem value="General" className="text-xs">General</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="customIsRx"
+                checked={customIsRx}
+                onChange={(e) => setCustomIsRx(e.target.checked)}
+                className="h-4 w-4 rounded border-teal-400 text-teal-600 focus:ring-teal-500"
+              />
+              <label htmlFor="customIsRx" className="font-semibold text-xs text-rose-600 dark:text-rose-400 cursor-pointer">
+                Requires Doctor's Prescription (POM / Rx)
+              </label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setIsCustomModalOpen(false)} className="h-8 text-xs">
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleSubmitCustomDrug} disabled={isSubmittingCustom} className="h-8 text-xs bg-teal-600 hover:bg-teal-700 text-white">
+              {isSubmittingCustom ? "Submitting..." : "Submit Custom Product"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

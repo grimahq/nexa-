@@ -21,6 +21,7 @@ import { RequestsFilters } from "@/components/requests/RequestsFilters";
 import { RequestDetailSheet } from "@/components/requests/RequestDetailSheet";
 import { useApprovalActions } from "@/components/requests/ApprovalActions";
 import { useItems, useRequests } from "@/hooks/useInventoryData";
+import { useUpdateRequest } from "@/hooks/useInventoryMutations";
 import { useRole } from "@/hooks/useRole";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
@@ -128,19 +129,32 @@ function RequestsPage() {
     }
   }
 
+  const updateRequest = useUpdateRequest();
+
   function handleCancel(req: InventoryRequest) {
     setCancelTarget(req);
   }
 
   function confirmCancel() {
-    if (!cancelTarget || !demoStore) return;
-    demoStore.updateRequest(cancelTarget.id, {
-      status: RequestStatus.Cancelled,
-      updatedAt: new Date().toISOString(),
-    });
-    bumpVersion();
-    toast.success(`${cancelTarget.requestNumber} cancelled`);
-    setCancelTarget(null);
+    if (!cancelTarget) return;
+    updateRequest.mutate(
+      {
+        id: cancelTarget.id,
+        updates: {
+          status: RequestStatus.Cancelled,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success(`${cancelTarget.requestNumber} cancelled`);
+          setCancelTarget(null);
+        },
+        onError: (e) => {
+          toast.error(e.message || "Failed to cancel request.");
+        },
+      },
+    );
   }
 
   return (
