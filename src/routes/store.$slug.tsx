@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion, AnimatePresence } from "framer-motion";
+import { getWhatsAppUrl } from "@/lib/whatsapp";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { useDemo } from "@/hooks/useDemo";
 import { cn } from "@/lib/utils";
@@ -845,7 +846,7 @@ function PublicStorefront() {
                      </Button>
                      <Button variant="outline" size="icon" className="h-12 w-12 rounded-2xl" onClick={() => {
                         const text = `Hi! I'm interested in ${selectedProduct.name} (₦${selectedProduct.sellingPrice.toLocaleString()})\n\nLink: ${window.location.href}`;
-                        window.open(`https://wa.me/${onboarding.storePhone}?text=${encodeURIComponent(text)}`, '_blank');
+                        window.open(getWhatsAppUrl(onboarding.storePhone || "2348132321056", text), '_blank');
                      }}>
                        <MessageCircle className="h-6 w-6 text-[#25D366]" />
                      </Button>
@@ -1028,7 +1029,7 @@ function PublicStorefront() {
                            <Button className="w-full h-11 bg-[#25D366] hover:bg-[#1fb355] text-white font-bold rounded-2xl gap-2 hover:scale-[1.01] transition-transform text-xs" onClick={() => {
                               const resolvedAddress = deliveryMethod === "instore" ? `In-Store Pickup (Geo-fenced): ${inStoreLocationLabel}` : customerInfo.address;
                               const text = `*New Order Confirmed!* ✅\n\n*Ticket ID:* ${orderIdRef}\n*Customer:* ${customerInfo.name}\n*Total:* ₦${cartTotal.toLocaleString()}\n*Category:* ${deliveryMethod === "instore" ? `In-Store (${inStoreLocationLabel})` : "General Delivery"}\n\n*Receipt:* Verified Pass Created\n\n_Sent via Nexa Mobile Storefront_`;
-                              window.open(`https://wa.me/${onboarding.storePhone}?text=${encodeURIComponent(text)}`, '_blank');
+                              window.open(getWhatsAppUrl(onboarding.storePhone || "2348132321056", text), '_blank');
                               setIsCheckoutOpen(false);
                            }}>
                               <MessageCircle className="h-4 w-4 fill-current" /> Send Receipt to Vendor
@@ -1076,7 +1077,7 @@ function PublicStorefront() {
       {/* ── WhatsApp Floating Button ──────────────────── */}
       {!isCheckoutOpen && !isCartOpen && !selectedProduct && (
         <a 
-          href={`https://wa.me/${onboarding.storePhone}`}
+          href={getWhatsAppUrl(onboarding.storePhone || "2348132321056", "Hello! I am browsing your store and need assistance.")}
           target="_blank"
           rel="noreferrer"
           className="fixed bottom-6 right-6 z-50 h-16 w-16 rounded-3xl bg-[#25D366] text-white flex items-center justify-center shadow-2xl hover:scale-110 transition-all duration-300 group"

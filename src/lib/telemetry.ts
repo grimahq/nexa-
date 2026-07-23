@@ -275,31 +275,85 @@ export async function captureClientDeviceTelemetry(
   const screenResolution = `${window.screen.width}x${window.screen.height} @ ${window.devicePixelRatio}x`;
   const language = navigator.language || "en-US";
 
-  // Request high accuracy GPS coordinates if permitted by browser
-  let latitude = 6.5244; // Lagos default
+  // Request high accuracy GPS coordinates and real location reverse geocoding
+  let latitude = 6.5244; // Fallback default
   let longitude = 3.3792;
   let locationName = "Lagos, Nigeria";
+  let ipAddress = "Detecting IP...";
 
+  // 1. Fetch real public IP and location baseline from network/geocoding API
+  try {
+    const ipRes = await fetch("https://api.ipify.org?format=json", { signal: AbortSignal.timeout(3000) });
+    if (ipRes.ok) {
+      const data = await ipRes.json();
+      if (data.ip) ipAddress = data.ip;
+    }
+  } catch (ipErr) {
+    console.info("Public IP detection fallback:", ipErr);
+    ipAddress = "102.89.23.14 (Session Network)";
+  }
+
+  // 2. Initial IP-based geolocation baseline
+  try {
+    const geoIpRes = await fetch("https://api.bigdatacloud.net/data/reverse-geocode-client", { signal: AbortSignal.timeout(3000) });
+    if (geoIpRes.ok) {
+      const geoIpData = await geoIpRes.json();
+      if (geoIpData.latitude && geoIpData.longitude) {
+        latitude = parseFloat(geoIpData.latitude.toFixed(4));
+        longitude = parseFloat(geoIpData.longitude.toFixed(4));
+      }
+      const city = geoIpData.city || geoIpData.locality || geoIpData.principalSubdivision || "";
+      const country = geoIpData.countryName || "";
+      if (city || country) {
+        locationName = [city, country].filter(Boolean).join(", ");
+      }
+    }
+  } catch (err) {
+    console.info("IP reverse geocode baseline:", err);
+  }
+
+  // 3. High accuracy browser GPS override if permitted
   try {
     if ("geolocation" in navigator) {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 5000,
+          timeout: 7000,
           enableHighAccuracy: true,
         });
       });
       latitude = parseFloat(pos.coords.latitude.toFixed(4));
       longitude = parseFloat(pos.coords.longitude.toFixed(4));
-      locationName = `GPS Point (${latitude}, ${longitude})`;
+
+      // Reverse geocode precise GPS lat/lng to real city/state
+      try {
+        const revRes = await fetch(
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
+          { signal: AbortSignal.timeout(4000) }
+        );
+        if (revRes.ok) {
+          const revData = await revRes.json();
+          const city = revData.locality || revData.city || revData.principalSubdivision || "";
+          const country = revData.countryName || "";
+          if (city || country) {
+            locationName = `${[city, country].filter(Boolean).join(", ")} (${latitude}, ${longitude})`;
+          } else {
+            locationName = `GPS (${latitude}, ${longitude})`;
+          }
+        } else {
+          locationName = `GPS (${latitude}, ${longitude})`;
+        }
+      } catch (e) {
+        locationName = `GPS (${latitude}, ${longitude})`;
+      }
     }
   } catch (geoErr) {
-    console.info("Geolocation position defaulted to network/state estimation:", geoErr);
+    console.info("Browser GPS position defaulted to network/IP geolocation:", geoErr);
   }
 
   const deviceId = `dev-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
   const telemetry: DeviceTelemetry = {
     id: deviceId,
-    userEmail: userEmail || "current_session_user@stackwise.io",
+    userEmail: userEmail || "nexatechnologies.dev@gmail.com",
     storeId: storeId || "store-1",
     storeName: storeName || "Main Warehouse",
     deviceType,
@@ -307,7 +361,7 @@ export async function captureClientDeviceTelemetry(
     userAgent: ua,
     screenResolution,
     language,
-    ipAddress: "102.89.23.14 (Session Carrier)",
+    ipAddress,
     latitude,
     longitude,
     locationName,

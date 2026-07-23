@@ -72,7 +72,7 @@ export function SelfTrainingRecommendationsSection() {
   // Action handlers
   const handleAction = (rec: RecommendationItem) => {
     const { actionType, payload } = rec.suggestedAction;
-    const p = payload as Record<string, any>;
+    const p = payload as Record<string, unknown>;
 
     if (actionType === "apply_category") {
       const itemId = p.itemId as string;

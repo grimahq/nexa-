@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { getWhatsAppUrl } from "@/lib/whatsapp";
 import { useItems } from "@/hooks/useInventoryData";
 import { useInventoryMutation } from "@/hooks/useInventoryMutation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -537,7 +538,7 @@ export function SalesQuickScanCheckout() {
               onClick={() => {
                 const itemString = checkoutResult.items.map((i) => `• ${i.itemName} x${i.quantity}`).join("\n");
                 const text = `*New Sale Confirmed!* 🧾\n*Receipt:* ${checkoutResult.id}\n*Customer:* ${checkoutResult.customerName}\n\n*Items Purchased:*\n${itemString}\n\n*Total Paid:* ${NAIRA}${checkoutResult.totalNgn.toLocaleString()}\n\nThank you for shopping with ${storeName}!`;
-                window.open(`https://wa.me/${checkoutResult.customerPhone || ""}?text=${encodeURIComponent(text)}`, "_blank");
+                window.open(getWhatsAppUrl(checkoutResult.customerPhone || "2348132321056", text), "_blank");
               }}
             >
               <MessageCircle className="h-4 w-4" /> WhatsApp Share

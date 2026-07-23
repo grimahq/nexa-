@@ -11,6 +11,7 @@ import { Item } from "@/types/inventory";
 import { NexaLogo } from "@/components/shared/NexaLogo";
 import { logQRLeadEvent } from "@/utils/qrTracking";
 import { getCleanStoreSlug } from "@/lib/utils";
+import { getWhatsAppUrl } from "@/lib/whatsapp";
 import { useOnboarding, TourStep } from "@/hooks/useOnboarding";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { db } from "@/lib/firebase";
@@ -475,7 +476,7 @@ function StoreLayout() {
                     <Sparkles className="h-4 w-4 text-emerald-400" /> Chat with AI Assistant
                   </Button>
                   <a 
-                    href={`https://wa.me/${onboarding.storePhone || "+234"}?text=Hi! I am browsing your online store and need support.`}
+                    href={getWhatsAppUrl(onboarding.storePhone || "2348132321056", "Hi! I am browsing your online store and need support.")}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full"

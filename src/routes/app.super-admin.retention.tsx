@@ -69,7 +69,7 @@ const DEFAULT_EMAIL_TEMPLATES: RetentionEmailTemplate[] = [
     NEXAOS features advanced offline-first POS sync, supplier automated ordering, and real-time ledger accounting designed to keep your business running smoothly without friction.
   </p>
   <div style="text-align: center; margin: 30px 0;">
-    <a href="https://nexaos.io/app" style="background-color: #0d9488; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 700; display: inline-block;">Resume Operations</a>
+    <a href="/app" style="background-color: #0d9488; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 700; display: inline-block;">Resume Operations</a>
   </div>
   <p style="font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 16px; text-align: center;">
     Prepared by Nexa Technologies Support. Email: support@nexaos.com
@@ -93,7 +93,7 @@ const DEFAULT_EMAIL_TEMPLATES: RetentionEmailTemplate[] = [
     To prevent any service interruption or temporary restriction of cross-branch visibility and multi-terminal access, please hook up your payment details inside your Settings panel.
   </p>
   <div style="text-align: center; margin: 30px 0;">
-    <a href="https://nexaos.io/app/settings" style="background-color: #f59e0b; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 700; display: inline-block;">Update Payment Details</a>
+    <a href="/app/settings" style="background-color: #f59e0b; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 700; display: inline-block;">Update Payment Details</a>
   </div>
   <p style="font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 16px; text-align: center;">
     Automated billing safeguard desk. Nexa Technologies Nigeria.
@@ -122,7 +122,7 @@ const DEFAULT_EMAIL_TEMPLATES: RetentionEmailTemplate[] = [
     </ol>
   </p>
   <div style="text-align: center; margin: 30px 0;">
-    <a href="https://nexaos.io/app/catalog" style="background-color: #14b8a6; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 700; display: inline-block;">Upload Your First Product</a>
+    <a href="/app/catalog" style="background-color: #14b8a6; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 700; display: inline-block;">Upload Your First Product</a>
   </div>
 </div>`
   }

@@ -53,6 +53,7 @@ export function SuperAdminGeoMap() {
   const [selectedStore, setSelectedStore] = useState<StoreGeoNode | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<DeviceTelemetry | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isWatchingGps, setIsWatchingGps] = useState(false);
 
   // Firestore Real-time telemetry listener
   useEffect(() => {
@@ -78,7 +79,76 @@ export function SuperAdminGeoMap() {
     return () => unsubDevices();
   }, []);
 
-  // Capture local browser GPS & specs
+  // Auto-capture client device telemetry on initial render
+  useEffect(() => {
+    captureClientDeviceTelemetry(
+      "nexatechnologies.dev@gmail.com",
+      "store-1",
+      "Main Warehouse"
+    ).then((res) => {
+      if (res) {
+        setDevices((prev) => [res, ...prev.filter((d) => d.id !== res.id)]);
+      }
+    });
+  }, []);
+
+  // Continuous real-time GPS tracking stream
+  useEffect(() => {
+    if (!isWatchingGps || typeof window === "undefined" || !("geolocation" in navigator)) return;
+
+    toast.info("Live GPS Tracking Stream Active", {
+      description: "Continuously syncing real-time latitude & longitude coordinates...",
+    });
+
+    const watchId = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const latitude = parseFloat(pos.coords.latitude.toFixed(4));
+        const longitude = parseFloat(pos.coords.longitude.toFixed(4));
+
+        let locationName = `GPS Point (${latitude}, ${longitude})`;
+        try {
+          const revRes = await fetch(
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
+            { signal: AbortSignal.timeout(3000) }
+          );
+          if (revRes.ok) {
+            const revData = await revRes.json();
+            const city = revData.locality || revData.city || revData.principalSubdivision || "";
+            const country = revData.countryName || "";
+            if (city || country) {
+              locationName = `${[city, country].filter(Boolean).join(", ")} (${latitude}, ${longitude})`;
+            }
+          }
+        } catch (e) {
+          console.info("GPS watch reverse geocode fallback:", e);
+        }
+
+        setDevices((prev) => {
+          if (prev.length === 0) return prev;
+          const nextList = [...prev];
+          nextList[0] = {
+            ...nextList[0],
+            latitude,
+            longitude,
+            locationName,
+            lastActive: new Date().toISOString(),
+            status: "online",
+          };
+          return nextList;
+        });
+      },
+      (err) => {
+        console.warn("GPS watch error:", err);
+        toast.error("GPS stream stopped: " + err.message);
+        setIsWatchingGps(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [isWatchingGps]);
+
+  // Capture local browser GPS & specs manually
   const handleCaptureMyDevice = async () => {
     setIsCapturing(true);
     toast.info("Requesting browser GPS & hardware telemetry...", {
@@ -96,7 +166,7 @@ export function SuperAdminGeoMap() {
       setDevices((prev) => [res, ...prev.filter((d) => d.id !== res.id)]);
       setSelectedDevice(res);
       toast.success("Device Telemetry & GPS Coordinates Captured!", {
-        description: `Captured Lat: ${res.latitude}, Lng: ${res.longitude} on ${res.platform}.`,
+        description: `Captured Lat: ${res.latitude}, Lng: ${res.longitude} (${res.locationName}).`,
       });
     }
   };
@@ -128,18 +198,23 @@ export function SuperAdminGeoMap() {
     });
   }, [devices, search, deviceTypeFilter, statusFilter]);
 
-  // Map coordinates projection helper (Maps Lat/Lng around West Africa to SVG canvas coordinates)
-  // Nigerian bounding box roughly Lat: 4 to 14, Lng: 2.5 to 14.5
+  // Map coordinates projection helper (Maps Lat/Lng to SVG canvas coordinates)
   const getCanvasCoords = (lat: number, lng: number) => {
-    const minLat = 4.0;
-    const maxLat = 14.0;
-    const minLng = 2.5;
-    const maxLng = 14.5;
+    let minLat = 4.0;
+    let maxLat = 14.0;
+    let minLng = 2.5;
+    let maxLng = 14.5;
 
-    // Normalize 0% to 100%
-    const xPct = Math.max(8, Math.min(92, ((lng - minLng) / (maxLng - minLng)) * 100));
-    // SVG Y is inverted (top = high lat)
-    const yPct = Math.max(8, Math.min(92, (1 - (lat - minLat) / (maxLat - minLat)) * 100));
+    // Expand to global coordinate mapping if coordinates fall outside West Africa
+    if (lat < 3.0 || lat > 15.0 || lng < 1.0 || lng > 16.0) {
+      minLat = -60;
+      maxLat = 75;
+      minLng = -180;
+      maxLng = 180;
+    }
+
+    const xPct = Math.max(6, Math.min(94, ((lng - minLng) / (maxLng - minLng)) * 100));
+    const yPct = Math.max(6, Math.min(94, (1 - (lat - minLat) / (maxLat - minLat)) * 100));
 
     return { x: `${xPct.toFixed(1)}%`, y: `${yPct.toFixed(1)}%` };
   };
@@ -169,6 +244,17 @@ export function SuperAdminGeoMap() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={() => setIsWatchingGps(!isWatchingGps)}
+            variant={isWatchingGps ? "default" : "outline"}
+            className={`text-xs h-9 gap-2 font-medium ${
+              isWatchingGps ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""
+            }`}
+          >
+            <Activity className={`h-4 w-4 ${isWatchingGps ? "animate-spin text-white" : "text-emerald-500"}`} />
+            {isWatchingGps ? "Live GPS Stream Active" : "Enable Live GPS Stream"}
+          </Button>
+
           <Button
             onClick={handleCaptureMyDevice}
             disabled={isCapturing}

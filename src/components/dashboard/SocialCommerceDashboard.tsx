@@ -2,13 +2,18 @@ import { Globe, MessageCircle, Link as LinkIcon, Landmark, Eye, ShoppingCart, Ar
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
+import { getStorefrontUrl } from "@/lib/utils";
 
 export function SocialCommerceDashboard() {
   const { settings } = useSystemSettings();
   
-  const storeUrl = settings.storeSlug 
-    ? `nexa.store/${settings.storeSlug}`
-    : "Store Link Not Set";
+  const fullStoreUrl = settings.storeSlug 
+    ? getStorefrontUrl(settings.storeSlug)
+    : `${window.location.origin}/store/demo-store`;
+
+  const displayStoreUrl = settings.storeSlug 
+    ? `store/${settings.storeSlug}`
+    : "store/demo-store";
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -21,13 +26,13 @@ export function SocialCommerceDashboard() {
           <Badge variant="outline" className="bg-emerald-500/5 text-emerald-600 border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold">LIVE</Badge>
         </div>
         <h3 className="font-bold text-sm mb-1">Public Storefront</h3>
-        <p className="text-xs text-muted-foreground mb-4 font-mono truncate">{storeUrl}</p>
+        <p className="text-xs text-muted-foreground mb-4 font-mono truncate">{displayStoreUrl}</p>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="flex-1 h-8 text-[11px] gap-1.5" onClick={() => window.open(`https://${storeUrl}`, '_blank')}>
+          <Button size="sm" variant="outline" className="flex-1 h-8 text-[11px] gap-1.5" onClick={() => window.open(fullStoreUrl, '_blank')}>
             <Eye className="h-3 w-3" /> View
           </Button>
           <Button size="sm" variant="outline" className="flex-1 h-8 text-[11px] gap-1.5" onClick={() => {
-            navigator.clipboard.writeText(`https://${storeUrl}`);
+            navigator.clipboard.writeText(fullStoreUrl);
           }}>
             <LinkIcon className="h-3 w-3" /> Copy
           </Button>
@@ -68,7 +73,7 @@ export function SocialCommerceDashboard() {
         <h3 className="font-bold text-sm mb-1">WhatsApp Marketing</h3>
         <p className="text-xs text-muted-foreground mb-4">Share your catalog link to your status or groups.</p>
         <Button size="sm" className="w-full h-8 text-[11px] bg-[#25D366] hover:bg-[#1fb355] text-white gap-1.5" onClick={() => {
-           const text = `Browse our products here: https://${storeUrl}`;
+           const text = `Browse our products here: ${fullStoreUrl}`;
            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
         }}>
           Share Catalog <ArrowUpRight className="h-3 w-3" />
