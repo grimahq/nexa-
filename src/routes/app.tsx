@@ -20,9 +20,11 @@ import { MemberOnboarding } from "@/components/onboarding/MemberOnboarding";
 import { type PendingProduct } from "@/components/onboarding/BulkProductEntry";
 import { db, handleFirestoreError, OperationType } from "@/lib/firebase";
 import { doc, updateDoc, writeBatch, collection, onSnapshot } from "firebase/firestore";
-import { ShieldAlert } from "lucide-react";
+import { ShieldAlert, Lock, Clock, ExternalLink } from "lucide-react";
 import { useNotifications } from "@/hooks/useNotifications";
 import { PushNotificationPrompt } from "@/components/notifications/PushNotificationPrompt";
+import { inspectDeviceDemoPass } from "@/lib/demo-security";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/app")({
   component: AppLayout,
@@ -31,7 +33,7 @@ export const Route = createFileRoute("/app")({
 import { useAuth } from "@/contexts/AuthContext";
 
 function AppLayout() {
-  const { isDemo } = useDemo();
+  const { isDemo, enterDemoMode } = useDemo();
   const { user, profile, loading: authLoading } = useAuth();
   const { settings, loading: settingsLoading, setupStore } = useSystemSettings();
   const { role, isOwner, isAdmin, isSuperAdmin, permissions } = useRole();
@@ -42,6 +44,29 @@ function AppLayout() {
   const [memberOnboarding, setMemberOnboarding] = useState(false);
   const [lockedFeatures, setLockedFeatures] = useState<string[]>([]);
   const { data: notifications } = useNotifications();
+
+  // 12-Hour Device Demo Lock Expiration Modal state
+  const [showDemoExpiredModal, setShowDemoExpiredModal] = useState(false);
+  const [demoPassAgent, setDemoPassAgent] = useState("Stackwise Agent");
+
+  // Auto-detect ?demo_pass=active in URL parameters on load
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const demoPassParam = urlParams.get("demo_pass");
+
+    if (demoPassParam === "active") {
+      if (!isDemo) {
+        enterDemoMode();
+      }
+
+      const passStatus = inspectDeviceDemoPass(urlParams);
+      if (passStatus.isExpired) {
+        setShowDemoExpiredModal(true);
+        setDemoPassAgent(passStatus.agentName);
+      }
+    }
+  }, [isDemo, enterDemoMode]);
 
   const [sidebarMinimized, setSidebarMinimized] = useState(() => {
     return localStorage.getItem("nexa_sidebar_minimized") === "true";
@@ -371,6 +396,53 @@ function AppLayout() {
       <AIAssistantWidget />
       <PushNotificationPrompt />
       <ShortcutsHelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
+
+      {/* 12-Hour Device Demo Pass Expired Modal Alert */}
+      {showDemoExpiredModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-card border border-amber-500/30 rounded-2xl max-w-md w-full p-6 text-center space-y-5 shadow-2xl relative">
+            <div className="mx-auto w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
+              <Lock className="h-7 w-7 animate-bounce" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-lg font-bold text-foreground font-sans">
+                🔒 12-Hour Demo Pass Expired
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Your 12-hour interactive preview pass on this device has concluded. To continue using Stackwise or activate your merchant store subscription, please reach out to your assigned representative.
+              </p>
+            </div>
+
+            <div className="p-3 bg-muted/40 rounded-xl border border-muted-foreground/10 text-xs text-left space-y-1 font-sans">
+              <span className="text-[10px] uppercase font-bold text-primary block">Assigned Representative:</span>
+              <p className="font-semibold text-foreground">{demoPassAgent}</p>
+              <p className="text-[11px] text-muted-foreground">Device Security Lock Status: Session Expired</p>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-1">
+              <Button
+                variant="default"
+                size="sm"
+                className="w-full text-xs font-bold h-9 bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+                onClick={() => {
+                  window.location.href = "/agents";
+                }}
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Contact Agent / Activate Merchant License
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-xs text-muted-foreground h-8"
+                onClick={() => setShowDemoExpiredModal(false)}
+              >
+                Dismiss Notice
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

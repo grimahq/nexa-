@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDemo } from "@/hooks/useDemo";
 import { useRole } from "@/hooks/useRole";
-import { X, ChevronDown } from "lucide-react";
+import { X, ChevronDown, Lock, Clock, ShieldAlert } from "lucide-react";
 import type { UserRoleType } from "@/lib/roles";
 import {
   DropdownMenu,
@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { inspectDeviceDemoPass } from "@/lib/demo-security";
 
 const roles: { value: UserRoleType | "requestor"; label: string }[] = [
   { value: "admin", label: "Admin" },
@@ -31,6 +32,19 @@ export function DemoBanner() {
   const { isDemo, onboarding, updateOnboarding } = useDemo();
   const { role, setDemoRole } = useRole();
   const [dismissed, setDismissed] = useState(false);
+  const [demoPassInfo, setDemoPassInfo] = useState(() => inspectDeviceDemoPass());
+
+  // Ticking timer for 12-hour device lock countdown
+  useEffect(() => {
+    if (!isDemo) return;
+
+    const interval = setInterval(() => {
+      const info = inspectDeviceDemoPass();
+      setDemoPassInfo(info);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isDemo]);
 
   if (!isDemo || dismissed) return null;
 
@@ -39,9 +53,17 @@ export function DemoBanner() {
   const currentSectorIcon = SECTORS.find((s) => s.value === onboarding.businessType)?.icon ?? "🛒";
 
   return (
-    <div className="sticky top-0 z-50 flex h-10 w-full items-center justify-between bg-primary px-3 text-sm font-medium text-primary-foreground">
-      {/* Spacer for symmetry */}
-      <div className="w-8 shrink-0" />
+    <div className="sticky top-0 z-50 flex h-10 w-full items-center justify-between bg-primary px-3 text-sm font-medium text-primary-foreground shadow-sm">
+      {/* Device Lock Status Indicator */}
+      {demoPassInfo.lockData ? (
+        <div className="flex items-center gap-1.5 bg-amber-500/20 px-2 py-0.5 rounded text-[11px] font-bold border border-amber-400/30 text-amber-200">
+          <Lock className="h-3 w-3 text-amber-400 animate-pulse" />
+          <span>Device Lock:</span>
+          <span className="font-mono text-amber-300">{demoPassInfo.remainingFormatted}</span>
+        </div>
+      ) : (
+        <div className="w-8 shrink-0" />
+      )}
 
       {/* Centred content */}
       <div className="flex items-center gap-2 sm:gap-3">
@@ -101,9 +123,15 @@ export function DemoBanner() {
           </DropdownMenu>
         </div>
 
-        <span className="hidden lg:inline text-primary-foreground/60 font-light">
-          · data resets each session
-        </span>
+        {demoPassInfo.lockData ? (
+          <span className="hidden lg:inline text-amber-200 text-xs font-semibold">
+            · 12h Demo Pass ({demoPassInfo.agentName})
+          </span>
+        ) : (
+          <span className="hidden lg:inline text-primary-foreground/60 font-light">
+            · data resets each session
+          </span>
+        )}
       </div>
 
       <button
@@ -117,3 +145,4 @@ export function DemoBanner() {
     </div>
   );
 }
+

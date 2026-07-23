@@ -26,6 +26,7 @@ const SECTOR_COLORS: Record<string, string> = {
 function SuperAdminIndex() {
   const { superStores, logs } = useSuperAdminContext();
   const [searchLog, setSearchLog] = useState("");
+  const [logCategoryFilter, setLogCategoryFilter] = useState<"all" | "users" | "paid" | "broadcasts" | "alerts">("all");
 
   // Log Details & Deletion Dialog state
   const [isViewOpen, setIsViewOpen] = useState(false);
@@ -54,13 +55,29 @@ function SuperAdminIndex() {
   }, [superStores]);
 
   const filteredLogs = useMemo(() => {
-    return logs.filter(
-      l =>
+    return logs.filter(l => {
+      const matchSearch =
         l.action.toLowerCase().includes(searchLog.toLowerCase()) ||
         l.user.toLowerCase().includes(searchLog.toLowerCase()) ||
-        l.store.toLowerCase().includes(searchLog.toLowerCase())
-    );
-  }, [logs, searchLog]);
+        l.store.toLowerCase().includes(searchLog.toLowerCase());
+
+      if (!matchSearch) return false;
+
+      if (logCategoryFilter === "users") {
+        return l.action.toLowerCase().includes("user") || l.action.toLowerCase().includes("staff") || l.action.toLowerCase().includes("registered");
+      }
+      if (logCategoryFilter === "paid") {
+        return l.action.toLowerCase().includes("payment") || l.action.toLowerCase().includes("subscription") || l.action.toLowerCase().includes("upgrade") || l.action.toLowerCase().includes("plan");
+      }
+      if (logCategoryFilter === "broadcasts") {
+        return l.action.toLowerCase().includes("broadcast") || l.action.toLowerCase().includes("whatsapp") || l.action.toLowerCase().includes("dispatched");
+      }
+      if (logCategoryFilter === "alerts") {
+        return l.status === "warning" || l.action.toLowerCase().includes("alert") || l.action.toLowerCase().includes("locked");
+      }
+      return true;
+    });
+  }, [logs, searchLog, logCategoryFilter]);
 
   return (
     <div className="grid gap-6 md:grid-cols-3">
@@ -135,20 +152,74 @@ function SuperAdminIndex() {
 
       {/* System events logs */}
       <Card className="md:col-span-3 shadow-none border border-muted-foreground/10">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4">
           <div>
-            <CardTitle className="text-lg font-bold font-sans">System Events Feed</CardTitle>
-            <CardDescription>Live audit-trail of cross-branch actions and alerts.</CardDescription>
+            <CardTitle className="text-lg font-bold font-sans flex items-center gap-2">
+              System Activity & Live Audit Feed
+              <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-bold">
+                {filteredLogs.length} Events Tracked
+              </Badge>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Fast, real-time audit trail monitoring user registrations, subscription payments, targeted broadcasts, and system errors.
+            </CardDescription>
           </div>
-          <div className="relative w-72">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Filter by actor, action or store..."
-              className="pl-9 h-9 text-xs"
-              value={searchLog}
-              onChange={(e) => setSearchLog(e.target.value)}
-            />
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            {/* Filter Category Badges */}
+            <div className="flex flex-wrap gap-1">
+              <Button
+                variant={logCategoryFilter === "all" ? "default" : "outline"}
+                size="sm"
+                className="text-[11px] h-7 px-2.5"
+                onClick={() => setLogCategoryFilter("all")}
+              >
+                All
+              </Button>
+              <Button
+                variant={logCategoryFilter === "users" ? "default" : "outline"}
+                size="sm"
+                className="text-[11px] h-7 px-2.5 text-blue-500"
+                onClick={() => setLogCategoryFilter("users")}
+              >
+                Users
+              </Button>
+              <Button
+                variant={logCategoryFilter === "paid" ? "default" : "outline"}
+                size="sm"
+                className="text-[11px] h-7 px-2.5 text-emerald-500"
+                onClick={() => setLogCategoryFilter("paid")}
+              >
+                Paid
+              </Button>
+              <Button
+                variant={logCategoryFilter === "broadcasts" ? "default" : "outline"}
+                size="sm"
+                className="text-[11px] h-7 px-2.5 text-purple-500"
+                onClick={() => setLogCategoryFilter("broadcasts")}
+              >
+                Broadcasts
+              </Button>
+              <Button
+                variant={logCategoryFilter === "alerts" ? "default" : "outline"}
+                size="sm"
+                className="text-[11px] h-7 px-2.5 text-amber-500"
+                onClick={() => setLogCategoryFilter("alerts")}
+              >
+                Alerts
+              </Button>
+            </div>
+
+            <div className="relative w-full sm:w-60">
+              <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search actor, store or action..."
+                className="pl-8 h-8 text-xs"
+                value={searchLog}
+                onChange={(e) => setSearchLog(e.target.value)}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent>

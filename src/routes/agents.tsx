@@ -53,7 +53,12 @@ import {
   FileText,
   HelpCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  Video,
+  Lock,
+  BookOpen,
+  ExternalLink,
+  Share2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
@@ -64,6 +69,9 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import gsap from "gsap";
 import "@/styles/landing.css";
+import { INITIAL_COURSE_MODULES, CourseModule } from "@/lib/course-data";
+import { ProtectedTourGuideViewer } from "@/components/shared/ProtectedTourGuideViewer";
+import { DemoPassGeneratorModal } from "@/components/shared/DemoPassGeneratorModal";
 
 export const Route = createFileRoute("/agents")({
   component: AgentsPage,
@@ -171,7 +179,12 @@ export function AgentsPage() {
   const [settingsPhone, setSettingsPhone] = useState("");
   const [settingsRegion, setSettingsRegion] = useState("");
   const [settingsRefCode, setSettingsRefCode] = useState("");
-  const [activeTab, setActiveTab] = useState<"performance" | "referrals" | "earnings" | "settings">("performance");
+  const [activeTab, setActiveTab] = useState<"performance" | "referrals" | "earnings" | "settings" | "academy">("performance");
+
+  // Academy & Demo Pass Modal State
+  const [showAgentDemoModal, setShowAgentDemoModal] = useState(false);
+  const [selectedAcademyCourse, setSelectedAcademyCourse] = useState<CourseModule>(INITIAL_COURSE_MODULES[0]);
+  const [agentVideoUrl, setAgentVideoUrl] = useState<string | null>(null);
 
   // Copy Feedback
   const [copiedLink, setCopiedLink] = useState(false);
@@ -1767,6 +1780,14 @@ export function AgentsPage() {
               Payout Records ({earnings.length})
             </button>
             <button 
+              onClick={() => setActiveTab("academy")}
+              className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === "academy" ? "border-[#00C4CF] text-[#00C4CF]" : "border-transparent text-slate-400 hover:text-white"
+              }`}
+            >
+              <span>🎓</span> Marketing &amp; Course Academy
+            </button>
+            <button 
               onClick={() => setActiveTab("settings")}
               className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
                 activeTab === "settings" ? "border-[#00C4CF] text-[#00C4CF]" : "border-transparent text-slate-400 hover:text-white"
@@ -1886,6 +1907,171 @@ export function AgentsPage() {
                   </div>
                 )}
               </Card>
+            )}
+
+            {activeTab === "academy" && (
+              <div className="space-y-6">
+                {/* Header Banner */}
+                <Card className="bg-[#141528] border border-white/10 text-white rounded-2xl p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-[#00C4CF]/20 text-[#00C4CF] border-none text-[10px] uppercase font-bold">
+                          Field Agent Hub
+                        </Badge>
+                        <span className="text-xs text-slate-400 font-mono">
+                          {INITIAL_COURSE_MODULES.length} Course Modules
+                        </span>
+                      </div>
+                      <h2 className="text-xl font-bold font-['Bricolage_Grotesque'] text-white">
+                        Agent Marketing &amp; Course Training Academy
+                      </h2>
+                      <p className="text-xs text-slate-400 max-w-2xl">
+                        Access high-converting field pitch scripts, watch step-by-step video tutorials, share protected PDF tour guides, and generate 12-hour device-locked demo links for prospective merchants.
+                      </p>
+                    </div>
+
+                    <Button
+                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs h-10 gap-2 shrink-0 rounded-xl"
+                      onClick={() => setShowAgentDemoModal(true)}
+                    >
+                      <Lock className="h-4 w-4 text-amber-900" /> Generate 12h Demo Link
+                    </Button>
+                  </div>
+                </Card>
+
+                {/* Course Modules Grid */}
+                <div className="grid gap-6 md:grid-cols-3">
+                  {/* Sidebar list */}
+                  <div className="space-y-2 md:col-span-1">
+                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-400 block mb-2">
+                      Training Modules
+                    </span>
+                    {INITIAL_COURSE_MODULES.map((mod) => (
+                      <div
+                        key={mod.id}
+                        onClick={() => setSelectedAcademyCourse(mod)}
+                        className={`p-3.5 rounded-xl border transition-all cursor-pointer space-y-1.5 ${
+                          selectedAcademyCourse.id === mod.id
+                            ? "bg-[#2B5BFF]/20 border-[#2B5BFF] text-white"
+                            : "bg-[#141528] border-white/10 hover:bg-white/5 text-slate-400"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <Badge variant="outline" className="text-[9px] uppercase border-white/20 text-slate-300">
+                            {mod.category}
+                          </Badge>
+                          <span className="text-[10px] font-mono text-slate-400">{mod.duration}</span>
+                        </div>
+                        <h3 className="text-xs font-bold text-white line-clamp-2">{mod.title}</h3>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Active Course Detail & Tour Guide */}
+                  <div className="space-y-4 md:col-span-2">
+                    <Card className="bg-[#141528] border border-white/10 text-white rounded-2xl p-6 space-y-4">
+                      <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                        <div>
+                          <Badge className="bg-rose-500/20 text-rose-400 border-none text-[10px] uppercase font-bold mb-1">
+                            <Video className="h-3 w-3 mr-1" /> Training Video
+                          </Badge>
+                          <h3 className="text-base font-bold text-white">{selectedAcademyCourse.title}</h3>
+                        </div>
+                        <span className="text-xs font-mono text-slate-400 bg-white/5 px-2 py-1 rounded">
+                          {selectedAcademyCourse.duration}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        {selectedAcademyCourse.description}
+                      </p>
+
+                      <div className="aspect-video bg-black/80 rounded-xl flex flex-col items-center justify-center p-6 text-center space-y-3 border border-white/10">
+                        <Video className="h-10 w-10 text-rose-500 animate-pulse" />
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-bold text-white">Video Lesson Link</p>
+                          <p className="text-[11px] text-slate-400 font-mono max-w-sm truncate">
+                            {selectedAcademyCourse.videoUrl}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold gap-2"
+                          onClick={() => setAgentVideoUrl(selectedAcademyCourse.videoUrl)}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" /> Watch Video Tutorial
+                        </Button>
+                      </div>
+
+                      {selectedAcademyCourse.pitchScript && (
+                        <div className="p-3.5 bg-[#2B5BFF]/10 rounded-xl border border-[#2B5BFF]/20 space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-[#7B9FFF] block">
+                            Recommended Pitch Script:
+                          </span>
+                          <p className="italic text-xs text-slate-200">
+                            "{selectedAcademyCourse.pitchScript}"
+                          </p>
+                        </div>
+                      )}
+                    </Card>
+
+                    {/* Protected Tour Guide Component */}
+                    <ProtectedTourGuideViewer
+                      module={selectedAcademyCourse}
+                      agentName={agentProfile.fullName}
+                      onOpenVideo={(url) => setAgentVideoUrl(url)}
+                    />
+                  </div>
+                </div>
+
+                {/* Video Modal Player */}
+                {agentVideoUrl && (
+                  <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-[#141528] border border-white/20 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl relative text-white">
+                      <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Video className="h-5 w-5 text-rose-500" />
+                          <h3 className="font-bold text-sm text-white">Stackwise Agent Video Tutorial</h3>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+                          onClick={() => setAgentVideoUrl(null)}
+                        >
+                          ✕
+                        </Button>
+                      </div>
+
+                      <div className="aspect-video bg-black rounded-xl flex flex-col items-center justify-center p-6 text-center space-y-3 border border-white/10">
+                        <Video className="h-12 w-12 text-rose-500 animate-pulse" />
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold text-white">Module Video Lesson</p>
+                          <p className="text-xs text-slate-400 font-mono truncate max-w-sm">{agentVideoUrl}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs gap-2"
+                          onClick={() => window.open(agentVideoUrl, "_blank", "noopener,noreferrer")}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" /> Open in Full Player
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 12-Hour Device Demo Generator Pass Modal */}
+                {showAgentDemoModal && (
+                  <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <DemoPassGeneratorModal
+                      defaultAgentName={agentProfile.fullName}
+                      onClose={() => setShowAgentDemoModal(false)}
+                    />
+                  </div>
+                )}
+              </div>
             )}
 
             {activeTab === "settings" && (

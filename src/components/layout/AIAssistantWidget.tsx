@@ -112,7 +112,7 @@ export function AIAssistantWidget() {
         }
       }
     } catch (e) {
-      // ignore
+      console.warn("Storage initial load error:", e);
     }
     return true; // Default enabled for Pro & Enterprise
   });

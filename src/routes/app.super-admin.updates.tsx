@@ -1,16 +1,35 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useSuperAdminContext } from "./app.super-admin";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { MessageSquare, Smartphone, Info, ExternalLink, ShieldAlert, Lock, Unlock, Radio } from "lucide-react";
+import {
+  MessageSquare,
+  Smartphone,
+  Info,
+  ExternalLink,
+  ShieldAlert,
+  Lock,
+  Unlock,
+  Radio,
+  Send,
+  Bell,
+  Mail,
+  UserPlus,
+  CreditCard,
+  Users,
+  Building2,
+  CheckCircle2,
+  Sparkles,
+} from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getWhatsAppUrl } from "@/lib/whatsapp";
 import { db } from "@/lib/firebase";
-import { doc, setDoc, onSnapshot } from "firebase/firestore";
+import { doc, setDoc, onSnapshot, collection, addDoc } from "firebase/firestore";
 import { useDemo } from "@/hooks/useDemo";
 import { useCreateNotification } from "@/hooks/useInventoryMutations";
 
@@ -19,12 +38,25 @@ export const Route = createFileRoute("/app/super-admin/updates")({
 });
 
 function SuperAdminUpdates() {
-  const { whatsapp, setWhatsapp, setLogs } = useSuperAdminContext();
+  const { superStores, superUsers, whatsapp, setWhatsapp, setLogs } = useSuperAdminContext();
   const { isDemo, demoStore, bumpVersion } = useDemo();
   const { mutate: createNotification } = useCreateNotification();
 
   // Feature Locks State
   const [lockedFeatures, setLockedFeatures] = useState<string[]>([]);
+
+  // Targeted Broadcast State
+  const [targetAudience, setTargetAudience] = useState<"all" | "store" | "user" | "paid" | "new_users">("all");
+  const [targetStoreId, setTargetStoreId] = useState<string>("");
+  const [targetUserId, setTargetUserId] = useState<string>("");
+  const [broadcastTitle, setBroadcastTitle] = useState("");
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [sendInApp, setSendInApp] = useState(true);
+  const [sendEmail, setSendEmail] = useState(true);
+  const [sendWhatsApp, setSendWhatsApp] = useState(true);
+
+  // Filter state for Super Admin Event Feed
+  const [feedFilter, setFeedFilter] = useState<"all" | "new_users" | "paid_users">("all");
 
   // Synchronize Feature Locks
   useEffect(() => {
@@ -53,6 +85,159 @@ function SuperAdminUpdates() {
       return unsub;
     }
   }, [isDemo]);
+
+  // Derived lists for New Users and Paid Users
+  const newUsersList = useMemo(() => {
+    return [...superUsers].sort((a, b) => new Date(b.joinedDate).getTime() - new Date(a.joinedDate).getTime());
+  }, [superUsers]);
+
+  const paidStoresList = useMemo(() => {
+    return superStores.filter(s => s.valuationNgn > 0 || s.itemCount > 10 || s.status === "active");
+  }, [superStores]);
+
+  // Handle Targeted Broadcast Dispatch
+  const handleDispatchBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!broadcastTitle.trim() || !broadcastMessage.trim()) {
+      toast.error("Please provide both a broadcast title and message body.");
+      return;
+    }
+
+    if (!sendInApp && !sendEmail && !sendWhatsApp) {
+      toast.error("Please select at least one dispatch channel (In-App, Email, or WhatsApp).");
+      return;
+    }
+
+    let targetDescription = "All Users & Stores";
+    let recipientCount = superUsers.length;
+
+    if (targetAudience === "store") {
+      const storeObj = superStores.find(s => s.id === targetStoreId);
+      if (!storeObj) {
+        toast.error("Please select a valid target store branch.");
+        return;
+      }
+      targetDescription = `Branch: ${storeObj.name}`;
+      recipientCount = superUsers.filter(u => u.storeId === storeObj.id).length || 1;
+    } else if (targetAudience === "user") {
+      const userObj = superUsers.find(u => u.id === targetUserId);
+      if (!userObj) {
+        toast.error("Please select a valid target user.");
+        return;
+      }
+      targetDescription = `User: ${userObj.name} (${userObj.email})`;
+      recipientCount = 1;
+    } else if (targetAudience === "paid") {
+      targetDescription = "Paid Subscriber Merchants";
+      recipientCount = paidStoresList.length;
+    } else if (targetAudience === "new_users") {
+      targetDescription = "Newly Onboarded Staff & Users";
+      recipientCount = newUsersList.length;
+    }
+
+    try {
+      const now = new Date().toISOString();
+      const notifId = `broadcast-${Date.now()}`;
+
+      // 1. In-App Notification Dispatch
+      if (sendInApp) {
+        const notifPayload = {
+          id: notifId,
+          type: "po_update" as const,
+          title: `📢 ${broadcastTitle}`,
+          message: broadcastMessage,
+          isRead: false,
+          read: false,
+          createdAt: now,
+          targetAudience,
+          targetStoreId: targetAudience === "store" ? targetStoreId : null,
+          targetUserId: targetAudience === "user" ? targetUserId : null,
+        };
+
+        if (isDemo && demoStore) {
+          demoStore.addNotification(notifPayload);
+          bumpVersion();
+        } else {
+          try {
+            await addDoc(collection(db, "notifications"), notifPayload);
+          } catch (e) {
+            console.warn("Firestore notification create fallback:", e);
+            createNotification(notifPayload);
+          }
+        }
+      }
+
+      // 2. Email Dispatch Action (Opens Mailto or logs email dispatch)
+      if (sendEmail) {
+        let recipientEmail = "nexatechnologies.dev@gmail.com";
+        if (targetAudience === "user") {
+          const userObj = superUsers.find(u => u.id === targetUserId);
+          if (userObj?.email) recipientEmail = userObj.email;
+        } else if (targetAudience === "store") {
+          const storeObj = superStores.find(s => s.id === targetStoreId);
+          if (storeObj?.managerEmail) recipientEmail = storeObj.managerEmail;
+        }
+
+        const mailtoUri = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(
+          `[Stackwise System Alert] ${broadcastTitle}`
+        )}&body=${encodeURIComponent(broadcastMessage)}`;
+
+        // Open mail client safely
+        window.open(mailtoUri, "_blank", "noopener,noreferrer");
+      }
+
+      // 3. WhatsApp Dispatch Action
+      if (sendWhatsApp) {
+        let targetPhone = whatsapp.defaultPrefix || "+2348000000000";
+        if (targetAudience === "store") {
+          const storeObj = superStores.find(s => s.id === targetStoreId);
+          if (storeObj?.manager) {
+            targetPhone = "+2348012345678"; // default store manager phone
+          }
+        }
+        const cleanPhone = targetPhone.replace(/\D/g, "");
+        const waLink = getWhatsAppUrl(cleanPhone, `*[Stackwise Alert: ${broadcastTitle}]*\n\n${broadcastMessage}`);
+        window.open(waLink, "_blank", "noopener,noreferrer");
+      }
+
+      // 4. Log to System Audit Trail
+      const channelsUsed = [sendInApp && "In-App", sendEmail && "Email", sendWhatsApp && "WhatsApp"]
+        .filter(Boolean)
+        .join(", ");
+
+      const newLogId = `log-${Date.now()}`;
+      const logEntry = {
+        id: newLogId,
+        timestamp: now,
+        user: "nexatechnologies.dev@gmail.com (Super Admin)",
+        action: `Dispatched Targeted Broadcast "${broadcastTitle}" to [${targetDescription}] via (${channelsUsed})`,
+        store: targetAudience === "store" ? targetStoreId : "System-wide",
+        status: "success" as const,
+      };
+
+      if (isDemo) {
+        setLogs(prev => [logEntry, ...prev]);
+      } else {
+        await setDoc(doc(db, "system_logs", newLogId), logEntry);
+      }
+
+      toast.success(`Broadcast successfully sent to ${recipientCount} recipient(s) via [${channelsUsed}]!`);
+
+      // Reset form title/message
+      setBroadcastTitle("");
+      setBroadcastMessage("");
+    } catch (err) {
+      console.error("Failed to dispatch broadcast:", err);
+      toast.error("Failed to complete broadcast dispatch.");
+    }
+  };
+
+  // Quick Template Helper
+  const applyTemplate = (title: string, msg: string) => {
+    setBroadcastTitle(title);
+    setBroadcastMessage(msg);
+    toast.info(`Applied template: "${title}"`);
+  };
 
   // Toggle Feature Lock Handler
   const toggleFeatureLock = async (featureId: string, label: string) => {
@@ -187,6 +372,323 @@ function SuperAdminUpdates() {
 
   return (
     <div className="space-y-6">
+      {/* Targeted Broadcast & Multi-Channel Notification Hub */}
+      <Card className="shadow-none border border-muted-foreground/10">
+        <form onSubmit={handleDispatchBroadcast}>
+          <CardHeader className="bg-primary/5 border-b border-muted-foreground/10 pb-5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <CardTitle className="text-xl font-bold font-sans flex items-center gap-2 text-primary">
+                  <Send className="h-5.5 w-5.5 text-primary animate-bounce" /> Targeted Notification & Broadcast Engine
+                </CardTitle>
+                <CardDescription className="text-xs max-w-2xl">
+                  Dispatch custom targeted in-app push notifications, emails, or WhatsApp broadcasts to specific users, store branches, or user cohorts in real-time.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold uppercase py-1 text-xs">
+                  <Radio className="h-3 w-3 mr-1 animate-pulse" /> Live Dispatch Gateway
+                </Badge>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-6 space-y-6">
+            {/* Target Selection Controls */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-primary" /> Target Audience Segment
+                </Label>
+                <Select value={targetAudience} onValueChange={(v: "all" | "store" | "user" | "paid" | "new_users") => setTargetAudience(v)}>
+                  <SelectTrigger className="text-xs h-9 font-medium">
+                    <SelectValue placeholder="Select target segment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all" className="text-xs font-medium">🌐 All Users & Store Branches ({superUsers.length})</SelectItem>
+                    <SelectItem value="store" className="text-xs font-medium">🏢 Specific Store Branch</SelectItem>
+                    <SelectItem value="user" className="text-xs font-medium">👤 Specific User Profile</SelectItem>
+                    <SelectItem value="paid" className="text-xs font-medium">💳 Paid Subscriber Merchants ({paidStoresList.length})</SelectItem>
+                    <SelectItem value="new_users" className="text-xs font-medium">🆕 Newly Onboarded Users ({newUsersList.length})</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Conditional Store Dropdown */}
+              {targetAudience === "store" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5 text-emerald-500" /> Select Target Branch
+                  </Label>
+                  <Select value={targetStoreId} onValueChange={setTargetStoreId}>
+                    <SelectTrigger className="text-xs h-9 font-medium">
+                      <SelectValue placeholder="Choose store branch..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {superStores.map(store => (
+                        <SelectItem key={store.id} value={store.id} className="text-xs">
+                          {store.name} ({store.sector}) - Manager: {store.manager}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Conditional User Dropdown */}
+              {targetAudience === "user" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 text-blue-500" /> Select Target User
+                  </Label>
+                  <Select value={targetUserId} onValueChange={setTargetUserId}>
+                    <SelectTrigger className="text-xs h-9 font-medium">
+                      <SelectValue placeholder="Choose user..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {superUsers.map(u => (
+                        <SelectItem key={u.id} value={u.id} className="text-xs">
+                          {u.name} ({u.email}) - {u.storeName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Multi-Channel Checkbox Toggles */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold block">Dispatch Channels</Label>
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer bg-muted/30 px-2.5 py-1.5 rounded-md border border-muted-foreground/10 hover:bg-muted/50 transition">
+                    <input type="checkbox" checked={sendInApp} onChange={e => setSendInApp(e.target.checked)} className="rounded text-primary focus:ring-primary" />
+                    <Bell className="h-3.5 w-3.5 text-amber-500" /> In-App Bell
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer bg-muted/30 px-2.5 py-1.5 rounded-md border border-muted-foreground/10 hover:bg-muted/50 transition">
+                    <input type="checkbox" checked={sendEmail} onChange={e => setSendEmail(e.target.checked)} className="rounded text-primary focus:ring-primary" />
+                    <Mail className="h-3.5 w-3.5 text-blue-500" /> Email Alert
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer bg-muted/30 px-2.5 py-1.5 rounded-md border border-muted-foreground/10 hover:bg-muted/50 transition">
+                    <input type="checkbox" checked={sendWhatsApp} onChange={e => setSendWhatsApp(e.target.checked)} className="rounded text-primary focus:ring-primary" />
+                    <Smartphone className="h-3.5 w-3.5 text-emerald-500" /> WhatsApp
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Templates Buttons */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Quick Template Presets
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-[11px] h-7 gap-1 border-muted-foreground/20 hover:bg-secondary"
+                  onClick={() => applyTemplate("Scheduled Maintenance Notice", "Please be advised that Stackwise system maintenance is scheduled tonight from 2:00 AM to 3:00 AM WAT. Brief service interruptions may occur.")}
+                >
+                  <Sparkles className="h-3 w-3 text-amber-500" /> Scheduled Maintenance
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-[11px] h-7 gap-1 border-muted-foreground/20 hover:bg-secondary"
+                  onClick={() => applyTemplate("Subscription Tier Renewal Notice", "Your merchant branch subscription is due for renewal. Please verify your invoice details in the Subscriptions Hub to maintain uninterrupted service.")}
+                >
+                  <CreditCard className="h-3 w-3 text-emerald-500" /> Subscription Renewal
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-[11px] h-7 gap-1 border-muted-foreground/20 hover:bg-secondary"
+                  onClick={() => applyTemplate("New Feature Release Announcement", "We have enabled new AI Copilot & Automated Inventory Auditing capabilities for your branch! Visit the Dashboard to explore the updates.")}
+                >
+                  <CheckCircle2 className="h-3 w-3 text-blue-500" /> New Feature Release
+                </Button>
+              </div>
+            </div>
+
+            {/* Broadcast Title and Message Inputs */}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="broadcast-title" className="text-xs font-semibold">Broadcast Title / Subject</Label>
+                <Input
+                  id="broadcast-title"
+                  placeholder="e.g. Critical System Maintenance or Exclusive Offer..."
+                  value={broadcastTitle}
+                  onChange={e => setBroadcastTitle(e.target.value)}
+                  className="text-xs font-sans h-9"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="broadcast-message" className="text-xs font-semibold">Message Body Payload</Label>
+                <textarea
+                  id="broadcast-message"
+                  placeholder="Write clear, detailed messaging to be dispatched across selected channels..."
+                  value={broadcastMessage}
+                  onChange={e => setBroadcastMessage(e.target.value)}
+                  className="w-full text-xs font-sans p-3 border border-input rounded-md bg-background focus:outline-none min-h-[90px]"
+                />
+              </div>
+            </div>
+          </CardContent>
+
+          <CardFooter className="pt-3 pb-5 border-t border-muted-foreground/10 flex justify-between items-center bg-muted/10 px-6">
+            <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+              <Info className="h-3.5 w-3.5 text-primary" /> Dispatches instantly to targeted users across selected active channels.
+            </span>
+            <Button type="submit" className="text-xs h-9 font-bold bg-primary hover:bg-primary/95 text-white gap-2 shadow-md">
+              <Send className="h-3.5 w-3.5" /> Dispatch Targeted Broadcast
+            </Button>
+          </CardFooter>
+        </form>
+      </Card>
+
+      {/* Super Admin Live Feed: New Users & Paid Users Notifications */}
+      <Card className="shadow-none border border-muted-foreground/10">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4">
+          <div>
+            <CardTitle className="text-lg font-bold font-sans flex items-center gap-2">
+              <Bell className="h-5 w-5 text-amber-500" /> Super Admin Live Notification Desk
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Real-time feed tracking new user sign-ups, staff registrations, and paid subscription upgrades.
+            </CardDescription>
+          </div>
+
+          {/* Feed Filter Buttons */}
+          <div className="flex items-center gap-1.5 mt-2 sm:mt-0">
+            <Button
+              variant={feedFilter === "all" ? "default" : "outline"}
+              size="sm"
+              className="text-xs h-8"
+              onClick={() => setFeedFilter("all")}
+            >
+              All Activity
+            </Button>
+            <Button
+              variant={feedFilter === "new_users" ? "default" : "outline"}
+              size="sm"
+              className="text-xs h-8 gap-1"
+              onClick={() => setFeedFilter("new_users")}
+            >
+              <UserPlus className="h-3 w-3 text-blue-500" /> New Users ({newUsersList.length})
+            </Button>
+            <Button
+              variant={feedFilter === "paid_users" ? "default" : "outline"}
+              size="sm"
+              className="text-xs h-8 gap-1"
+              onClick={() => setFeedFilter("paid_users")}
+            >
+              <CreditCard className="h-3 w-3 text-emerald-500" /> Paid Users ({paidStoresList.length})
+            </Button>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* New Users Column */}
+            {(feedFilter === "all" || feedFilter === "new_users") && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
+                    <UserPlus className="h-4 w-4 text-blue-500" /> Newly Registered Users
+                  </span>
+                  <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-600 border-blue-500/20 font-bold">
+                    {newUsersList.length} Total Users
+                  </Badge>
+                </div>
+
+                <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+                  {newUsersList.map(u => (
+                    <div key={u.id} className="p-3 border border-muted-foreground/10 rounded-lg hover:bg-muted/20 transition-all flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-foreground">{u.name}</span>
+                          <Badge className="bg-blue-500/15 text-blue-600 border-blue-500/10 text-[9px] uppercase font-bold py-0">
+                            {u.role}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground font-mono">{u.email}</p>
+                        <span className="text-[10px] text-muted-foreground block font-medium">Branch: {u.storeName} • Joined {u.joinedDate}</span>
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-[11px] h-7 text-primary hover:bg-primary/10 gap-1 font-bold"
+                        onClick={() => {
+                          setTargetAudience("user");
+                          setTargetUserId(u.id);
+                          setBroadcastTitle(`Welcome to Stackwise, ${u.name}!`);
+                          setBroadcastMessage(`Hello ${u.name}, welcome aboard to ${u.storeName}. If you need any assistance setting up your terminal, please reply or reach out.`);
+                          toast.info(`Pre-filled notification target for ${u.name}`);
+                        }}
+                      >
+                        <Send className="h-3 w-3" /> Direct Alert
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Paid Users Column */}
+            {(feedFilter === "all" || feedFilter === "paid_users") && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
+                    <CreditCard className="h-4 w-4 text-emerald-500" /> Paid Stores & Subscriptions
+                  </span>
+                  <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold">
+                    {paidStoresList.length} Active Paid Tenants
+                  </Badge>
+                </div>
+
+                <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+                  {paidStoresList.map(s => (
+                    <div key={s.id} className="p-3 border border-muted-foreground/10 rounded-lg hover:bg-muted/20 transition-all flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-foreground">{s.name}</span>
+                          <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/10 text-[9px] uppercase font-bold py-0">
+                            Active Paid
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">Manager: {s.manager} ({s.managerEmail})</p>
+                        <span className="text-[10px] text-emerald-600 font-bold block">
+                          Valuation: ₦{s.valuationNgn.toLocaleString()} • Health Score {s.healthScore}%
+                        </span>
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-[11px] h-7 text-emerald-600 hover:bg-emerald-500/10 gap-1 font-bold"
+                        onClick={() => {
+                          setTargetAudience("store");
+                          setTargetStoreId(s.id);
+                          setBroadcastTitle(`Special Merchant Offer for ${s.name}`);
+                          setBroadcastMessage(`Dear ${s.manager}, thank you for being a valued subscriber of ${s.name}. We have unlocked advanced AI Analytics for your branch.`);
+                          toast.info(`Pre-filled notification target for ${s.name}`);
+                        }}
+                      >
+                        <Send className="h-3 w-3" /> Direct Alert
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Feature Security Locking Desk */}
       <Card className="shadow-none border border-muted-foreground/10">
         <CardHeader className="bg-muted/15 border-b border-muted-foreground/10 pb-5">
@@ -349,3 +851,4 @@ function SuperAdminUpdates() {
     </div>
   );
 }
+
