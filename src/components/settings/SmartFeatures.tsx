@@ -18,7 +18,8 @@ import {
   ChevronRight,
   Key,
   Eye,
-  EyeOff
+  EyeOff,
+  Compass
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -75,6 +76,13 @@ const SMART_FEATURES_LIST: SmartFeature[] = [
     name: "Automated Daily Email Digest",
     description: "Get full-spectrum executive-level stock movement and sales logs delivered straight to your email inbox.",
     icon: Mail,
+    tier: "professional"
+  },
+  {
+    id: "autonomousActions",
+    name: "AI Autonomous System Navigation & Auto-Action Execution",
+    description: "Empowers the AI Assistant to automatically navigate system routes and autonomously execute operations (e.g. sales, stock adjustments, catalog additions) without manual button triggers.",
+    icon: Compass,
     tier: "professional"
   },
   // Enterprise Tier Features
@@ -152,6 +160,7 @@ export function SmartFeatures() {
       autoReorder: false,
       multiBranchSync: false,
       weeklyEmailDigest: false,
+      autonomousActions: false,
       smartCohorts: false,
       b2bMarketplaceSync: false,
       aiPricing: false,
@@ -173,14 +182,18 @@ export function SmartFeatures() {
       return;
     }
 
-    setFeatureStates(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
+    const updated = {
+      ...featureStates,
+      [id]: !featureStates[id]
+    };
+    setFeatureStates(updated);
+    localStorage.setItem("nexa_smart_features", JSON.stringify(updated));
+    window.dispatchEvent(new Event("nexa_smart_features_updated"));
   };
 
   const handleSave = () => {
     localStorage.setItem("nexa_smart_features", JSON.stringify(featureStates));
+    window.dispatchEvent(new Event("nexa_smart_features_updated"));
     toast.success("Smart features configuration saved successfully!");
   };
 

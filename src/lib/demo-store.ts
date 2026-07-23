@@ -11,6 +11,7 @@ import type {
 } from "@/types/inventory";
 import { MovementType } from "@/types/inventory";
 import type { Expense, Refund, CreditCustomer, CreditTransaction, PromoCode } from "@/types/finance";
+import type { Customer } from "@/types/crm";
 import { generateSeedData, type SeedData } from "./demo/index";
 
 export interface ItemFilters {
@@ -56,6 +57,7 @@ export class DemoStore {
   private expenses: Expense[] = [];
   private refunds: Refund[] = [];
   private credits: Map<string, CreditCustomer> = new Map();
+  private customersList: Customer[] = [];
   private promos: PromoCode[] = [
     { id: "promo-1", code: "WELCOME10", discountType: "percentage", discountValue: 10, isActive: true, usageCount: 0, maxUses: null, createdAt: new Date().toISOString() },
     { id: "promo-2", code: "FLAT500", discountType: "flat", discountValue: 500, isActive: true, usageCount: 0, maxUses: 50, createdAt: new Date().toISOString() },
@@ -532,6 +534,40 @@ export class DemoStore {
     // Restore stock
     const item = this.data.items.find((i) => i.id === refund.itemId);
     if (item) item.currentStock += refund.quantity;
+    this.version++;
+  }
+
+  // ─── Customers ────────────────────────────────────────
+  getCustomers(): Customer[] {
+    if (this.customersList.length === 0) {
+      this.customersList = Array.from(this.credits.values()).map((c) => ({
+        id: c.id,
+        name: c.customerName,
+        phone: c.customerPhone,
+        debtBalance: c.balanceNgn,
+        totalSpent: c.transactions.reduce((acc, t) => acc + (t.type === "payment" ? t.amountNgn : 0), 0),
+        totalOrders: c.transactions.length,
+        createdAt: c.transactions[0]?.createdAt || new Date().toISOString(),
+      }));
+    }
+    return [...this.customersList];
+  }
+
+  addCustomer(customer: Customer): void {
+    this.customersList.push(customer);
+    this.version++;
+  }
+
+  updateCustomer(id: string, updates: Partial<Customer>): void {
+    const idx = this.customersList.findIndex((c) => c.id === id);
+    if (idx !== -1) {
+      this.customersList[idx] = { ...this.customersList[idx], ...updates, updatedAt: new Date().toISOString() };
+      this.version++;
+    }
+  }
+
+  deleteCustomer(id: string): void {
+    this.customersList = this.customersList.filter((c) => c.id !== id);
     this.version++;
   }
 

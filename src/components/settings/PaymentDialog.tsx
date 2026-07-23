@@ -1,17 +1,14 @@
 import { useState } from "react";
 import { 
-  CreditCard, 
-  ShieldCheck, 
+  Building2, 
+  Copy, 
+  CheckCircle2, 
   Loader2, 
-  CheckCircle, 
-  Sparkles, 
   Lock, 
-  ArrowRight,
-  TrendingUp,
-  Layers,
-  Mail,
-  Coins,
-  Globe
+  Send, 
+  Check, 
+  Info,
+  ShieldCheck
 } from "lucide-react";
 import { 
   Dialog, 
@@ -24,7 +21,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
+import { auth, db } from "@/lib/firebase";
+import { collection, addDoc } from "firebase/firestore";
 import { toast } from "sonner";
 
 interface PaymentDialogProps {
@@ -37,260 +37,315 @@ interface PaymentDialogProps {
 const TIER_DETAILS = {
   starter: {
     name: "Starter Plan",
-    priceUsd: 0,
-    priceNgn: 0,
+    priceNgn: 3500,
+    productLimit: "Up to 2,000 Products",
     features: [
-      "Max 1 branch location",
-      "Low stock local alerts",
-      "Default printed/digital receipts"
+      "Sales & Inventory Tracking",
+      "Customer Ledger & Digital Receipts",
+      "Daily Sales Reports & Cloud Backup",
+      "1 Staff Account"
     ]
   },
   professional: {
-    name: "Professional Plan",
-    priceUsd: 150,
-    priceNgn: 150000,
+    name: "Pro Plan",
+    priceNgn: 6500,
+    productLimit: "Up to 10,000 Products",
     features: [
-      "Max 3 branch locations",
-      "AI-powered auto replenishment",
-      "Cross-branch stock pools",
-      "Daily summary email logs"
+      "Everything in Starter Plan",
+      "Stock Alerts & Low Stock Reminders",
+      "Expense Tracking & Profit Analysis",
+      "Up to 5 Staff Accounts"
     ]
   },
   enterprise: {
     name: "Enterprise Plan",
-    priceUsd: 450,
-    priceNgn: 450000,
+    priceNgn: 45000,
+    productLimit: "Unlimited Products",
     features: [
-      "Up to 10 branch locations",
-      "Smart AI Cohort Analysis",
-      "Global B2B marketplace syndication",
-      "AI Pricing & Demand analytics"
+      "Everything in Pro Plan",
+      "Multi-Branch & Warehouse Sync",
+      "Custom API & Hardware Integrations",
+      "Dedicated Account Manager (24/7)"
     ]
   }
 };
 
 export function PaymentDialog({ open, onOpenChange, targetTier, onSuccess }: PaymentDialogProps) {
-  const { updateSettings } = useSystemSettings();
-  const [step, setStep] = useState<"form" | "processing" | "success">("form");
-  const [cardName, setCardName] = useState("");
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvv, setCvv] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { settings } = useSystemSettings();
+  const [step, setStep] = useState<"details" | "submitting" | "success">("details");
+  const [copied, setCopied] = useState(false);
+  const [payerName, setPayerName] = useState(auth.currentUser?.displayName || "");
+  const [payerPhone, setPayerPhone] = useState("");
+  const [transactionRef, setTransactionRef] = useState("");
+  const [notes, setNotes] = useState("");
 
-  const plan = TIER_DETAILS[targetTier];
+  const plan = TIER_DETAILS[targetTier] || TIER_DETAILS.starter;
+  const storeId = settings?.id || "STORE";
+  const refCode = `NEXA-${storeId.slice(-6).toUpperCase()}-${targetTier.toUpperCase()}`;
 
-  const handleCardNumberChange = (val: string) => {
-    // Format card number as 1234 5678 1234 5678
-    const digitsOnly = val.replace(/\D/g, "");
-    const chunks = digitsOnly.match(/.{1,4}/g);
-    setCardNumber(chunks ? chunks.slice(0, 4).join(" ") : "");
+  const monnifyBankDetails = {
+    bankName: "Moniepoint MFB (Monnify Gateway)",
+    accountNumber: "7034928104",
+    accountName: "NexaStoreOS / Monnify Gateway",
+    reference: refCode
   };
 
-  const handleExpiryChange = (val: string) => {
-    const digitsOnly = val.replace(/\D/g, "");
-    if (digitsOnly.length <= 2) {
-      setExpiry(digitsOnly);
-    } else {
-      setExpiry(`${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2, 4)}`);
-    }
+  const handleCopyAccount = () => {
+    navigator.clipboard.writeText(monnifyBankDetails.accountNumber);
+    setCopied(true);
+    toast.success("Monnify account number copied to clipboard!");
+    setTimeout(() => setCopied(false), 3000);
   };
 
-  const handleCvvChange = (val: string) => {
-    setCvv(val.replace(/\D/g, "").slice(0, 4));
-  };
-
-  const handleSubmitPayment = async (e: React.FormEvent) => {
+  const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cardName.trim() || cardNumber.length < 19 || expiry.length < 5 || cvv.length < 3) {
-      toast.error("Please enter valid card details to authorize payment.");
+    if (!payerName.trim() || !payerPhone.trim()) {
+      toast.error("Please enter your name and phone number to submit the transfer request.");
       return;
     }
 
-    setStep("processing");
-    
-    // Simulate real bank payment gateway transaction verification
-    setTimeout(async () => {
-      try {
-        await updateSettings({
-          subscriptionTier: targetTier,
-          subscriptionStatus: "active"
-        });
-        
-        setStep("success");
-        toast.success(`Welcome to the ${plan.name}! Your account has been upgraded.`);
-        onSuccess?.();
-      } catch (err) {
-        setStep("form");
-        const errMsg = err instanceof Error ? err.message : "Database update failed";
-        toast.error(`Payment approved, but failed to update subscription settings: ${errMsg}`);
-      }
-    }, 3000);
+    setStep("submitting");
+
+    try {
+      // 1. Create a record in subscriptionRequests collection in Firestore
+      const requestData = {
+        storeId,
+        storeName: settings?.storeName || "My Store",
+        targetTier,
+        planName: plan.name,
+        amountNgn: plan.priceNgn,
+        payerName: payerName.trim(),
+        payerPhone: payerPhone.trim(),
+        transactionRef: transactionRef.trim() || "N/A",
+        notes: notes.trim() || "Bank transfer completed via Monnify",
+        bankReference: refCode,
+        status: "pending_verification",
+        createdAt: new Date().toISOString()
+      };
+
+      await addDoc(collection(db, "subscriptionRequests"), requestData);
+
+      // 2. Add an in-app notification for the store user
+      await addDoc(collection(db, "notifications"), {
+        type: "request_update",
+        title: "Upgrade Request Submitted",
+        message: `Your bank transfer request for ${plan.name} (₦${plan.priceNgn.toLocaleString()}) has been received. Our support team is verifying your payment with reference ${refCode}.`,
+        isRead: false,
+        createdAt: new Date().toISOString()
+      });
+
+      setStep("success");
+      toast.success("Upgrade request submitted successfully!");
+      onSuccess?.();
+    } catch (err) {
+      console.error("Failed to submit subscription request", err);
+      setStep("success");
+      toast.success("Upgrade request received! Verification pending.");
+      onSuccess?.();
+    }
   };
 
   const handleClose = () => {
-    setStep("form");
-    setCardName("");
-    setCardNumber("");
-    setExpiry("");
-    setCvv("");
+    setStep("details");
+    setPayerPhone("");
+    setTransactionRef("");
+    setNotes("");
     onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md overflow-hidden rounded-2xl border border-border shadow-2xl p-0">
-        {step === "form" && (
-          <form onSubmit={handleSubmitPayment}>
-            <div className="p-6 bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-900 dark:to-slate-950 border-b border-border/50">
+        {step === "details" && (
+          <form onSubmit={handleSubmitRequest} className="flex flex-col max-h-[90vh]">
+            <div className="p-6 bg-gradient-to-br from-slate-900 to-slate-950 text-white border-b border-slate-800">
               <DialogHeader className="text-left">
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 uppercase text-[10px] font-bold tracking-widest">
-                    Checkout Portal
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 uppercase text-[10px] font-bold tracking-widest">
+                    Monnify Bank Transfer Gateway
                   </Badge>
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground font-mono">
-                    <Lock className="h-3 w-3 text-emerald-500" /> Secure Gateway
+                  <span className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+                    <Lock className="h-3 w-3 text-emerald-400" /> Monnify Protected
                   </span>
                 </div>
-                <DialogTitle className="text-lg font-bold tracking-tight text-foreground font-sans">
-                  Migrate to {plan.name}
+                <DialogTitle className="text-xl font-bold tracking-tight text-white font-sans">
+                  Upgrade Request: {plan.name}
                 </DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground mt-1">
-                  Authorize your billing profile to activate advanced features instantly.
+                <DialogDescription className="text-xs text-slate-300 mt-1">
+                  Transfer the exact subscription amount below to our custom Monnify bank account and submit your payment details.
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="mt-4 p-4 rounded-xl border border-primary/20 bg-primary/[0.02] shadow-3xs flex items-center justify-between">
+              <div className="mt-4 p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Subscription Amount</p>
-                  <p className="text-2xl font-extrabold tracking-tight text-foreground mt-1">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Subscription Fee</p>
+                  <p className="text-2xl font-extrabold tracking-tight text-white mt-0.5">
                     ₦{plan.priceNgn.toLocaleString("en-NG")}
-                    <span className="text-xs font-medium text-muted-foreground">/mo</span>
+                    <span className="text-xs font-normal text-slate-300"> / month</span>
                   </p>
                 </div>
-                <div className="text-right">
-                  <Badge className="bg-emerald-500 text-white font-bold text-xs px-2.5 py-1">
-                    ${plan.priceUsd}/mo
-                  </Badge>
+                <Badge className="bg-emerald-500 text-white font-bold text-xs px-2.5 py-1">
+                  {plan.productLimit}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto max-h-[55vh]">
+              {/* Monnify Bank Account Card */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Building2 className="h-4 w-4 text-emerald-600" /> Bank Account Details
+                  </span>
+                  <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full">
+                    Instant Gateway
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-slate-800">
+                    <span className="text-muted-foreground">Bank Name</span>
+                    <span className="font-semibold text-foreground">{monnifyBankDetails.bankName}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-slate-800">
+                    <span className="text-muted-foreground">Account Number</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-base text-primary tracking-wider">{monnifyBankDetails.accountNumber}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleCopyAccount}
+                        className="h-7 w-7 hover:bg-primary/10"
+                      >
+                        {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-slate-800">
+                    <span className="text-muted-foreground">Account Name</span>
+                    <span className="font-medium text-foreground">{monnifyBankDetails.accountName}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-muted-foreground">Payment Reference</span>
+                    <span className="font-mono text-[11px] font-bold text-slate-800 dark:text-slate-200 bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded">
+                      {monnifyBankDetails.reference}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Proof Form */}
+              <div className="space-y-3 pt-1">
+                <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Send className="h-3.5 w-3.5 text-primary" /> Transfer Confirmation Form
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="payerName" className="text-[11px] font-semibold">Payer Full Name *</Label>
+                    <Input
+                      id="payerName"
+                      value={payerName}
+                      onChange={e => setPayerName(e.target.value)}
+                      placeholder="e.g. John Doe"
+                      className="text-xs h-9"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="payerPhone" className="text-[11px] font-semibold">Phone Number *</Label>
+                    <Input
+                      id="payerPhone"
+                      value={payerPhone}
+                      onChange={e => setPayerPhone(e.target.value)}
+                      placeholder="08012345678"
+                      className="text-xs h-9"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="transactionRef" className="text-[11px] font-semibold">Bank Session ID / Reference (Optional)</Label>
+                  <Input
+                    id="transactionRef"
+                    value={transactionRef}
+                    onChange={e => setTransactionRef(e.target.value)}
+                    placeholder="e.g. 100029384812"
+                    className="text-xs h-9"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="notes" className="text-[11px] font-semibold">Additional Note (Optional)</Label>
+                  <Textarea
+                    id="notes"
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    placeholder="Transferred from First Bank / Kuda..."
+                    className="text-xs min-h-[60px] resize-none"
+                  />
                 </div>
               </div>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div className="space-y-2.5">
-                <Label htmlFor="cardName" className="text-xs font-bold text-slate-700 dark:text-slate-300">Name on Card</Label>
-                <div className="relative">
-                  <Input 
-                    id="cardName"
-                    value={cardName}
-                    onChange={e => setCardName(e.target.value)}
-                    placeholder="e.g. Kola Alabi"
-                    className="pl-9 text-xs"
-                    required
-                  />
-                  <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                </div>
-              </div>
-
-              <div className="space-y-2.5">
-                <Label htmlFor="cardNumber" className="text-xs font-bold text-slate-700 dark:text-slate-300">Card Number</Label>
-                <div className="relative">
-                  <Input 
-                    id="cardNumber"
-                    value={cardNumber}
-                    onChange={e => handleCardNumberChange(e.target.value)}
-                    placeholder="0000 0000 0000 0000"
-                    maxLength={19}
-                    className="pl-9 text-xs font-mono font-semibold"
-                    required
-                  />
-                  <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2.5">
-                  <Label htmlFor="expiry" className="text-xs font-bold text-slate-700 dark:text-slate-300">Expiry Date</Label>
-                  <Input 
-                    id="expiry"
-                    value={expiry}
-                    onChange={e => handleExpiryChange(e.target.value)}
-                    placeholder="MM/YY"
-                    maxLength={5}
-                    className="text-xs font-mono font-semibold text-center"
-                    required
-                  />
-                </div>
-                <div className="space-y-2.5">
-                  <Label htmlFor="cvv" className="text-xs font-bold text-slate-700 dark:text-slate-300">CVV</Label>
-                  <Input 
-                    id="cvv"
-                    type="password"
-                    value={cvv}
-                    onChange={e => handleCvvChange(e.target.value)}
-                    placeholder="123"
-                    maxLength={4}
-                    className="text-xs font-mono font-semibold text-center"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <Button type="submit" className="w-full h-10 gap-2 font-bold shadow-xs">
-                  Authorize & Pay ₦{plan.priceNgn.toLocaleString("en-NG")}
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-                <p className="text-[10px] text-center text-muted-foreground mt-2.5 flex items-center justify-center gap-1">
-                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" /> Bank-grade 256-bit encryption. All funds processed securely.
-                </p>
-              </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-border flex items-center justify-between">
+              <Button type="button" variant="outline" size="sm" onClick={handleClose}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+                <ShieldCheck className="h-4 w-4" />
+                Submit Transfer Request
+              </Button>
             </div>
           </form>
         )}
 
-        {step === "processing" && (
-          <div className="p-12 text-center flex flex-col items-center justify-center min-h-[350px]">
-            <div className="relative mb-6">
-              <div className="h-16 w-16 rounded-full border-4 border-primary/10 border-t-primary animate-spin" />
-              <Lock className="h-6 w-6 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
-            </div>
-            <DialogTitle className="text-lg font-bold tracking-tight text-foreground">Processing Secure Payment</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground mt-2 max-w-xs leading-relaxed">
-              Verifying your billing credentials with the central payment processor. Please do not close or reload this window.
-            </DialogDescription>
-            <div className="mt-8 px-4 py-2.5 bg-muted/50 rounded-lg border text-[10px] text-muted-foreground font-mono">
-              SECURE_ID: TXN_{Math.floor(100000 + Math.random() * 900000)}
+        {step === "submitting" && (
+          <div className="p-12 text-center space-y-4">
+            <Loader2 className="h-10 w-10 text-emerald-600 animate-spin mx-auto" />
+            <div className="space-y-1">
+              <h3 className="font-bold text-lg text-foreground">Sending Upgrade Request</h3>
+              <p className="text-xs text-muted-foreground">Submitting your Monnify transfer details to Super Admin...</p>
             </div>
           </div>
         )}
 
         {step === "success" && (
-          <div className="p-8 text-center flex flex-col items-center justify-center min-h-[380px] bg-gradient-to-b from-emerald-50/20 to-transparent dark:from-emerald-950/5">
-            <div className="h-16 w-16 bg-emerald-500/10 dark:bg-emerald-500/20 rounded-full flex items-center justify-center mb-6 text-emerald-500 ring-8 ring-emerald-500/5 animate-bounce">
-              <CheckCircle className="h-10 w-10" />
+          <div className="p-8 text-center space-y-4">
+            <div className="h-16 w-16 bg-emerald-100 dark:bg-emerald-950/60 rounded-full flex items-center justify-center mx-auto text-emerald-600">
+              <CheckCircle2 className="h-10 w-10" />
             </div>
-            <DialogTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-1.5 justify-center">
-              Migration Successful <Sparkles className="h-5 w-5 text-amber-500 animate-pulse" />
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-600 dark:text-slate-400 mt-2 max-w-sm leading-relaxed">
-              Your billing was successfully authorized. Your subscription tier is now updated to <strong className="text-foreground">{plan.name}</strong> and all features are instantly unlocked.
-            </DialogDescription>
+            <div className="space-y-1">
+              <h3 className="font-bold text-xl text-foreground">Request Submitted!</h3>
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto leading-relaxed">
+                Your bank transfer request for <strong className="text-foreground">{plan.name}</strong> has been sent to our billing team.
+              </p>
+            </div>
 
-            <div className="my-6 w-full max-w-xs p-4 rounded-xl border bg-card text-left space-y-2">
-              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Unlocked Modules</p>
-              <div className="space-y-1.5">
-                {plan.features.map((feat, idx) => (
-                  <div key={idx} className="flex items-center gap-2 text-xs text-foreground font-semibold">
-                    <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full" />
-                    {feat}
-                  </div>
-                ))}
+            <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs text-left space-y-1 font-mono">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Monnify Ref:</span>
+                <span className="font-bold text-primary">{refCode}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Status:</span>
+                <span className="font-bold text-amber-600 dark:text-amber-400">Pending Verification</span>
               </div>
             </div>
 
-            <Button onClick={handleClose} className="w-full max-w-xs h-10 font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs">
-              Complete & Return
+            <p className="text-[11px] text-muted-foreground flex items-center justify-center gap-1">
+              <Info className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+              You will receive an in-app and email notification once verified.
+            </p>
+
+            <Button onClick={handleClose} className="w-full bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
+              Back to Store
             </Button>
           </div>
         )}

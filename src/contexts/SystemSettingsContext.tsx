@@ -176,13 +176,20 @@ export function SystemSettingsProvider({ children }: { children: ReactNode }) {
     if (!user || profile?.role !== "admin" || !profile?.storeId) throw new Error("Only admins can perform initial setup");
     
     const settingsRef = doc(db, "stores", profile.storeId);
+    const now = new Date();
+    const trialEndDate = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
     const data = {
       ...DEFAULT_SETTINGS,
+      subscriptionTier: onboardingData.subscriptionTier || "starter",
+      subscriptionStatus: onboardingData.subscriptionStatus || "trialing",
+      trialStartDate: onboardingData.trialStartDate || now.toISOString(),
+      trialEndsAt: onboardingData.trialEndsAt || trialEndDate.toISOString(),
       ...onboardingData,
       id: profile.storeId,
       ownerId: user.uid,
       isOnboarded: true,
-      onboardedAt: new Date().toISOString(),
+      onboardedAt: now.toISOString(),
       onboardedBy: user.uid
     };
     

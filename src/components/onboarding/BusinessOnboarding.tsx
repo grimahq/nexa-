@@ -19,6 +19,8 @@ import {
   ClipboardPen,
   Rocket,
   FileSpreadsheet,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -200,6 +202,7 @@ interface BusinessOnboardingProps {
     country?: string;
     state?: string;
     lga?: string;
+    selectedPlan?: "starter" | "professional" | "enterprise";
   }) => void;
   onSkip: () => void;
 }
@@ -207,7 +210,9 @@ interface BusinessOnboardingProps {
 export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingProps) {
   const [step, setStep] = useState(0);
   const [storeName, setStoreName] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState<"starter" | "professional" | "enterprise">("starter");
   const [moniepointKey, setMoniepointKey] = useState("");
+  const [showMoniepointKey, setShowMoniepointKey] = useState(false);
   const [storeSlug, setStoreSlug] = useState("");
   const [brandColor, setBrandColor] = useState("#0d9488");
   const [selectedBusiness, setSelectedBusiness] = useState<string | null>(null);
@@ -308,14 +313,16 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
     } else if (step === 3 && selectedCategories.size > 0) {
       setStep(3.5);
     } else if (step === 3.5) {
+      if (entryMethod === "camera") {
+        sessionStorage.setItem("nexa_open_scanner_after_onboarding", "true");
+      } else if (entryMethod === "excel") {
+        sessionStorage.setItem("nexa_open_import_after_onboarding", "true");
+      }
+      setStep(3.8);
+    } else if (step === 3.8) {
       if (entryMethod === "manual") {
         setStep(4);
       } else {
-        if (entryMethod === "camera") {
-          sessionStorage.setItem("nexa_open_scanner_after_onboarding", "true");
-        } else if (entryMethod === "excel") {
-          sessionStorage.setItem("nexa_open_import_after_onboarding", "true");
-        }
         handleFinish();
       }
     }
@@ -338,6 +345,7 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
         brandColor,
         moniepointKey,
         storeSlug,
+        selectedPlan,
         electronicsMainType: selectedBusiness === "electronics" ? electronicsMainType : undefined,
         textilePrimarilySellsBy: selectedBusiness === "textile" ? textilePrimarilySellsBy : undefined,
         textileSubcategories: selectedBusiness === "textile" ? textileSubcategories : undefined,
@@ -618,13 +626,23 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
 
                 <div className="space-y-2">
                    <Label className="text-sm font-medium">Moniepoint API Key (Optional)</Label>
-                   <Input 
-                      type="password"
-                      value={moniepointKey}
-                      onChange={e => setMoniepointKey(e.target.value)}
-                      placeholder="sk_live_..."
-                      className="h-10"
-                   />
+                   <div className="relative">
+                     <Input 
+                        type={showMoniepointKey ? "text" : "password"}
+                        value={moniepointKey}
+                        onChange={e => setMoniepointKey(e.target.value)}
+                        placeholder="sk_live_..."
+                        className="h-10 pr-10"
+                     />
+                     <button
+                       type="button"
+                       onClick={() => setShowMoniepointKey(!showMoniepointKey)}
+                       className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                       aria-label={showMoniepointKey ? "Hide API key" : "Show API key"}
+                     >
+                       {showMoniepointKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                     </button>
+                   </div>
                    <p className="text-[11px] text-muted-foreground italic">You can add this later in settings to enable automated payments.</p>
                 </div>
               </div>
@@ -1138,7 +1156,112 @@ export function BusinessOnboarding({ onComplete, onSkip }: BusinessOnboardingPro
                   <ArrowLeft className="h-4 w-4" /> Back
                 </Button>
                 <Button onClick={handleNext} className="gap-1.5" style={{ backgroundColor: brandColor, color: "#fff" }}>
-                  {entryMethod === "manual" ? "Next" : "Launch OS"} <ArrowRight className="h-4 w-4" />
+                  Select Plan <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 3.8: Tier Selection */}
+          {step === 3.8 && (
+            <motion.div
+              key="step-3.8"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-4"
+            >
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Select Your NexaStoreOS Plan</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Choose your tier. All plans start with a <strong>14-Day Free Trial</strong>.</p>
+              </div>
+
+              <div className="flex flex-col gap-3 max-h-[360px] overflow-y-auto pr-1">
+                {[
+                  {
+                    id: "starter",
+                    name: "Starter Plan",
+                    price: "₦3,500/mo",
+                    limit: "Up to 2,000 Products",
+                    badge: "14-Day Free Trial",
+                    badgeBg: "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300",
+                    features: ["Sales & Inventory Tracking", "Daily Sales Reports", "Cloud Backup", "1 Staff Account"]
+                  },
+                  {
+                    id: "professional",
+                    name: "Pro Plan",
+                    price: "₦6,500/mo",
+                    limit: "Up to 10,000 Products",
+                    badge: "MOST POPULAR",
+                    badgeBg: "bg-blue-600 text-white",
+                    features: ["Everything in Starter", "Stock Alerts & Low Stock", "Profit & Expense Tracking", "Up to 5 Staff Accounts"]
+                  },
+                  {
+                    id: "enterprise",
+                    name: "Enterprise Plan",
+                    price: "Custom / ₦45,000/mo",
+                    limit: "Unlimited Products",
+                    badge: "Enterprise",
+                    badgeBg: "bg-purple-600 text-white",
+                    features: ["Everything in Pro Plan", "Multi-Branch Management", "Custom Integrations", "Dedicated Account Manager"]
+                  }
+                ].map((p) => {
+                  const isSelected = selectedPlan === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setSelectedPlan(p.id as "starter" | "professional" | "enterprise")}
+                      className={cn(
+                        "w-full text-left p-4 rounded-xl border transition-all duration-200 cursor-pointer select-none relative flex flex-col gap-1.5",
+                        isSelected
+                          ? "shadow-sm border-primary bg-primary/5 dark:bg-primary/5"
+                          : "border-border hover:border-primary/40 hover:bg-accent/10"
+                      )}
+                      style={
+                        isSelected ? { 
+                          borderColor: brandColor, 
+                          backgroundColor: `${brandColor}0a` 
+                        } : {}
+                      }
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-foreground">{p.name}</span>
+                          <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-bold uppercase", p.badgeBg)}>
+                            {p.badge}
+                          </span>
+                        </div>
+                        <span className="font-extrabold text-sm" style={{ color: brandColor }}>
+                          {p.price}
+                        </span>
+                      </div>
+
+                      <p className="text-xs font-semibold text-muted-foreground">{p.limit}</p>
+
+                      <ul className="text-xs text-muted-foreground space-y-1 mt-1">
+                        {p.features.map((f, fIdx) => (
+                          <li key={fIdx} className="flex items-center gap-1.5">
+                            <span className="text-emerald-500 font-bold text-xs">✓</span> {f}
+                          </li>
+                        ))}
+                      </ul>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 shrink-0 text-emerald-600" />
+                <span>Zero charge today. Your 14-day free trial starts immediately upon completion.</span>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <Button variant="ghost" onClick={() => setStep(3.5)} className="gap-1.5">
+                  <ArrowLeft className="h-4 w-4" /> Back
+                </Button>
+                <Button onClick={handleNext} className="gap-1.5" style={{ backgroundColor: brandColor, color: "#fff" }}>
+                  {entryMethod === "manual" ? "Add Products" : "Launch Store OS"} <ArrowRight className="h-4 w-4" />
                 </Button>
               </div>
             </motion.div>

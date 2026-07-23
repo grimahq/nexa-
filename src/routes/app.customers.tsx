@@ -4,7 +4,7 @@ import {
   Search, User, Phone, ShoppingBag, MessageCircle, Send,
   Clock, Filter, CheckSquare, Sparkles, ChevronDown, ChevronUp,
   Calendar, Download, ArrowUpRight, CheckCircle2, Wallet, Users,
-  Award, TrendingUp, Printer
+  Award, TrendingUp, Printer, UserPlus, Plus, PlusCircle, PlusSquare, FileText
 } from "lucide-react";
 import { useDemo } from "@/hooks/useDemo";
 import { Input } from "@/components/ui/input";
@@ -268,6 +268,20 @@ function CustomersPage() {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("Recorded debt payment");
   const [paymentReceiptSale, setPaymentReceiptSale] = useState<SaleTransaction | null>(null);
+
+  // New Customer Creation States
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false);
+  const [newCustName, setNewCustName] = useState("");
+  const [newCustPhone, setNewCustPhone] = useState("");
+  const [newCustEmail, setNewCustEmail] = useState("");
+  const [newCustInitialDebt, setNewCustInitialDebt] = useState("");
+  const [newCustNotes, setNewCustNotes] = useState("");
+
+  // Record New Debt / Credit Sale States
+  const [addDebtOpen, setAddDebtOpen] = useState(false);
+  const [addDebtTarget, setAddDebtTarget] = useState<EnhancedCustomerRecord | null>(null);
+  const [addDebtAmount, setAddDebtAmount] = useState("");
+  const [addDebtNotes, setAddDebtNotes] = useState("Manual credit purchase");
 
   const { flags } = useFeatureFlags();
 
@@ -581,6 +595,95 @@ function CustomersPage() {
     }
   };
 
+  const handleAddCustomerSubmit = async () => {
+    if (!newCustName.trim()) {
+      toast.error("Customer full name is required");
+      return;
+    }
+    if (!newCustPhone.trim()) {
+      toast.error("Customer phone number is required");
+      return;
+    }
+
+    const initialDebt = parseFloat(newCustInitialDebt) || 0;
+
+    try {
+      // 1. Record credit transaction for initial balance or ledger initialization
+      await addCreditTransaction(newCustPhone.trim(), newCustName.trim(), {
+        id: `ctxn-${Date.now()}`,
+        type: initialDebt > 0 ? "credit" : "payment",
+        amountNgn: initialDebt,
+        notes: newCustNotes.trim() || (initialDebt > 0 ? "Initial debt balance" : "New customer profile created"),
+        createdAt: new Date().toISOString(),
+      });
+
+      if (isDemo && demoStore && bumpVersion) {
+        demoStore.addNotification({
+          id: `notif-${Date.now()}`,
+          type: "request_update",
+          title: `👤 New Customer Created: ${newCustName.trim()}`,
+          message: `Customer profile for ${newCustName.trim()} (${newCustPhone.trim()}) added with initial balance of ${NAIRA}${initialDebt.toLocaleString("en-NG")}.`,
+          isRead: false,
+          read: false,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      setAddCustomerOpen(false);
+      setNewCustName("");
+      setNewCustPhone("");
+      setNewCustEmail("");
+      setNewCustInitialDebt("");
+      setNewCustNotes("");
+      toast.success(`Customer ${newCustName.trim()} created successfully!`);
+    } catch (err) {
+      toast.error(`Failed to add customer: ${(err as Error).message}`);
+    }
+  };
+
+  const handleAddDebtClick = (customer: EnhancedCustomerRecord) => {
+    setAddDebtTarget(customer);
+    setAddDebtAmount("");
+    setAddDebtNotes("Manual credit purchase");
+    setAddDebtOpen(true);
+  };
+
+  const handleAddDebtSubmit = async () => {
+    if (!addDebtTarget) return;
+    const amount = parseFloat(addDebtAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid credit amount");
+      return;
+    }
+
+    try {
+      await addCreditTransaction(addDebtTarget.phone, addDebtTarget.name, {
+        id: `ctxn-${Date.now()}`,
+        type: "credit",
+        amountNgn: amount,
+        notes: addDebtNotes.trim() || "Manual credit purchase",
+        createdAt: new Date().toISOString(),
+      });
+
+      if (isDemo && demoStore && bumpVersion) {
+        demoStore.addNotification({
+          id: `notif-${Date.now()}`,
+          type: "request_update",
+          title: `💳 New Debt Recorded: ${addDebtTarget.name}`,
+          message: `New credit entry of ${NAIRA}${amount.toLocaleString("en-NG")} was added for ${addDebtTarget.name} (${addDebtTarget.phone}).`,
+          isRead: false,
+          read: false,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      setAddDebtOpen(false);
+      toast.success(`Recorded credit entry of ${NAIRA}${amount.toLocaleString("en-NG")} for ${addDebtTarget.name}!`);
+    } catch (err) {
+      toast.error("Failed to record debt transaction");
+    }
+  };
+
   const handleDownloadPDF = () => {
     window.print();
   };
@@ -601,12 +704,21 @@ function CustomersPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Customers & Collections</h1>
           <p className="text-xs text-muted-foreground">Directory, credit sales timeline, and staff collection analytics</p>
         </div>
-        {selectedCustomers.size > 0 && (
-          <Button onClick={handleBulkMessage} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
-            <Send className="h-4 w-4" />
-            Message {selectedCustomers.size} selected
+        <div className="flex items-center gap-2">
+          {selectedCustomers.size > 0 && (
+            <Button onClick={handleBulkMessage} variant="outline" className="gap-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 font-semibold text-xs h-9">
+              <Send className="h-4 w-4" />
+              Message {selectedCustomers.size} selected
+            </Button>
+          )}
+          <Button
+            onClick={() => setAddCustomerOpen(true)}
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 shadow-xs"
+          >
+            <UserPlus className="h-4 w-4" />
+            Add Customer
           </Button>
-        )}
+        </div>
       </div>
 
       {/* Row 1: Top Stats Cards (Debtors & Total Debt) */}
@@ -964,7 +1076,7 @@ function CustomersPage() {
                     </div>
 
                     {/* Bottom Customer Actions */}
-                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                    <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-border">
                       <Button
                         variant="outline"
                         size="sm"
@@ -972,6 +1084,14 @@ function CustomersPage() {
                         className="h-8 text-xs font-semibold gap-1.5"
                       >
                         <MessageCircle className="h-3.5 w-3.5 text-green-600" /> WhatsApp
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAddDebtClick(c)}
+                        className="h-8 text-xs font-semibold text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900 hover:bg-amber-50 dark:hover:bg-amber-950 gap-1.5"
+                      >
+                        <PlusCircle className="h-3.5 w-3.5" /> + Add Debt
                       </Button>
                       {c.debtBalance > 0 && (
                         <Button
@@ -1101,6 +1221,165 @@ function CustomersPage() {
                 className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs h-9 px-4"
               >
                 Confirm Settlement
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add New Customer Dialog */}
+      <Dialog open={addCustomerOpen} onOpenChange={setAddCustomerOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground font-bold">
+              <UserPlus className="h-5 w-5 text-emerald-600" />
+              Add New Customer
+            </DialogTitle>
+            <DialogDescription>
+              Create a new customer profile for directory tracking and credit sales.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5">
+            <div className="space-y-1">
+              <label htmlFor="cust-name" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Full Name <span className="text-red-500">*</span>
+              </label>
+              <Input
+                id="cust-name"
+                value={newCustName}
+                onChange={(e) => setNewCustName(e.target.value)}
+                placeholder="e.g. Chidi Okonkwo"
+                className="text-sm h-10"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="cust-phone" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Phone Number <span className="text-red-500">*</span>
+              </label>
+              <Input
+                id="cust-phone"
+                value={newCustPhone}
+                onChange={(e) => setNewCustPhone(e.target.value)}
+                placeholder="e.g. 08012345678"
+                className="text-sm h-10 font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="cust-email" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Email Address <span className="text-muted-foreground font-normal">(Optional)</span>
+              </label>
+              <Input
+                id="cust-email"
+                type="email"
+                value={newCustEmail}
+                onChange={(e) => setNewCustEmail(e.target.value)}
+                placeholder="e.g. customer@example.com"
+                className="text-sm h-10"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="cust-debt" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Initial Debt / Opening Balance ({NAIRA}) <span className="text-muted-foreground font-normal">(Optional)</span>
+              </label>
+              <Input
+                id="cust-debt"
+                type="number"
+                value={newCustInitialDebt}
+                onChange={(e) => setNewCustInitialDebt(e.target.value)}
+                placeholder="e.g. 5000 (0 if none)"
+                className="text-sm h-10 font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="cust-notes" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Notes / Tag <span className="text-muted-foreground font-normal">(Optional)</span>
+              </label>
+              <Input
+                id="cust-notes"
+                value={newCustNotes}
+                onChange={(e) => setNewCustNotes(e.target.value)}
+                placeholder="e.g. Main market vendor, preferred customer"
+                className="text-xs h-9"
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end pt-3 border-t">
+              <DialogClose asChild>
+                <Button variant="outline" size="sm" className="text-xs font-semibold">Cancel</Button>
+              </DialogClose>
+              <Button
+                onClick={handleAddCustomerSubmit}
+                className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-9 px-4"
+              >
+                Save Customer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record New Debt / Credit Sale Dialog */}
+      <Dialog open={addDebtOpen} onOpenChange={setAddDebtOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600 font-bold">
+              <PlusCircle className="h-5 w-5" />
+              Add Manual Credit / Debt
+            </DialogTitle>
+            <DialogDescription>
+              {addDebtTarget && `Record a new debt entry for ${addDebtTarget.name} (${addDebtTarget.phone})`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Current Outstanding Debt</label>
+              <p className="text-lg font-bold font-mono text-red-600 dark:text-red-400">
+                {addDebtTarget && `${NAIRA}${addDebtTarget.debtBalance.toLocaleString("en-NG")}`}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="add-debt-amt" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                New Credit Amount ({NAIRA}) <span className="text-red-500">*</span>
+              </label>
+              <Input
+                id="add-debt-amt"
+                type="number"
+                value={addDebtAmount}
+                onChange={(e) => setAddDebtAmount(e.target.value)}
+                placeholder="e.g. 15000"
+                className="text-sm h-10 font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="add-debt-notes" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Reason / Description <span className="text-red-500">*</span>
+              </label>
+              <Input
+                id="add-debt-notes"
+                value={addDebtNotes}
+                onChange={(e) => setAddDebtNotes(e.target.value)}
+                placeholder="e.g. Credit purchase of 2 cartons of oil"
+                className="text-xs h-9"
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end pt-3 border-t">
+              <DialogClose asChild>
+                <Button variant="outline" size="sm" className="text-xs font-semibold">Cancel</Button>
+              </DialogClose>
+              <Button
+                onClick={handleAddDebtSubmit}
+                className="text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white gap-1.5 h-9 px-4"
+              >
+                Record Debt
               </Button>
             </div>
           </div>

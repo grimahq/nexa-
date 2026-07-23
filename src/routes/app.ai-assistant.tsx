@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   Bot,
   Mic,
@@ -23,13 +23,18 @@ import {
   RefreshCw,
   Sliders,
   DollarSign,
-  Briefcase
+  Briefcase,
+  Eye,
+  EyeOff,
+  Zap,
+  Navigation,
+  Compass
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRole } from "@/hooks/useRole";
 import { useDemo } from "@/hooks/useDemo";
 import { toast } from "sonner";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { doc, updateDoc, getDoc } from "firebase/firestore";
 
 export const Route = createFileRoute("/app/ai-assistant")({
@@ -89,9 +94,77 @@ interface Message {
   };
 }
 
+const INTENT_ROUTES: Record<string, { path: string; label: string }> = {
+  add_product: { path: "/app/catalog", label: "Catalog & Inventory" },
+  adjust_stock: { path: "/app/catalog", label: "Catalog & Stock Adjustments" },
+  record_sale: { path: "/app/sales", label: "Point of Sale (POS)" },
+  check_report: { path: "/app/analytics", label: "Analytics & Reports" },
+  price_update: { path: "/app/catalog", label: "Catalog & Price Management" },
+  manage_customers: { path: "/app/customers", label: "Customer Directory" },
+  customer_update: { path: "/app/customers", label: "Customer Directory" },
+  purchase_order: { path: "/app/purchase-orders", label: "Purchase Orders" },
+  supplier_update: { path: "/app/suppliers", label: "Suppliers" },
+  expense_record: { path: "/app/expenses", label: "Expense Ledger" },
+  settings_update: { path: "/app/settings", label: "System Settings" },
+};
+
 function AiAssistantPage() {
+  const navigate = useNavigate();
   const { currentStoreId, isSuperAdmin, stores, setCurrentStoreId } = useRole();
   const { isDemo } = useDemo();
+
+  // Autonomous Actions state
+  const [autonomousActionsEnabled, setAutonomousActionsEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("nexa_smart_features");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.autonomousActions === "boolean") {
+          return parsed.autonomousActions;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+    return true; // Default enabled for Pro & Enterprise
+  });
+
+  useEffect(() => {
+    const handleStorage = () => {
+      try {
+        const saved = localStorage.getItem("nexa_smart_features");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (typeof parsed.autonomousActions === "boolean") {
+            setAutonomousActionsEnabled(parsed.autonomousActions);
+          }
+        }
+      } catch (e) {
+        // ignore storage error
+      }
+    };
+    window.addEventListener("nexa_smart_features_updated", handleStorage);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("nexa_smart_features_updated", handleStorage);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
+  const toggleAutonomousActions = () => {
+    const nextState = !autonomousActionsEnabled;
+    setAutonomousActionsEnabled(nextState);
+    try {
+      const saved = localStorage.getItem("nexa_smart_features") || "{}";
+      const parsed = JSON.parse(saved);
+      parsed.autonomousActions = nextState;
+      localStorage.setItem("nexa_smart_features", JSON.stringify(parsed));
+      window.dispatchEvent(new Event("nexa_smart_features_updated"));
+    } catch (e) {
+      // ignore storage error
+    }
+    toast.info(nextState ? "⚡ Autonomous Actions & Auto-Navigation Activated" : "⏸️ Autonomous Actions Deactivated");
+  };
 
   // State Management
   const [messages, setMessages] = useState<Message[]>([
@@ -115,6 +188,7 @@ function AiAssistantPage() {
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState(5000);
   const [byokKey, setByokKey] = useState("");
+  const [showByokKey, setShowByokKey] = useState(false);
   const [showByokSettings, setShowByokSettings] = useState(false);
   const [isSavingKey, setIsSavingKey] = useState(false);
 
@@ -142,6 +216,7 @@ function AiAssistantPage() {
 
   // Fetch Custom API Key from Firestore Store Doc
   const fetchApiKey = useCallback(async () => {
+    if (!auth.currentUser) return;
     const activeStoreId = currentStoreId || "global-store";
     try {
       const storeRef = doc(db, "stores", activeStoreId);
@@ -149,14 +224,22 @@ function AiAssistantPage() {
       if (snap.exists() && snap.data().aiAssistantApiKey) {
         setByokKey(snap.data().aiAssistantApiKey);
       }
-    } catch (err) {
-      console.error("Failed to fetch API key:", err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("permission-denied") && !msg.includes("insufficient permissions")) {
+        console.error("Failed to fetch API key:", err);
+      }
     }
   }, [currentStoreId]);
 
   useEffect(() => {
     fetchLedger();
-    fetchApiKey();
+    const unsub = auth.onAuthStateChanged((user) => {
+      if (user) {
+        fetchApiKey();
+      }
+    });
+    return () => unsub();
   }, [fetchLedger, fetchApiKey]);
 
   // Audio Recording Handlers
@@ -371,7 +454,10 @@ function AiAssistantPage() {
       let clarification = undefined;
       let reportData = undefined;
 
-      if (parsedResult.intent === "clarify") {
+      if (parsedResult.intent === "navigate_to") {
+        const dest = parsedResult.parameters?.targetRoute || "/app/dashboard";
+        replyText = `🧭 **Autonomous System Navigation**: Navigating to **${dest}**...`;
+      } else if (parsedResult.intent === "clarify") {
         replyText = parsedResult.clarificationMessage || "Could you please provide more details about this operation?";
         clarification = replyText;
       } else if (parsedResult.intent === "check_report") {
@@ -391,16 +477,60 @@ function AiAssistantPage() {
         };
       }
 
-      setMessages(prev => [...prev, {
-        id: `assistant-${Date.now()}`,
-        sender: "assistant",
+      const msgId = `assistant-${Date.now()}`;
+      const newMsg = {
+        id: msgId,
+        sender: "assistant" as const,
         text: replyText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         requestId: data.requestId,
         pendingConfirmation: pendingCard,
         clarificationMessage: clarification,
         report: reportData
-      }]);
+      };
+
+      setMessages(prev => [...prev, newMsg]);
+
+      // Check Autonomous Actions & Auto-Navigation
+      const routeTarget = INTENT_ROUTES[parsedResult.intent];
+      if (autonomousActionsEnabled && parsedResult.intent !== "clarify" && data.requestId) {
+        if (pendingCard) {
+          try {
+            const execRes = await fetch("/api/ai-assistant/execute-intent", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ requestId: data.requestId, storeId: currentStoreId || "global-store", isSuperAdmin })
+            });
+
+            if (execRes.ok) {
+              setMessages(prev => prev.map(m => {
+                if (m.id === msgId && m.pendingConfirmation) {
+                  return {
+                    ...m,
+                    text: `${m.text}\n\n⚡ **Autonomously Executed**: Operation automatically completed and updated in store database!`,
+                    pendingConfirmation: {
+                      ...m.pendingConfirmation,
+                      status: "completed" as const
+                    }
+                  };
+                }
+                return m;
+              }));
+              toast.success(`⚡ Autonomous Action Executed: ${parsedResult.intent.replace("_", " ").toUpperCase()}`);
+            }
+          } catch (execErr) {
+            console.error("Autonomous execution error:", execErr);
+          }
+        }
+
+        const destRoute = parsedResult.parameters?.targetRoute || routeTarget?.path;
+        if (destRoute) {
+          toast.info(`⚡ Auto-Navigating to ${routeTarget?.label || destRoute}...`);
+          setTimeout(() => {
+            navigate({ to: destRoute as never });
+          }, 700);
+        }
+      }
 
       fetchLedger();
     } catch (err) {
@@ -535,6 +665,21 @@ function AiAssistantPage() {
             </div>
           )}
 
+          {/* Autonomous Actions Smart Toggle */}
+          <button
+            onClick={toggleAutonomousActions}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+              autonomousActionsEnabled
+                ? "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/40 shadow-sm"
+                : "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+            }`}
+            title="Toggle Autonomous Navigation & Auto-Execution (Smart Features Console)"
+            id="autonomous-mode-toggle-btn"
+          >
+            <Zap className={`h-3.5 w-3.5 ${autonomousActionsEnabled ? "animate-pulse fill-amber-500 text-amber-500" : ""}`} />
+            <span>Autonomous Actions: {autonomousActionsEnabled ? "ON" : "OFF"}</span>
+          </button>
+
           <div className="flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-1.5 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400">
             <Sparkles className="h-4 w-4" />
             <span className="text-sm font-medium">
@@ -572,14 +717,24 @@ function AiAssistantPage() {
               Provide your own Gemini API Key to bypass monthly credit limits entirely. This key is securely stored server-side and only used for your store's requests.
             </p>
             <div className="mt-3 flex gap-3">
-              <input
-                type="password"
-                placeholder="Paste your Gemini API Key..."
-                value={byokKey}
-                onChange={(e) => setByokKey(e.target.value)}
-                className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none transition focus:border-indigo-600 dark:border-slate-700 dark:bg-slate-850 dark:text-white"
-                id="byok-key-input"
-              />
+              <div className="relative flex-1">
+                <input
+                  type={showByokKey ? "text" : "password"}
+                  placeholder="Paste your Gemini API Key..."
+                  value={byokKey}
+                  onChange={(e) => setByokKey(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 pr-10 text-sm outline-none transition focus:border-indigo-600 dark:border-slate-700 dark:bg-slate-850 dark:text-white"
+                  id="byok-key-input"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowByokKey(!showByokKey)}
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none"
+                  aria-label={showByokKey ? "Hide API key" : "Show API key"}
+                >
+                  {showByokKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <button
                 onClick={handleSaveApiKey}
                 disabled={isSavingKey}
@@ -802,7 +957,18 @@ function AiAssistantPage() {
                       </div>
 
                       {/* Action Buttons */}
-                      <div className="mt-4 flex gap-3 justify-end text-xs">
+                      <div className="mt-4 flex flex-wrap gap-2 justify-end text-xs">
+                        {INTENT_ROUTES[msg.pendingConfirmation.intent] && (
+                          <button
+                            onClick={() => navigate({ to: INTENT_ROUTES[msg.pendingConfirmation.intent].path as never })}
+                            className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-900/60 transition shadow-sm"
+                            title={`Navigate directly to ${INTENT_ROUTES[msg.pendingConfirmation.intent].label}`}
+                          >
+                            <Navigation className="h-3.5 w-3.5" />
+                            <span>Go to {INTENT_ROUTES[msg.pendingConfirmation.intent].label}</span>
+                          </button>
+                        )}
+
                         {msg.pendingConfirmation.status === "pending" && (
                           <>
                             <button

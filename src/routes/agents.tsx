@@ -51,7 +51,9 @@ import {
   ChevronDown,
   Building2,
   FileText,
-  HelpCircle
+  HelpCircle,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
@@ -145,6 +147,7 @@ export function AgentsPage() {
   // Auth Inputs & Steps
   const [emailInput, setEmailInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [phoneInput, setPhoneInput] = useState("");
   const [ninInput, setNinInput] = useState("");
@@ -493,6 +496,80 @@ export function AgentsPage() {
     }
   };
 
+  // Quick Sign Up Handler from Modal
+  const handleQuickRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nameInput.trim() || !emailInput.trim() || !phoneInput.trim() || !passwordInput) {
+      toast.error("Please fill in Name, Email, Phone, and Password.");
+      return;
+    }
+    if (passwordInput.length < 6) {
+      toast.error("Password must be at least 6 characters.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const generatedCode = (customRefCodeInput.trim() || nameInput.trim().toLowerCase().replace(/[^a-z0-9]/g, "") + Math.floor(100 + Math.random() * 900)).toUpperCase();
+      const stateSelected = stateInput || "Taraba State";
+      const statePrefix = stateSelected.substring(0, 3).toUpperCase();
+      const randomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const agentId = `NEXA-${randomId}-${statePrefix}`;
+
+      const userCred = await createUserWithEmailAndPassword(auth, emailInput.trim(), passwordInput);
+      const userId = userCred.user.uid;
+      await updateProfile(userCred.user, { displayName: nameInput.trim() });
+
+      const refLink = `${window.location.origin}/?ref=${generatedCode}`;
+
+      await setDoc(doc(db, "users", userId), {
+        id: userId,
+        name: nameInput.trim(),
+        email: emailInput.trim(),
+        phone: phoneInput.trim(),
+        nin: ninInput.trim() || "",
+        state: stateSelected,
+        lga: lgaInput.trim() || stateSelected,
+        bank: bankInput || "Pending",
+        accountNumber: accountNoInput.trim() || "Pending",
+        whyJoined: whyInput.trim() || "Growth Partner Agent",
+        role: "agent",
+        onboardingCompleted: true,
+        createdAt: new Date().toISOString()
+      });
+
+      await setDoc(doc(db, "agents", userId), {
+        agentId,
+        fullName: nameInput.trim(),
+        email: emailInput.trim(),
+        phone: phoneInput.trim(),
+        nin: ninInput.trim() || "",
+        region: stateSelected,
+        state: stateSelected,
+        lga: lgaInput.trim() || stateSelected,
+        bank: bankInput || "Pending",
+        accountNumber: accountNoInput.trim() || "Pending",
+        referralCode: generatedCode,
+        referralLink: refLink,
+        status: "approved",
+        commissionRulesApplied: "default_v1",
+        earnings: {
+          pending: 0,
+          paid: 0,
+          reversed: 0
+        },
+        createdAt: new Date().toISOString()
+      });
+
+      toast.success("Agent account created successfully! Welcome to your workspace.");
+      setShowAuthModal(false);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Save Settings
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -600,14 +677,32 @@ export function AgentsPage() {
                 Sign Out ({agentProfile?.fullName.split(" ")[0] || "Agent"})
               </Button>
             ) : (
-              <>
-                <button className="nav-links text-xs text-slate-300 hover:text-white px-3 py-1.5" onClick={() => { setAuthTab("login"); setShowAuthModal(true); }}>
-                  Agent Sign In
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+                    showAuthModal && authTab === "login"
+                      ? "text-white bg-white/20"
+                      : "text-slate-300 hover:text-white hover:bg-white/10"
+                  }`}
+                  onClick={() => {
+                    setAuthTab("login");
+                    setShowAuthModal(true);
+                  }}
+                >
+                  Sign In
                 </button>
-                <button className="nav-cta" onClick={() => scrollToSection("#apply")}>
-                  Apply Now — Free
+                <button
+                  type="button"
+                  className="nav-cta text-xs px-4 py-1.5 font-bold rounded-full bg-gradient-to-r from-[#2B5BFF] to-[#00C4CF] text-white hover:opacity-90 transition-all cursor-pointer shadow-md"
+                  onClick={() => {
+                    setAuthTab("register");
+                    setShowAuthModal(true);
+                  }}
+                >
+                  Sign Up
                 </button>
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -1889,55 +1984,208 @@ export function AgentsPage() {
         </div>
       </footer>
 
-      {/* SIGN IN MODAL */}
+      {/* AUTH MODAL (SIGN IN / SIGN UP) */}
       <AnimatePresence>
         {showAuthModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#141528] border border-white/10 w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5 text-white"
+              className="bg-[#141528] border border-white/10 w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5 text-white my-8"
             >
               <div className="flex justify-between items-center border-b border-white/10 pb-3">
-                <h3 className="text-base font-bold font-['Bricolage_Grotesque']">Partner Portal Sign In</h3>
+                <h3 className="text-base font-bold font-['Bricolage_Grotesque']">
+                  Agent Growth Partner Portal
+                </h3>
                 <button 
                   onClick={() => setShowAuthModal(false)}
-                  className="text-slate-400 hover:text-white text-xs bg-white/5 px-2.5 py-1 rounded-full"
+                  className="text-slate-400 hover:text-white text-xs bg-white/5 px-2.5 py-1 rounded-full transition-colors"
                 >
                   Close
                 </button>
               </div>
 
-              <form onSubmit={handleLogin} className="space-y-4 text-xs">
-                <div className="space-y-1">
-                  <Label htmlFor="loginEmail" className="text-slate-400">Registered Email Address</Label>
-                  <Input 
-                    id="loginEmail"
-                    type="email"
-                    placeholder="e.g. partner@nexaagent.ng"
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                    className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-10"
-                  />
-                </div>
+              {/* TABS FOR SWITCHING BETWEEN SIGN IN AND SIGN UP */}
+              <div className="flex bg-white/5 p-1 rounded-xl text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setAuthTab("login")}
+                  className={`flex-1 py-2 rounded-lg transition-all text-center ${
+                    authTab === "login"
+                      ? "bg-[#2B5BFF] text-white shadow-md font-bold"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthTab("register")}
+                  className={`flex-1 py-2 rounded-lg transition-all text-center ${
+                    authTab === "register"
+                      ? "bg-[#00C4CF] text-[#0B0C1E] shadow-md font-bold"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Sign Up
+                </button>
+              </div>
 
-                <div className="space-y-1">
-                  <Label htmlFor="loginPass" className="text-slate-400">Security Password</Label>
-                  <Input 
-                    id="loginPass"
-                    type="password"
-                    placeholder="••••••••"
-                    value={passwordInput}
-                    onChange={(e) => setPasswordInput(e.target.value)}
-                    className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-10"
-                  />
-                </div>
+              {authTab === "login" ? (
+                <form onSubmit={handleLogin} className="space-y-4 text-xs">
+                  <div className="space-y-1">
+                    <Label htmlFor="loginEmail" className="text-slate-400">Registered Email Address</Label>
+                    <Input 
+                      id="loginEmail"
+                      type="email"
+                      placeholder="e.g. partner@nexaagent.ng"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-10"
+                    />
+                  </div>
 
-                <Button type="submit" disabled={submitting} className="w-full bg-[#2B5BFF] hover:bg-[#1A4AEE] text-white font-bold h-10 rounded-full mt-2">
-                  {submitting ? "Signing in..." : "Access Agent Workspace"}
-                </Button>
-              </form>
+                  <div className="space-y-1">
+                    <Label htmlFor="loginPass" className="text-slate-400">Security Password</Label>
+                    <div className="relative">
+                      <Input 
+                        id="loginPass"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={passwordInput}
+                        onChange={(e) => setPasswordInput(e.target.value)}
+                        className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-10 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-white transition-colors focus:outline-none"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <Button type="submit" disabled={submitting} className="w-full bg-[#2B5BFF] hover:bg-[#1A4AEE] text-white font-bold h-10 rounded-full mt-2">
+                    {submitting ? "Signing in..." : "Access Agent Workspace"}
+                  </Button>
+
+                  <div className="text-center pt-2 text-slate-400 text-xs">
+                    Don&apos;t have an agent account yet?{" "}
+                    <button
+                      type="button"
+                      onClick={() => setAuthTab("register")}
+                      className="text-[#00C4CF] hover:underline font-bold"
+                    >
+                      Sign Up Now
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleQuickRegister} className="space-y-3.5 text-xs">
+                  <div className="space-y-1">
+                    <Label htmlFor="regName" className="text-slate-400">Full Name *</Label>
+                    <Input 
+                      id="regName"
+                      type="text"
+                      placeholder="e.g. Aminu Lawal"
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-10"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="regEmail" className="text-slate-400">Email Address *</Label>
+                    <Input 
+                      id="regEmail"
+                      type="email"
+                      placeholder="e.g. aminu@nexaagent.ng"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-10"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="regPhone" className="text-slate-400">Phone Number *</Label>
+                    <Input 
+                      id="regPhone"
+                      type="text"
+                      placeholder="e.g. 08012345678"
+                      value={phoneInput}
+                      onChange={(e) => setPhoneInput(e.target.value)}
+                      className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-10"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="regPass" className="text-slate-400">Security Password *</Label>
+                    <div className="relative">
+                      <Input 
+                        id="regPass"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="At least 6 characters"
+                        value={passwordInput}
+                        onChange={(e) => setPasswordInput(e.target.value)}
+                        className="bg-white/5 border-white/10 text-white placeholder-slate-500 rounded-xl h-10 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-white transition-colors focus:outline-none"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="regState" className="text-slate-400">Operating State *</Label>
+                    <select
+                      id="regState"
+                      value={stateInput}
+                      onChange={(e) => setStateInput(e.target.value)}
+                      className="w-full bg-[#1A1C38] border border-white/10 text-white rounded-xl h-10 px-3 text-xs"
+                    >
+                      <option value="">Select your state...</option>
+                      {NIGERIAN_STATES.map((st) => (
+                        <option key={st} value={st}>{st}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <Button type="submit" disabled={submitting} className="w-full bg-[#00C4CF] hover:bg-[#00A8B2] text-[#0B0C1E] font-bold h-10 rounded-full mt-2">
+                    {submitting ? "Creating Account..." : "Create Agent Account"}
+                  </Button>
+
+                  <div className="text-center pt-2 border-t border-white/10 flex flex-col gap-1.5 text-slate-400 text-xs">
+                    <div>
+                      Already registered as an Agent?{" "}
+                      <button
+                        type="button"
+                        onClick={() => setAuthTab("login")}
+                        className="text-[#2B5BFF] hover:underline font-bold"
+                      >
+                        Sign In
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAuthModal(false);
+                        scrollToSection("#apply");
+                      }}
+                      className="text-slate-400 hover:text-white text-[11px] underline"
+                    >
+                      Or fill full application with payout bank details →
+                    </button>
+                  </div>
+                </form>
+              )}
             </motion.div>
           </div>
         )}

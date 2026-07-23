@@ -1606,11 +1606,11 @@ Please contact us directly on WhatsApp at **${storeInfo?.storePhone || "our supp
         }
       }
 
-      // Enforce Enterprise tier gating unless user is Super Admin!
-      if (tier !== "enterprise" && !isSuperAdmin) {
+      // Enforce Professional and Enterprise tier gating unless user is Super Admin!
+      if (tier !== "enterprise" && tier !== "professional" && !isSuperAdmin) {
         return res.status(403).json({
           error: "AI_ASSISTANT_LOCKED",
-          message: "The NEXAOS AI Assistant is exclusive to Enterprise tier subscribers."
+          message: "The NEXAOS AI Assistant is available on Professional and Enterprise tier plans."
         });
       }
 
@@ -1724,29 +1724,32 @@ Please contact us directly on WhatsApp at **${storeInfo?.storePhone || "our supp
       const systemInstruction = `You are the NEXAOS Enterprise AI Business Assistant, an expert agent that interprets natural language and multimodal commands (text, speech, photos) into structured operations for store inventory management.
 Your absolute highest directive is accuracy and preventing errors.
 
-You can interpret six core intents:
+You can interpret seven core intents:
 1. "add_product": Create a new product.
-   - Extract productName, price, costPrice, categoryName, quantity, sku, description, unit.
+   - Extract productName, price, costPrice, categoryName, quantity, sku, description, unit. Set targetRoute="/app/catalog".
    - For photo-based creation: analyze the image to suggest name, category, and description. Leave price and quantity empty or 0 UNLESS the user explicitly stated them in text/speech. Suggest name/category as highly editable suggestions.
    - Handle multi-variant creation if requested (extract variant list under "variants": [{"name": "M", "price": 100, "quantity": 10}]).
 
 2. "adjust_stock": Adjust stock of a product.
-   - Extract itemId (match to existing product IDs based on Name or SKU), itemName, adjustmentQuantity (can be positive received like +10, or negative sold/shipped like -5), reason.
+   - Extract itemId (match to existing product IDs based on Name or SKU), itemName, adjustmentQuantity (can be positive received like +10, or negative sold/shipped like -5), reason. Set targetRoute="/app/catalog".
 
 3. "record_sale": Log a retail transaction.
    - Extract saleItems: array of matched items with itemId, name, quantity, price.
-   - Extract customerName, customerPhone, totalNgn.
+   - Extract customerName, customerPhone, totalNgn. Set targetRoute="/app/sales".
    - If a debt payment is logged (e.g., "record debt payment of ₦5,000 for John"), extract as isDebtSettlement = true and previousDebtPaidNgn = amount.
 
 4. "check_report": Retrieve/query analytics (read-only).
-   - Extract reportType ("sales", "stock", "expenses"), startDate, endDate.
+   - Extract reportType ("sales", "stock", "expenses"), startDate, endDate. Set targetRoute="/app/reports".
 
 5. "price_update": Modify selling price.
-   - Extract priceItemId (matched product ID), priceItemName, oldPrice, newPrice.
+   - Extract priceItemId (matched product ID), priceItemName, oldPrice, newPrice. Set targetRoute="/app/catalog".
 
 6. "reorder": Generate a procurement restock.
    - Create a draft PO restock list under reorderItems: [{"itemId": "id", "name": "name", "quantity": 10}].
-   - Extract supplierId, supplierName.
+   - Extract supplierId, supplierName. Set targetRoute="/app/suppliers".
+
+7. "navigate_to": Navigate directly to a specific route/page in the system.
+   - Extract targetRoute (e.g., "/app/dashboard", "/app/catalog", "/app/sales", "/app/reports", "/app/settings", "/app/customers", "/app/suppliers", "/app/expenses", "/app/inventory", "/app/audits", "/app/locations").
 
 CONFIDENCE & CLARIFICATION RULES:
 - If the user query is ambiguous, missing vital values (like adjustment quantity for stock adjust), or you are unsure, you MUST set the intent to "clarify" and provide a warm, helpful clarifying question in "clarificationMessage".
@@ -1762,11 +1765,12 @@ Provide the response as clean structured JSON.`;
         type: Type.OBJECT,
         properties: {
           confidence: { type: Type.NUMBER, description: "Confidence score between 0.0 and 1.0" },
-          intent: { type: Type.STRING, description: "One of: add_product, adjust_stock, record_sale, check_report, price_update, reorder, clarify" },
+          intent: { type: Type.STRING, description: "One of: add_product, adjust_stock, record_sale, check_report, price_update, reorder, navigate_to, clarify" },
           clarificationMessage: { type: Type.STRING, description: "If intent is clarify or confidence is low, ask the user to clarify." },
           parameters: {
             type: Type.OBJECT,
             properties: {
+              targetRoute: { type: Type.STRING, description: "Route path to navigate to, e.g. /app/catalog, /app/sales, /app/reports, /app/settings, /app/customers, /app/suppliers, /app/expenses, /app/dashboard" },
               // add_product
               productName: { type: Type.STRING },
               sku: { type: Type.STRING },

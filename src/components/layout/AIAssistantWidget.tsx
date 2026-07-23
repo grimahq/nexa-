@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Bot,
   Mic,
@@ -15,12 +16,19 @@ import {
   XCircle,
   TrendingUp,
   History,
-  Check
+  Check,
+  Eye,
+  EyeOff,
+  Compass,
+  ExternalLink,
+  Zap,
+  Navigation
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRole } from "@/hooks/useRole";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { toast } from "sonner";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { doc, updateDoc, getDoc } from "firebase/firestore";
 
 interface Ledger {
@@ -73,9 +81,81 @@ interface Message {
   };
 }
 
+const INTENT_ROUTES: Record<string, { path: string; label: string }> = {
+  add_product: { path: "/app/catalog", label: "Catalog & Inventory" },
+  adjust_stock: { path: "/app/catalog", label: "Catalog & Stock Adjustments" },
+  record_sale: { path: "/app/sales", label: "Point of Sale (POS)" },
+  check_report: { path: "/app/analytics", label: "Analytics & Reports" },
+  price_update: { path: "/app/catalog", label: "Catalog & Price Management" },
+  manage_customers: { path: "/app/customers", label: "Customer Directory" },
+  customer_update: { path: "/app/customers", label: "Customer Directory" },
+  purchase_order: { path: "/app/purchase-orders", label: "Purchase Orders" },
+  supplier_update: { path: "/app/suppliers", label: "Suppliers" },
+  expense_record: { path: "/app/expenses", label: "Expense Ledger" },
+  settings_update: { path: "/app/settings", label: "System Settings" },
+};
+
 export function AIAssistantWidget() {
+  const navigate = useNavigate();
+  const { flags } = useFeatureFlags();
+  const currentTier = flags.planId || "starter";
   const { currentStoreId, isSuperAdmin, stores, setCurrentStoreId } = useRole();
+
+  // Autonomous Actions state
+  const [autonomousActionsEnabled, setAutonomousActionsEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("nexa_smart_features");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.autonomousActions === "boolean") {
+          return parsed.autonomousActions;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+    return true; // Default enabled for Pro & Enterprise
+  });
+
+  useEffect(() => {
+    const handleStorage = () => {
+      try {
+        const saved = localStorage.getItem("nexa_smart_features");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (typeof parsed.autonomousActions === "boolean") {
+            setAutonomousActionsEnabled(parsed.autonomousActions);
+          }
+        }
+      } catch (e) {
+        console.warn("Storage listener parse error:", e);
+      }
+    };
+    window.addEventListener("nexa_smart_features_updated", handleStorage);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("nexa_smart_features_updated", handleStorage);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
+  const toggleAutonomousActions = () => {
+    const nextState = !autonomousActionsEnabled;
+    setAutonomousActionsEnabled(nextState);
+    try {
+      const saved = localStorage.getItem("nexa_smart_features") || "{}";
+      const parsed = JSON.parse(saved);
+      parsed.autonomousActions = nextState;
+      localStorage.setItem("nexa_smart_features", JSON.stringify(parsed));
+      window.dispatchEvent(new Event("nexa_smart_features_updated"));
+    } catch (e) {
+      console.warn("Storage save error:", e);
+    }
+    toast.info(nextState ? "⚡ Autonomous Actions & Auto-Navigation Activated" : "⏸️ Autonomous Actions Deactivated");
+  };
   const [isOpen, setIsOpen] = useState(false);
+
+  const isAutonomousAllowed = currentTier !== "starter" && autonomousActionsEnabled;
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
@@ -97,6 +177,7 @@ export function AIAssistantWidget() {
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState(5000);
   const [byokKey, setByokKey] = useState("");
+  const [showByokKey, setShowByokKey] = useState(false);
   const [showByokSettings, setShowByokSettings] = useState(false);
   const [isSavingKey, setIsSavingKey] = useState(false);
 
@@ -126,6 +207,7 @@ export function AIAssistantWidget() {
 
   // Fetch Custom API Key from Firestore Store Doc
   const fetchApiKey = useCallback(async () => {
+    if (!auth.currentUser) return;
     const activeStoreId = currentStoreId || "global-store";
     try {
       const storeRef = doc(db, "stores", activeStoreId);
@@ -133,14 +215,22 @@ export function AIAssistantWidget() {
       if (snap.exists() && snap.data().aiAssistantApiKey) {
         setByokKey(snap.data().aiAssistantApiKey);
       }
-    } catch (err) {
-      console.error("Failed to fetch API key:", err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("permission-denied") && !msg.includes("insufficient permissions")) {
+        console.error("Failed to fetch API key:", err);
+      }
     }
   }, [currentStoreId]);
 
   useEffect(() => {
     fetchLedger();
-    fetchApiKey();
+    const unsub = auth.onAuthStateChanged((user) => {
+      if (user) {
+        fetchApiKey();
+      }
+    });
+    return () => unsub();
   }, [fetchLedger, fetchApiKey]);
 
   // Audio Recording Handlers with robust permissions & stream cleanup
@@ -394,16 +484,59 @@ export function AIAssistantWidget() {
         };
       }
 
-      setMessages(prev => [...prev, {
-        id: `assistant-${Date.now()}`,
-        sender: "assistant",
+      const msgId = `assistant-${Date.now()}`;
+      const newMsg = {
+        id: msgId,
+        sender: "assistant" as const,
         text: replyText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         requestId: data.requestId,
         pendingConfirmation: pendingCard,
         clarificationMessage: clarification,
         report: reportData
-      }]);
+      };
+
+      setMessages(prev => [...prev, newMsg]);
+
+      // Check Autonomous Actions & Auto-Navigation
+      const routeTarget = INTENT_ROUTES[parsedResult.intent];
+      if (isAutonomousAllowed && parsedResult.intent !== "clarify" && data.requestId) {
+        if (pendingCard) {
+          try {
+            const execRes = await fetch("/api/ai-assistant/execute-intent", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ requestId: data.requestId, storeId: currentStoreId || "global-store", isSuperAdmin })
+            });
+
+            if (execRes.ok) {
+              setMessages(prev => prev.map(m => {
+                if (m.id === msgId && m.pendingConfirmation) {
+                  return {
+                    ...m,
+                    text: `${m.text}\n\n⚡ **Autonomously Executed**: Operation completed in store database!`,
+                    pendingConfirmation: {
+                      ...m.pendingConfirmation,
+                      status: "completed" as const
+                    }
+                  };
+                }
+                return m;
+              }));
+              toast.success(`⚡ Autonomous Action Executed: ${parsedResult.intent.replace("_", " ").toUpperCase()}`);
+            }
+          } catch (execErr) {
+            console.error("Autonomous execution error:", execErr);
+          }
+        }
+
+        if (routeTarget) {
+          toast.info(`⚡ Auto-Navigating to ${routeTarget.label}...`);
+          setTimeout(() => {
+            navigate({ to: routeTarget.path as never });
+          }, 700);
+        }
+      }
 
       fetchLedger();
     } catch (err) {
@@ -544,7 +677,22 @@ export function AIAssistantWidget() {
               </div>
 
               {/* Status & Options */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                {/* Autonomous Toggle */}
+                <button
+                  onClick={toggleAutonomousActions}
+                  className={`flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-full border transition-all ${
+                    autonomousActionsEnabled
+                      ? "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/40"
+                      : "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                  }`}
+                  title="Toggle Autonomous Actions & Navigation"
+                  id="widget-autonomous-toggle-btn"
+                >
+                  <Zap className={`h-3 w-3 ${autonomousActionsEnabled ? "animate-pulse fill-amber-500 text-amber-500" : ""}`} />
+                  <span>Auto: {autonomousActionsEnabled ? "ON" : "OFF"}</span>
+                </button>
+
                 <div className="text-[10px] rounded-full bg-indigo-50 px-2 py-1 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400 max-w-[130px] truncate font-medium">
                   {isSuperAdmin ? "👑 Super Admin" : byokKey ? "Unlimited" : ledger ? `${((ledger.creditsIncluded || 0) + (ledger.creditsPurchased || 0) - (ledger.creditsUsed || 0))} cr` : "0 cr"}
                 </div>
@@ -608,14 +756,24 @@ export function AIAssistantWidget() {
                   Input a custom Gemini Key to bypass allowances entirely.
                 </p>
                 <div className="mt-2 flex gap-2">
-                  <input
-                    type="password"
-                    placeholder="Gemini API Key..."
-                    value={byokKey}
-                    onChange={(e) => setByokKey(e.target.value)}
-                    className="flex-1 rounded border border-slate-200 bg-white px-2 py-1 outline-none focus:border-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs"
-                    id="widget-byok-key-input"
-                  />
+                  <div className="relative flex-1">
+                    <input
+                      type={showByokKey ? "text" : "password"}
+                      placeholder="Gemini API Key..."
+                      value={byokKey}
+                      onChange={(e) => setByokKey(e.target.value)}
+                      className="w-full rounded border border-slate-200 bg-white px-2 py-1 pr-8 outline-none focus:border-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs"
+                      id="widget-byok-key-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowByokKey(!showByokKey)}
+                      className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none"
+                      aria-label={showByokKey ? "Hide API key" : "Show API key"}
+                    >
+                      {showByokKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
                   <button
                     onClick={handleSaveApiKey}
                     disabled={isSavingKey}
@@ -834,8 +992,20 @@ export function AIAssistantWidget() {
                           </div>
 
                           {/* Control Buttons for pending confirmation */}
-                          {msg.pendingConfirmation.status === "pending" ? (
-                            <div className="mt-3 flex gap-2">
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {INTENT_ROUTES[msg.pendingConfirmation.intent] && (
+                              <button
+                                onClick={() => navigate({ to: INTENT_ROUTES[msg.pendingConfirmation.intent].path as never })}
+                                className="w-full flex items-center justify-center gap-1 rounded bg-indigo-50 border border-indigo-200 py-1 text-center font-semibold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-300 transition text-[10px]"
+                                title={`Navigate directly to ${INTENT_ROUTES[msg.pendingConfirmation.intent].label}`}
+                              >
+                                <Navigation className="h-3 w-3" />
+                                <span>Go to {INTENT_ROUTES[msg.pendingConfirmation.intent].label}</span>
+                              </button>
+                            )}
+
+                            {msg.pendingConfirmation.status === "pending" ? (
+                              <div className="w-full flex gap-2">
                               <button
                                 onClick={() => handleConfirmIntent(msg.id, msg.requestId || "")}
                                 className="flex-1 rounded bg-amber-600 py-1 text-center font-bold text-white hover:bg-amber-500 transition active:scale-[0.98]"
@@ -869,7 +1039,8 @@ export function AIAssistantWidget() {
                             </div>
                           )}
                         </div>
-                      )}
+                      </div>
+                    )}
 
                       {/* Display generated reports within widget */}
                       {msg.sender === "assistant" && msg.report && (

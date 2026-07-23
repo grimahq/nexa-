@@ -172,6 +172,7 @@ function AppLayout() {
     country?: string;
     state?: string;
     lga?: string;
+    selectedPlan?: "starter" | "professional" | "enterprise";
   }) => {
     try {
       await setupStore({
@@ -181,6 +182,8 @@ function AppLayout() {
         brandColor: data.brandColor,
         moniepointKey: data.moniepointKey,
         storeSlug: data.storeSlug,
+        subscriptionTier: data.selectedPlan || "starter",
+        subscriptionStatus: "trialing",
         electronicsMainType: data.electronicsMainType,
         textilePrimarilySellsBy: data.textilePrimarilySellsBy,
         textileSubcategories: data.textileSubcategories,

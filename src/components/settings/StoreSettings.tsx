@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Store, Save, ShieldAlert, Mail, FileText, MapPin, Trash2, Plus, Building2, ExternalLink, Copy, Sparkles, Layers, ShieldCheck, Zap, ArrowUpRight } from "lucide-react";
+import { Store, Save, ShieldAlert, Mail, FileText, MapPin, Trash2, Plus, Building2, ExternalLink, Copy, Sparkles, Layers, ShieldCheck, Zap, ArrowUpRight, Eye, EyeOff } from "lucide-react";
 import { PaymentDialog } from "@/components/settings/PaymentDialog";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
@@ -50,6 +50,7 @@ export function StoreSettings() {
   const [receiptFooter, setReceiptFooter] = useState(activeSettings.receiptFooter || "");
   const [taxRate, setTaxRate] = useState(activeSettings.taxRate?.toString() || "0");
   const [moniepointKey, setMoniepointKey] = useState(activeSettings.moniepointKey || "");
+  const [showMoniepointKey, setShowMoniepointKey] = useState(false);
   const [storeSlug, setStoreSlug] = useState(activeSettings.storeSlug || "");
   const [pricingMode, setPricingMode] = useState<"single" | "tiered">(activeSettings.pricingMode || "single");
   const [currency, setCurrency] = useState(activeSettings.currency || "NGN");
@@ -702,13 +703,24 @@ export function StoreSettings() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="moniepoint-key">Moniepoint API Key</Label>
-                <Input 
-                  id="moniepoint-key" 
-                  type="password" 
-                  value={moniepointKey} 
-                  onChange={(e) => setMoniepointKey(e.target.value)} 
-                  placeholder="sk_live_..."
-                />
+                <div className="relative">
+                  <Input 
+                    id="moniepoint-key" 
+                    type={showMoniepointKey ? "text" : "password"} 
+                    value={moniepointKey} 
+                    onChange={(e) => setMoniepointKey(e.target.value)} 
+                    placeholder="sk_live_..."
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowMoniepointKey(!showMoniepointKey)}
+                    className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                    aria-label={showMoniepointKey ? "Hide API key" : "Show API key"}
+                  >
+                    {showMoniepointKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

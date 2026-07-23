@@ -62,6 +62,25 @@ export interface AdminStore {
   [key: string]: unknown;
 }
 
+export interface SubscriptionRequest {
+  id: string;
+  storeId: string;
+  storeName: string;
+  targetTier: string;
+  planName: string;
+  amountNgn: number;
+  payerName: string;
+  payerPhone: string;
+  transactionRef: string;
+  notes: string;
+  bankReference: string;
+  status: "pending_verification" | "approved" | "rejected";
+  createdAt: string;
+  approvedAt?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+}
+
 export const Route = createFileRoute("/app/super-admin/subscriptions")({
   component: SubscriptionsManagementPage,
 });
@@ -83,12 +102,13 @@ const MOCK_EVENTS: SubscriptionEvent[] = [
 ];
 
 export function SubscriptionsManagementPage() {
-  const [activeTab, setActiveTab] = useState<"overview" | "plans" | "stores" | "dunning" | "logs">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "requests" | "plans" | "stores" | "dunning" | "logs">("overview");
   
   // Database States
   const [stores, setStores] = useState<AdminStore[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [events, setEvents] = useState<SubscriptionEvent[]>([]);
+  const [subscriptionRequests, setSubscriptionRequests] = useState<SubscriptionRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDemoMode, setIsDemoMode] = useState(false);
 
@@ -244,6 +264,14 @@ export function SubscriptionsManagementPage() {
       eventsSnap.forEach(doc => {
         loadedEvents.push({ id: doc.id, ...doc.data() } as SubscriptionEvent);
       });
+
+      // 4. Fetch Monnify upgrade requests
+      const reqSnap = await getDocs(collection(db, "subscriptionRequests"));
+      const loadedReqs: SubscriptionRequest[] = [];
+      reqSnap.forEach(doc => {
+        loadedReqs.push({ id: doc.id, ...(doc.data() as Omit<SubscriptionRequest, "id">) });
+      });
+      setSubscriptionRequests(loadedReqs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
 
       // Handle Fallbacks
       if (loadedStores.length === 0) {
@@ -657,6 +685,120 @@ export function SubscriptionsManagementPage() {
     }
   };
 
+  // Monnify Upgrade Request Handlers
+  const handleApproveRequest = async (req: SubscriptionRequest) => {
+    try {
+      if (isDemoMode) {
+        setSubscriptionRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: "approved", approvedAt: new Date().toISOString() } : r));
+        toast.success(`Request approved in sandbox mode! Store upgraded to ${req.planName}`);
+        return;
+      }
+
+      // Update request status
+      await updateDoc(doc(db, "subscriptionRequests", req.id), {
+        status: "approved",
+        approvedAt: new Date().toISOString(),
+        approvedBy: auth.currentUser?.email || "superadmin"
+      });
+
+      // Update store tier and active status
+      const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      await updateDoc(doc(db, "stores", req.storeId), {
+        subscriptionTier: req.targetTier,
+        subscriptionStatus: "active",
+        currentPeriodEnd: periodEnd,
+        paymentMethodOnFile: true
+      });
+
+      // Add in-app notification for merchant
+      await addDoc(collection(db, "notifications"), {
+        type: "request_update",
+        title: "Subscription Upgrade Verified!",
+        message: `Your Monnify bank transfer payment of ₦${req.amountNgn.toLocaleString()} for ${req.planName} has been verified and activated. Valid until ${new Date(periodEnd).toLocaleDateString()}.`,
+        isRead: false,
+        createdAt: new Date().toISOString()
+      });
+
+      // Audit event
+      await addDoc(collection(db, "subscriptionEvents"), {
+        storeId: req.storeId,
+        eventType: "upgrade",
+        fromPlan: "trialing",
+        toPlan: req.targetTier,
+        actorId: auth.currentUser?.email || "superadmin",
+        timestamp: new Date().toISOString(),
+        reason: `Monnify bank transfer verified. Ref: ${req.bankReference}`
+      });
+
+      toast.success(`Approved! Store upgraded to ${req.planName}`);
+      loadDatabase();
+    } catch (err) {
+      toast.error(`Approval failed: ${(err as Error).message}`);
+    }
+  };
+
+  const handleRejectRequest = async (req: SubscriptionRequest, reason: string) => {
+    try {
+      if (isDemoMode) {
+        setSubscriptionRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: "rejected", rejectedAt: new Date().toISOString(), rejectionReason: reason } : r));
+        toast.info("Request rejected in sandbox mode.");
+        return;
+      }
+
+      await updateDoc(doc(db, "subscriptionRequests", req.id), {
+        status: "rejected",
+        rejectedAt: new Date().toISOString(),
+        rejectionReason: reason || "Transfer details could not be verified"
+      });
+
+      await addDoc(collection(db, "notifications"), {
+        type: "request_update",
+        title: "Upgrade Request Update",
+        message: `Your bank transfer request for ${req.planName} was not approved. Reason: ${reason || "Transfer details unmatched"}. Please re-check account details.`,
+        isRead: false,
+        createdAt: new Date().toISOString()
+      });
+
+      toast.info("Upgrade request marked as rejected.");
+      loadDatabase();
+    } catch (err) {
+      toast.error(`Rejection failed: ${(err as Error).message}`);
+    }
+  };
+
+  const handleSendTrialNotification = async (store: AdminStore) => {
+    try {
+      const daysLeft = store.trialEndsAt 
+        ? Math.max(0, Math.ceil((new Date(store.trialEndsAt).getTime() - Date.now()) / 86400000))
+        : 14;
+
+      if (!isDemoMode) {
+        // 1. In-App Notification
+        await addDoc(collection(db, "notifications"), {
+          type: "expiry_warning",
+          title: "NexaStoreOS Free Trial Ending Soon",
+          message: `Your free trial expires in ${daysLeft} day(s). Transfer to our Monnify bank account to upgrade seamlessly without interruption!`,
+          isRead: false,
+          createdAt: new Date().toISOString()
+        });
+
+        // 2. Email log entry (Gmail dispatch)
+        await addDoc(collection(db, "emailLogs"), {
+          to: store.storePhone || "merchant@store.com",
+          storeId: store.id,
+          subject: `Action Required: Your NexaStoreOS Trial Expires in ${daysLeft} Days`,
+          body: `Hello ${store.storeName || "Valued Merchant"},\n\nYour 14-day free trial on NexaStoreOS is expiring in ${daysLeft} days. Upgrade now via Monnify bank transfer to retain full access to your inventory, staff accounts, and daily reports.`,
+          sentAt: new Date().toISOString(),
+          status: "sent"
+        });
+      }
+
+      toast.success(`Gmail and In-App expiration notification sent to ${store.storeName || "store"}!`);
+    } catch (err) {
+      toast.error(`Failed to dispatch alert: ${(err as Error).message}`);
+    }
+  };
+
   // Selected store's custom audit logs filter
   const storeSpecificEvents = useMemo(() => {
     if (!selectedStore) return [];
@@ -753,6 +895,18 @@ export function SubscriptionsManagementPage() {
           className={`h-10 px-4 text-xs font-semibold rounded-none border-b-2 -mb-px hover:bg-transparent ${activeTab === "overview" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
         >
           <Activity className="h-4 w-4 mr-1.5" /> Overview & Charts
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => setActiveTab("requests")}
+          className={`h-10 px-4 text-xs font-semibold rounded-none border-b-2 -mb-px relative hover:bg-transparent ${activeTab === "requests" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          <CreditCard className="h-4 w-4 mr-1.5" /> Transfer Requests ({subscriptionRequests.length})
+          {subscriptionRequests.filter(r => r.status === "pending_verification").length > 0 && (
+            <span className="ml-1.5 bg-emerald-600 text-white font-mono text-[9px] font-bold h-4 min-w-4 px-1 rounded-full inline-flex items-center justify-center animate-pulse">
+              {subscriptionRequests.filter(r => r.status === "pending_verification").length}
+            </span>
+          )}
         </Button>
         <Button
           variant="ghost"
@@ -935,7 +1089,139 @@ export function SubscriptionsManagementPage() {
         </div>
       )}
 
-      {/* 2. STORES DIRECTORY (Search, Filter, Actions, Sheet Details) */}
+      {/* 2. MONNIFY BANK TRANSFER UPGRADE REQUESTS */}
+      {activeTab === "requests" && (
+        <Card className="shadow-none border border-border">
+          <CardHeader className="pb-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle className="text-sm font-bold flex items-center gap-1.5">
+                <CreditCard className="h-4 w-4 text-emerald-500" /> Monnify Bank Transfer Upgrade Requests
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Merchants who initiated manual bank transfer upgrades via custom Monnify details. Verify transfer and click Approve to upgrade the store immediately.
+              </CardDescription>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs font-bold">Store Name & Ref</TableHead>
+                  <TableHead className="text-xs font-bold">Target Tier & Price</TableHead>
+                  <TableHead className="text-xs font-bold">Payer Info</TableHead>
+                  <TableHead className="text-xs font-bold">Monnify / Bank Ref</TableHead>
+                  <TableHead className="text-xs font-bold">Date Submitted</TableHead>
+                  <TableHead className="text-xs font-bold text-center">Status</TableHead>
+                  <TableHead className="text-xs font-bold text-right pr-6">Super Admin Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {subscriptionRequests.length > 0 ? (
+                  subscriptionRequests.map((req) => (
+                    <TableRow key={req.id} className="hover:bg-secondary/10 border-b">
+                      <TableCell className="py-3.5">
+                        <div>
+                          <span className="font-bold text-xs block text-foreground">{req.storeName}</span>
+                          <span className="font-mono text-[9px] text-muted-foreground block uppercase">{req.storeId}</span>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="py-3.5">
+                        <div>
+                          <Badge variant="outline" className="font-bold text-xs border-emerald-500/20 bg-emerald-500/10 text-emerald-700">
+                            {req.planName}
+                          </Badge>
+                          <span className="text-xs font-extrabold block mt-0.5 text-foreground">
+                            ₦{req.amountNgn.toLocaleString()}
+                          </span>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="py-3.5 text-xs">
+                        <div className="space-y-0.5">
+                          <p className="font-semibold text-foreground">{req.payerName}</p>
+                          <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                            <Phone className="h-3 w-3 text-emerald-600" /> {req.payerPhone}
+                          </p>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="py-3.5 font-mono text-xs">
+                        <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded font-bold">
+                          {req.bankReference}
+                        </span>
+                        {req.transactionRef && req.transactionRef !== "N/A" && (
+                          <p className="text-[10px] text-muted-foreground mt-1">Tx: {req.transactionRef}</p>
+                        )}
+                      </TableCell>
+
+                      <TableCell className="py-3.5 text-xs font-mono text-muted-foreground">
+                        {new Date(req.createdAt).toLocaleDateString()} {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </TableCell>
+
+                      <TableCell className="text-center py-3.5">
+                        {req.status === "pending_verification" && (
+                          <Badge className="bg-amber-500 text-white font-bold text-[10px] px-2 py-0.5 animate-pulse">
+                            Pending Verification
+                          </Badge>
+                        )}
+                        {req.status === "approved" && (
+                          <Badge className="bg-emerald-600 text-white font-bold text-[10px] px-2 py-0.5">
+                            Approved & Upgraded
+                          </Badge>
+                        )}
+                        {req.status === "rejected" && (
+                          <Badge className="bg-red-500 text-white font-bold text-[10px] px-2 py-0.5">
+                            Rejected
+                          </Badge>
+                        )}
+                      </TableCell>
+
+                      <TableCell className="text-right py-3.5 pr-6">
+                        {req.status === "pending_verification" ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              onClick={() => handleApproveRequest(req)}
+                              size="xs"
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-7 text-[11px] gap-1"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Approve & Upgrade
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                const reason = prompt("Enter rejection reason (optional):") || "Transfer details unmatched";
+                                handleRejectRequest(req, reason);
+                              }}
+                              size="xs"
+                              variant="outline"
+                              className="text-red-600 hover:bg-red-50 dark:hover:bg-red-950 border-red-200 h-7 text-[11px] gap-1"
+                            >
+                              <XCircle className="h-3.5 w-3.5" /> Reject
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground italic">
+                            {req.status === "approved" ? `Approved on ${new Date(req.approvedAt || "").toLocaleDateString()}` : "Processed"}
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
+                      No Monnify bank transfer requests submitted yet.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 3. STORES DIRECTORY (Search, Filter, Actions, Sheet Details) */}
       {activeTab === "stores" && (
         <Card className="shadow-none border border-border">
           <CardHeader className="pb-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1019,7 +1305,16 @@ export function SubscriptionsManagementPage() {
                             <Badge className="bg-emerald-500 text-white font-semibold text-[10px] capitalize px-2 py-0.5">Active</Badge>
                           )}
                           {store.subscriptionStatus === "trialing" && (
-                            <Badge className="bg-blue-500 text-white font-semibold text-[10px] capitalize px-2 py-0.5">Trialing</Badge>
+                            <div className="flex flex-col items-center gap-1">
+                              <Badge className="bg-blue-600 text-white font-semibold text-[10px] capitalize px-2 py-0.5">
+                                Free Trial
+                              </Badge>
+                              {store.trialEndsAt && (
+                                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded-full font-mono">
+                                  {Math.max(0, Math.ceil((new Date(store.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} days left
+                                </span>
+                              )}
+                            </div>
                           )}
                           {store.subscriptionStatus === "past_due" && (
                             <Badge className="bg-red-500 text-white font-semibold text-[10px] capitalize px-2 py-0.5 animate-pulse">Past Due</Badge>
@@ -1032,24 +1327,37 @@ export function SubscriptionsManagementPage() {
                           {store.paymentMethodOnFile ? (
                             <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-[9px] px-1.5 py-0 h-5 font-mono">CC Active</Badge>
                           ) : (
-                            <Badge variant="outline" className="text-muted-foreground text-[9px] px-1.5 py-0 h-5 font-mono">No Card</Badge>
+                            <Badge variant="outline" className="text-muted-foreground text-[9px] px-1.5 py-0 h-5 font-mono">Transfer / No CC</Badge>
                           )}
                         </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground py-3.5">
-                          {store.currentPeriodEnd ? new Date(store.currentPeriodEnd).toLocaleDateString() : "N/A"}
+                          {store.currentPeriodEnd ? new Date(store.currentPeriodEnd).toLocaleDateString() : (store.trialEndsAt ? new Date(store.trialEndsAt).toLocaleDateString() : "N/A")}
                         </TableCell>
                         <TableCell className="text-right py-3.5 pr-6">
-                          <Button
-                            onClick={() => {
-                              setSelectedStore(store);
-                              setIsDetailOpen(true);
-                            }}
-                            size="xs"
-                            variant="outline"
-                            className="h-7 text-[11px] gap-1 hover:bg-primary hover:text-white"
-                          >
-                            Billing Desk <ChevronRight className="h-3 w-3" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {store.subscriptionStatus === "trialing" && (
+                              <Button
+                                onClick={() => handleSendTrialNotification(store)}
+                                size="xs"
+                                variant="outline"
+                                title="Send Gmail & In-App Expiration Warning"
+                                className="h-7 text-[10px] font-semibold text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950 border-sky-200 gap-1"
+                              >
+                                <Mail className="h-3 w-3" /> Alert
+                              </Button>
+                            )}
+                            <Button
+                              onClick={() => {
+                                setSelectedStore(store);
+                                setIsDetailOpen(true);
+                              }}
+                              size="xs"
+                              variant="outline"
+                              className="h-7 text-[11px] gap-1 hover:bg-primary hover:text-white"
+                            >
+                              Billing Desk <ChevronRight className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -1650,7 +1958,15 @@ export function SubscriptionsManagementPage() {
                 </div>
 
                 {/* 4. Quick Actions */}
-                <div className="flex items-center gap-2 border-t pt-3 mt-3 justify-end">
+                <div className="flex flex-wrap items-center gap-2 border-t pt-3 mt-3 justify-end">
+                  <Button
+                    onClick={() => handleSendTrialNotification(selectedStore)}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs text-sky-600 border-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950 gap-1.5 font-bold"
+                  >
+                    <Mail className="h-3.5 w-3.5" /> Send Expiry Warning (Gmail + In-App)
+                  </Button>
                   {selectedStore.subscriptionStatus === "active" ? (
                     <Button
                       onClick={() => handleStoreBillingAction("cancellation")}

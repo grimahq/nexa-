@@ -5,7 +5,7 @@ export const DEFAULT_PLANS: SubscriptionPlan[] = [
   {
     planId: "starter",
     name: "Starter Plan",
-    price: 0,
+    price: 3500,
     billingCycle: "monthly",
     isActive: true,
     sortOrder: 1,
@@ -19,8 +19,8 @@ export const DEFAULT_PLANS: SubscriptionPlan[] = [
   },
   {
     planId: "professional",
-    name: "Professional Plan",
-    price: 15000,
+    name: "Pro Plan",
+    price: 6500,
     billingCycle: "monthly",
     isActive: true,
     sortOrder: 2,

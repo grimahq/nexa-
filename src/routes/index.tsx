@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useDemo } from "@/hooks/useDemo";
 import { useState, useEffect, useMemo } from "react";
 import { collection, query, limit, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { BusinessOnboarding } from "@/components/onboarding/BusinessOnboarding";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { LegalModal } from "@/components/legal/LegalModal";
@@ -58,172 +58,130 @@ export const Route = createFileRoute("/")({
 
 const PRICING_PLANS = [
   {
-    id: "basic",
-    name: "Basic Plan",
-    badge: "Starter Pack",
-    description: "Essential inventory and sales tracking for single-retailer shops.",
-    monthlyPrice: 6500,
-    annualPrice: 65000, // 2 months free!
-    strikePrice: 15000,
-    colorClass: "from-blue-500/10 to-teal-500/5 border-slate-200",
-    badgeColor: "bg-slate-100 text-slate-800 border-slate-200/50 hover:bg-slate-200",
+    id: "starter",
+    name: "STARTER",
+    badge: "Starter",
+    limitBadge: "UP TO 2000 PRODUCTS",
+    description: "Perfect for small shops just getting started.",
+    monthlyPrice: 3500,
+    annualPrice: 35000,
+    strikePrice: 5000,
+    buttonText: "GET STARTED",
+    colorClass: "from-teal-500/10 to-emerald-500/5 border-teal-200",
+    badgeColor: "bg-teal-100 text-teal-800 border-teal-200/50",
     glowClass: "",
+    iconColor: "bg-teal-500 text-white",
     features: [
-      "Single branch management",
-      "Up to 500 product SKUs",
-      "8 AM WhatsApp Daily Summary",
-      "Real-time WhatsApp sales alerts",
-      "Core inventory logging",
-      "On-ground setup & basic support"
+      "Sales Tracking",
+      "Inventory Management",
+      "Customer Management",
+      "Daily Sales Reports",
+      "Cloud Backup",
+      "1 Staff Account"
     ],
     detailedFeatures: [
       {
         category: "Performance & Scale",
         list: [
-          "Single store location context",
-          "Up to 500 active products / SKUs",
-          "Single admin account with full dashboard access",
-          "Automated digital receipts with zero lag"
+          "Single store branch context",
+          "Up to 2,000 active products / SKUs",
+          "1 Staff Account with secure access",
+          "Digital receipts & sales logging"
         ]
       },
       {
-        category: "Intelligence & Alerts",
+        category: "Intelligence & Backup",
         list: [
-          "8 AM WhatsApp Daily Summary (yesterday's revenue, sales count, top item)",
-          "Real-time WhatsApp sales alerts (instantly notifies you when a transaction occurs)",
-          "Standard low-stock warnings (notifies you when catalog items hit low quantities)"
-        ]
-      },
-      {
-        category: "Inventory & Audit",
-        list: [
-          "Core stock level adjustment tools",
-          "Basic profit margin calculator & costing calculations",
-          "Standard transaction history search & ledger filters"
-        ]
-      },
-      {
-        category: "On-Ground Trust",
-        list: [
-          "Bulk spreadsheet/notebook import from day one",
-          "On-ground setup assistance based in Taraba State",
-          "Zero-risk 30-day full money-back guarantee"
+          "Daily Sales Reports & summaries",
+          "Cloud backup & instant device sync",
+          "Basic customer management ledger"
         ]
       }
     ]
   },
   {
-    id: "pro",
-    name: "Pro Plan",
-    badge: "⭐ Recommended",
-    description: "Advanced intelligence, multi-branch syncing, and custom debt ledger.",
-    monthlyPrice: 12000,
-    annualPrice: 120000, // 2 months free!
-    strikePrice: 25000,
+    id: "professional",
+    name: "PRO PLAN",
+    badge: "MOST POPULAR",
+    limitBadge: "UP TO 10000 PRODUCTS",
+    description: "Advanced features for growing businesses.",
+    monthlyPrice: 6500,
+    annualPrice: 65000,
+    strikePrice: 10000,
+    buttonText: "CHOOSE PRO",
     colorClass: "from-blue-500/20 to-indigo-500/10 border-blue-400 shadow-blue-500/5",
-    badgeColor: "bg-amber-100 text-amber-800 border-amber-200/50 hover:bg-amber-200",
+    badgeColor: "bg-blue-600 text-white border-blue-500",
     glowClass: "premium-glow",
+    iconColor: "bg-blue-600 text-white",
     features: [
-      "Multi-branch sync (Up to 3 stores)",
-      "Unlimited product SKUs & items",
-      "8 AM & 8 PM WhatsApp reports",
-      "Advanced COGS & net asset math",
-      "Ledger debt tracker & auto-reminders"
+      "Everything in Starter",
+      "Stock Alerts & Low Stock",
+      "Expense Tracking",
+      "Profit & Performance Reports",
+      "Customer & Debt Management",
+      "Cloud Backup",
+      "Up to 5 Staff Accounts"
     ],
     detailedFeatures: [
       {
-        category: "Advanced Multi-Branch Context",
+        category: "Capacity & Scale",
         list: [
-          "Multi-branch management (sync up to 3 distinct physical stores)",
-          "Multi-branch valuation & real-time corporate net assets breakdown",
-          "Seamless supervisor contexts (allows branch switching in 1 click)",
-          "Up to 5 manager/supervisor permissions and roles"
+          "Up to 10,000 active products / SKUs",
+          "Up to 5 Staff Accounts & roles",
+          "Expense tracking & net profit calculations"
         ]
       },
       {
-        category: "Unlimited Capacity",
+        category: "Advanced Management",
         list: [
-          "Unlimited products, categories, and inventory SKUs",
-          "Unlimited monthly sales transactions and movement logs",
-          "Custom brand logo and personalized receipt footer"
-        ]
-      },
-      {
-        category: "Advanced Reports & Intelligence",
-        list: [
-          "Dual WhatsApp Summaries (8 AM morning summary + 8 PM evening closing report)",
-          "Advanced profit margins, operational expenditure (OpEx), and net profit analysis",
-          "Custom low-stock threshold set individually per-item"
-        ]
-      },
-      {
-        category: "Debt Tracking & Reminders",
-        list: [
-          "Customer ledger with active debt/credit account tracking",
-          "One-click automated WhatsApp debt recovery link generator",
-          "Unpaid invoice aging reports and dispute clearance logs"
-        ]
-      },
-      {
-        category: "Premium On-Boarding",
-        list: [
-          "Priority Excel / physical ledger history migration team",
-          "Offline mode with browser local storage and automated cloud-sync on reconnect",
-          "Dedicated personal technical account partner with priority responses"
+          "Customer credit & debt management ledger",
+          "Stock Alerts & custom low-stock thresholds",
+          "Detailed profit & sales performance reports"
         ]
       }
     ]
   },
   {
     id: "enterprise",
-    name: "Enterprise Plan",
-    badge: "Enterprise Scale",
-    description: "Tailored solutions, custom API integrations, and SLA-backed support.",
-    monthlyPrice: 45000,
-    annualPrice: 450000, // 2 months free!
-    strikePrice: 90000,
+    name: "ENTERPRISE",
+    badge: "Enterprise",
+    limitBadge: "UP TO UNLIMITED PRODUCTS",
+    description: "Custom solutions for large businesses.",
+    monthlyPrice: 0, // CUSTOM
+    annualPrice: 0,
+    isCustom: true,
+    strikePrice: 0,
+    buttonText: "CONTACT US",
     colorClass: "from-purple-500/10 to-pink-500/5 border-purple-300",
-    badgeColor: "bg-purple-600 text-white border-purple-500 hover:bg-purple-700",
+    badgeColor: "bg-purple-600 text-white border-purple-500",
     glowClass: "enterprise-glow",
+    iconColor: "bg-purple-600 text-white",
     features: [
-      "Unlimited store locations & warehouses",
-      "Granular role access controls & audit logs",
-      "AI-Powered demand forecasting",
-      "SLA-backed 99.9% system uptime",
-      "Dedicated Success Manager (24/7)"
+      "Everything in Pro Plan",
+      "Multi-Branch Management",
+      "Advanced Analytics",
+      "Custom Integrations",
+      "Dedicated Account Manager",
+      "Priority Support",
+      "Custom Training",
+      "Custom Staff Access"
     ],
     detailedFeatures: [
       {
-        category: "Corporate Scale & Control",
+        category: "Corporate Control",
         list: [
-          "Unlimited store branches, retail outlets, and regional warehouses",
-          "Unlimited supervisor, cashier, and accountant credentials",
-          "Granular role-based access control with comprehensive system audit logs"
+          "Unlimited store locations & products",
+          "Custom staff access & permissions matrix",
+          "Multi-branch sync & central warehouse logs"
         ]
       },
       {
-        category: "Custom Integrations & APIs",
+        category: "White-Glove Service",
         list: [
-          "Custom API integrations for ERP synchronization or third-party accounting",
-          "Custom hardware integrations (barcode scanners, automatic cash drawers, scale integration)",
-          "Custom webhooks and real-time developer notification hooks"
-        ]
-      },
-      {
-        category: "AI & Smart Analytics",
-        list: [
-          "AI-Powered Demand Forecasting (predicts inventory velocity and busy cycles)",
-          "Automated smart reordering logic based on seasonal sales velocity",
-          "Custom analytic reports with tailored enterprise visualizations"
-        ]
-      },
-      {
-        category: "White-Glove Priority SLA",
-        list: [
-          "SLA-backed 99.9% uptime and zero-latency transaction guarantees",
-          "Dedicated local Client Success Manager with 24/7 phone & on-ground visits",
-          "Custom feature development & tailored training workshops for all staff",
-          "Direct hotline to NexaStoreOS engineering team with under 30-minute responses"
+          "Dedicated Account Manager",
+          "Priority 24/7 technical support & SLA",
+          "Custom API & hardware integrations",
+          "On-site or virtual custom staff training"
         ]
       }
     ]
@@ -2044,29 +2002,29 @@ function LandingPage() {
                             <div className="pc-plan">{plan.name}</div>
                             <p className="pc-desc" style={{ minHeight: '44px' }}>{plan.description}</p>
                             
-                            <div className="pc-price">
-                              <span className="pc-cur">₦</span>
-                              <span className="pc-num">{currentPrice.toLocaleString()}</span>
-                              <span className="pc-per">{displayPeriod}</span>
-                            </div>
-                            
-                            <div className="pc-strike">
-                              Was ₦{strikeOutPrice.toLocaleString()}{displayPeriod} — Save ₦{(strikeOutPrice - currentPrice).toLocaleString()}
+                            <div className="pc-price my-2">
+                              {plan.isCustom ? (
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-3xl font-extrabold text-purple-700 dark:text-purple-400">CUSTOM</span>
+                                  <span className="pc-per text-xs font-semibold text-muted-foreground">/ Contact Us</span>
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="pc-cur">₦</span>
+                                  <span className="pc-num">{currentPrice.toLocaleString()}</span>
+                                  <span className="pc-per">/ Month</span>
+                                </>
+                              )}
                             </div>
 
-                            {isAnnual ? (
-                              <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-bold text-emerald-600 animate-pulse self-start">
-                                <Gift className="w-3.5 h-3.5 shrink-0" />
-                                <span>2 MONTHS FREE SAVINGS</span>
-                              </div>
-                            ) : (
-                              <div className="mt-2.5 text-[11px] font-medium text-slate-500 flex items-center gap-1.5 self-start">
-                                <Sparkles className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                                <span>Switch to annual to save ₦{(plan.monthlyPrice * 2).toLocaleString()}!</span>
+                            {/* Product Limit Badge */}
+                            {plan.limitBadge && (
+                              <div className="my-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold tracking-wide uppercase bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 self-start">
+                                {plan.limitBadge}
                               </div>
                             )}
 
-                            <ul className="pc-list">
+                            <ul className="pc-list mt-4">
                               {plan.features.map((feat, fIdx) => (
                                 <li key={fIdx}>
                                   <span className="pc-check">✓</span>
@@ -2106,11 +2064,21 @@ function LandingPage() {
                             <motion.button 
                               className="btn btn-primary" 
                               style={{ width: '100%', padding: '15px', fontSize: '15px', marginTop: 'auto' }} 
-                              onClick={() => goto('contact')}
+                              onClick={() => {
+                                if (auth.currentUser) {
+                                  // Open payment upgrade modal
+                                  setUpgradeTier(plan.id as "starter" | "professional" | "enterprise");
+                                  setIsPaymentOpen(true);
+                                } else {
+                                  // Open onboarding/auth modal with selected tier
+                                  setSelectedTierForOnboarding(plan.id);
+                                  setShowAuthModal(true);
+                                }
+                              }}
                               whileHover={{ scale: 1.02, translateY: -2 }}
                               whileTap={{ scale: 0.98 }}
                             >
-                              Get Started with {plan.name}
+                              {plan.buttonText || `Get Started with ${plan.name}`}
                             </motion.button>
                           </div>
                         </div>
